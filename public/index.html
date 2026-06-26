@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hand Gesture Photo Transfer</title>
+</head>
+<body>
+  <h1>Hand Gesture Photo Transfer ✅</h1>
+
+  <input id="roomInput" placeholder="Enter room code" value="1234" />
+  <button id="joinBtn">Join Room</button>
+
+  <br><br>
+
+  <input id="fileInput" type="file" accept="image/*" />
+  <button id="sendBtn">Send Photo Manually</button>
+
+  <h3>Camera Preview</h3>
+  <video id="video" width="480" height="360" autoplay playsinline></video>
+
+  <h3>Gesture Status</h3>
+  <p id="gestureStatus">Waiting for hand...</p>
+
+  <h3>Received Photo</h3>
+  <img id="receivedImage" width="300" />
+
+  <p id="status"></p>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
