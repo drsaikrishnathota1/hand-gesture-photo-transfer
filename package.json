@@ -1,7 +1,7 @@
 {
   "name": "hand-gesture-photo-transfer",
-  "version": "4.2.0",
-  "description": "AirGesture Transfer Intelligence V4.1 \u2014 easy Open\u2192Close gesture copy/paste with DBA 802 analytics.",
+  "version": "5.1.0",
+  "description": "AirGesture Transfer Intelligence V5.1 \u2014 one universal room workflow: 1 Sender uploads once and any number of Receivers supported by server capacity can Air Paste.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,11 +11,12 @@
   },
   "keywords": [
     "mediapipe",
-    "webrtc",
     "gesture-recognition",
     "file-transfer",
     "decision-intelligence",
-    "analytics"
+    "analytics",
+    "multi-receiver",
+    "universal-room"
   ],
   "author": "Dr. Sai Krishna Thota",
   "license": "MIT",

@@ -10,8 +10,14 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = path.join(__dirname, 'data');
 const ANALYTICS_FILE = path.join(DATA_DIR, 'analytics.json');
 const MAX_SIGNAL_BYTES = 512 * 1024;
+const MAX_BROADCAST_FILE_BYTES = 100 * 1024 * 1024;
+// 0 means no fixed application-level receiver cap. Real capacity depends on deployed server/network resources.
+const CONFIGURED_RECEIVER_LIMIT = Math.max(0, Number.parseInt(process.env.AIRGESTURE_MAX_RECEIVERS || '0', 10) || 0);
+const BROADCAST_TTL_MS = 2 * 60 * 60 * 1000;
+const BROADCAST_DIR = path.join(DATA_DIR, 'broadcasts');
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(BROADCAST_DIR, { recursive: true });
 
 function safeReadEvents() {
   try {
@@ -39,7 +45,8 @@ function sanitizeEvent(input = {}) {
       gesture: String(input.gesture || '').slice(0, 40),
       confidence: Math.max(0, Math.min(1, Number(input.confidence) || 0)),
       role: input.role === 'receiver' ? 'receiver' : 'sender',
-      action: String(input.action || input.gesture || '').slice(0, 40)
+      action: String(input.action || input.gesture || '').slice(0, 40),
+      mode: input.mode === 'broadcast' ? 'broadcast' : 'peer'
     };
   }
   return {
@@ -53,7 +60,9 @@ function sanitizeEvent(input = {}) {
     durationSec: Math.max(0, Number(input.durationSec) || 0),
     speedMbps: Math.max(0, Number(input.speedMbps) || 0),
     acceptanceLatencySec: Math.max(0, Number(input.acceptanceLatencySec) || 0),
-    reason: input.reason ? String(input.reason).slice(0, 160) : undefined
+    reason: input.reason ? String(input.reason).slice(0, 160) : undefined,
+    mode: input.mode === 'broadcast' ? 'broadcast' : 'peer',
+    receiverCount: Math.max(0, Number(input.receiverCount) || 0)
   };
 }
 
@@ -96,6 +105,8 @@ function analyticsSummary(events) {
   const avgAcceptanceLatencySec = avg(successful, 'acceptanceLatencySec');
   const senderGestures = gestures.filter((e) => e.role === 'sender');
   const receiverGestures = gestures.filter((e) => e.role === 'receiver');
+  const broadcastTransfers = transfers.filter((e) => e.mode === 'broadcast');
+  const avgBroadcastAudience = avg(broadcastTransfers, 'receiverCount');
 
   const recommendations = [];
   if (!transfers.length) {
@@ -120,7 +131,9 @@ function analyticsSummary(events) {
       avgGestureConfidence: round(avgGestureConfidence),
       avgSenderGestureConfidence: round(avg(senderGestures, 'confidence') * 100),
       avgReceiverGestureConfidence: round(avg(receiverGestures, 'confidence') * 100),
-      gestureUseRate: round(gestureUseRate)
+      gestureUseRate: round(gestureUseRate),
+      broadcastTransfers: broadcastTransfers.length,
+      avgBroadcastAudience: round(avgBroadcastAudience)
     },
     byType: Object.entries(byType).map(([name, value]) => ({ name, ...value, mb: round(value.mb) })),
     recent,
@@ -153,11 +166,18 @@ function createDemoData() {
   return events;
 }
 
+
 function createServer() {
   const app = express();
   const server = http.createServer(app);
   const wss = new WebSocket.Server({ server, maxPayload: MAX_SIGNAL_BYTES });
+
+  // V5.1 uses one universal server-assisted room model.
+  // Legacy peer-room storage is retained only for backward data compatibility; new joins do not use it.
   const rooms = new Map();
+
+  // One Sender uploads once; any number of Receivers supported by server capacity independently Air Paste/download.
+  const broadcastRooms = new Map();
 
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -169,7 +189,14 @@ function createServer() {
   app.use(express.json({ limit: '128kb' }));
   app.use(express.static(PUBLIC_DIR, { etag: true, maxAge: 0 }));
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true, version: '4.2.0', rooms: rooms.size }));
+  app.get('/api/health', (_req, res) => res.json({
+    ok: true,
+    version: '5.1.0',
+    peerRooms: rooms.size,
+    broadcastRooms: broadcastRooms.size,
+    receiverLimit: CONFIGURED_RECEIVER_LIMIT || null
+  }));
+
   app.get('/api/analytics', (_req, res) => res.json(analyticsSummary(safeReadEvents())));
 
   app.post('/api/events', (req, res) => {
@@ -190,84 +217,477 @@ function createServer() {
     res.json({ ok: true });
   });
 
+  function isValidRoomCode(room) {
+    return /^[A-Z0-9-]{2,12}$/.test(String(room || '').trim().toUpperCase());
+  }
+
+  function sendJson(ws, payload) {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+  }
+
+  // -----------------------------
+  // Existing peer-to-peer rooms
+  // -----------------------------
   function roomPeers(room) { return rooms.get(room) || new Set(); }
-  function broadcastRoom(room, payload, except = null) {
+
+  function broadcastPeerRoom(room, payload, except = null) {
     const encoded = JSON.stringify(payload);
     for (const client of roomPeers(room)) {
       if (client !== except && client.readyState === WebSocket.OPEN) client.send(encoded);
     }
   }
+
   function roomRoles(room) {
     return [...roomPeers(room)].map((peer) => peer.role).filter(Boolean);
   }
-  function leaveRoom(ws) {
+
+  function leavePeerRoom(ws) {
     if (!ws.room || !rooms.has(ws.room)) return;
     const room = ws.room;
     const peers = rooms.get(room);
     peers.delete(ws);
     ws.room = null;
-    broadcastRoom(room, { type: 'peer-left', peers: peers.size, roles: roomRoles(room) });
+    broadcastPeerRoom(room, { type: 'peer-left', peers: peers.size, roles: roomRoles(room) });
     if (peers.size === 0) rooms.delete(room);
   }
 
+  // -----------------------------
+  // Classroom broadcast rooms
+  // -----------------------------
+  function sanitizeFilename(name) {
+    return String(name || 'broadcast-file')
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .replace(/[\\/]/g, '_')
+      .slice(0, 180) || 'broadcast-file';
+  }
+
+  function safeDecodeHeader(value) {
+    try { return decodeURIComponent(String(value || '')); }
+    catch { return String(value || ''); }
+  }
+
+  function publicBroadcastFile(file) {
+    if (!file) return null;
+    return {
+      id: file.id,
+      name: file.name,
+      size: file.size,
+      mime: file.mime,
+      sha256: file.sha256,
+      uploadedAt: file.uploadedAt,
+      expiresAt: file.expiresAt
+    };
+  }
+
+  function getBroadcastRoom(code, create = false) {
+    let room = broadcastRooms.get(code);
+    if (!room && create) {
+      room = {
+        code,
+        host: null,
+        hostToken: crypto.randomBytes(24).toString('hex'),
+        receivers: new Map(),
+        receiverStates: new Map(),
+        file: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      broadcastRooms.set(code, room);
+    }
+    return room;
+  }
+
+  function broadcastStats(room) {
+    const total = room?.receivers?.size || 0;
+    let accepted = 0;
+    let completed = 0;
+    let failed = 0;
+    for (const [clientId] of room?.receivers || []) {
+      const entry = room.receiverStates.get(clientId) || {};
+      if (entry.acceptedAt) accepted += 1;
+      if (entry.completedAt) completed += 1;
+      if (entry.failedAt) failed += 1;
+    }
+    return {
+      connected: total,
+      accepted,
+      completed,
+      failed,
+      waiting: Math.max(0, total - accepted),
+      completionRate: total ? Math.round((completed / total) * 1000) / 10 : 0
+    };
+  }
+
+  function emitBroadcastStats(room) {
+    const payload = { type: 'broadcast-stats', stats: broadcastStats(room), file: publicBroadcastFile(room.file) };
+    sendJson(room.host, payload);
+    for (const ws of room.receivers.values()) sendJson(ws, payload);
+  }
+
+  function emitBroadcastRoom(room, payload, except = null) {
+    if (room.host && room.host !== except) sendJson(room.host, payload);
+    for (const ws of room.receivers.values()) {
+      if (ws !== except) sendJson(ws, payload);
+    }
+  }
+
+  function deleteBroadcastFile(room) {
+    if (!room?.file) return;
+    const target = room.file.path;
+    room.file = null;
+    try { if (target && fs.existsSync(target)) fs.unlinkSync(target); } catch {}
+  }
+
+  function resetReceiverStatesForFile(room) {
+    for (const clientId of room.receivers.keys()) {
+      room.receiverStates.set(clientId, {});
+    }
+  }
+
+  function leaveBroadcastRoom(ws) {
+    if (!ws.room || ws.mode !== 'broadcast') return;
+    const room = broadcastRooms.get(ws.room);
+    if (!room) {
+      ws.room = null;
+      return;
+    }
+
+    if (ws.role === 'sender' && room.host === ws) {
+      room.host = null;
+      emitBroadcastRoom(room, { type: 'broadcast-host-left', room: room.code });
+    } else if (ws.role === 'receiver' && ws.clientId) {
+      room.receivers.delete(ws.clientId);
+      room.receiverStates.delete(ws.clientId);
+    }
+    room.updatedAt = Date.now();
+    ws.room = null;
+    emitBroadcastStats(room);
+  }
+
+  function leaveAnyRoom(ws) {
+    if (ws.mode === 'broadcast') leaveBroadcastRoom(ws);
+    else leavePeerRoom(ws);
+    ws.mode = null;
+    ws.role = null;
+  }
+
+  function joinBroadcast(ws, roomCode, role) {
+    const room = getBroadcastRoom(roomCode, true);
+
+    if (role === 'sender') {
+      if (room.host && room.host !== ws && room.host.readyState === WebSocket.OPEN) {
+        return sendJson(ws, { type: 'error', message: 'Broadcast room already has a Sender/Host.' });
+      }
+      room.host = ws;
+      ws.clientId = ws.clientId || crypto.randomUUID();
+    } else {
+      if (!room.receivers.has(ws.clientId) && CONFIGURED_RECEIVER_LIMIT > 0 && room.receivers.size >= CONFIGURED_RECEIVER_LIMIT) {
+        return sendJson(ws, { type: 'error', message: `Room reached the configured receiver limit (${CONFIGURED_RECEIVER_LIMIT}).` });
+      }
+      ws.clientId = ws.clientId || crypto.randomUUID();
+      room.receivers.set(ws.clientId, ws);
+      if (!room.receiverStates.has(ws.clientId)) room.receiverStates.set(ws.clientId, {});
+    }
+
+    ws.room = roomCode;
+    ws.mode = 'broadcast';
+    ws.role = role;
+    room.updatedAt = Date.now();
+
+    sendJson(ws, {
+      type: 'broadcast-joined',
+      room: roomCode,
+      role,
+      clientId: ws.clientId,
+      hostToken: role === 'sender' ? room.hostToken : undefined,
+      stats: broadcastStats(room),
+      file: publicBroadcastFile(room.file),
+      receiverLimit: CONFIGURED_RECEIVER_LIMIT || null
+    });
+
+    if (role === 'receiver' && room.file) {
+      sendJson(ws, { type: 'broadcast-file-ready', file: publicBroadcastFile(room.file), stats: broadcastStats(room) });
+    }
+
+    emitBroadcastStats(room);
+  }
+
+  // Upload once from the Host. The file is streamed to temporary server storage;
+  // receivers later download independently after Air Paste acceptance.
+  app.post('/api/broadcast/:room/upload', (req, res) => {
+    const roomCode = String(req.params.room || '').trim().toUpperCase();
+    if (!isValidRoomCode(roomCode)) return res.status(400).json({ error: 'Invalid room code' });
+
+    const room = broadcastRooms.get(roomCode);
+    const token = String(req.get('x-airgesture-host-token') || '');
+    if (!room || !room.host || token !== room.hostToken) {
+      return res.status(403).json({ error: 'Valid active broadcast host required' });
+    }
+
+    const declaredSize = Number(req.get('x-file-size'));
+    if (!Number.isFinite(declaredSize) || declaredSize < 0 || declaredSize > MAX_BROADCAST_FILE_BYTES) {
+      return res.status(413).json({ error: 'Broadcast file must be 100 MB or smaller' });
+    }
+
+    const name = sanitizeFilename(safeDecodeHeader(req.get('x-file-name')));
+    const mime = String(req.get('x-file-type') || 'application/octet-stream').slice(0, 120);
+    const fileId = crypto.randomUUID();
+    const filePath = path.join(BROADCAST_DIR, `${roomCode}-${fileId}.bin`);
+    const output = fs.createWriteStream(filePath, { flags: 'wx' });
+    const hash = crypto.createHash('sha256');
+
+    let received = 0;
+    let rejected = false;
+    let responded = false;
+
+    function cleanupFile() {
+      try { output.destroy(); } catch {}
+      try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
+    }
+
+    function fail(statusCode, message) {
+      if (responded) return;
+      responded = true;
+      rejected = true;
+      cleanupFile();
+      res.status(statusCode).json({ error: message });
+    }
+
+    output.on('error', (error) => fail(500, `Could not store broadcast file: ${error.message}`));
+
+    req.on('data', (chunk) => {
+      if (rejected) return;
+      received += chunk.length;
+      if (received > declaredSize || received > MAX_BROADCAST_FILE_BYTES) {
+        rejected = true;
+        return;
+      }
+      hash.update(chunk);
+      if (!output.write(chunk)) {
+        req.pause();
+        output.once('drain', () => req.resume());
+      }
+    });
+
+    req.on('aborted', () => fail(400, 'Upload aborted'));
+
+    req.on('end', () => {
+      if (responded) return;
+      if (rejected || received !== declaredSize) {
+        return fail(400, `Upload size mismatch: expected ${declaredSize}, received ${received}`);
+      }
+
+      output.end(() => {
+        if (responded) return;
+        responded = true;
+
+        deleteBroadcastFile(room);
+        const now = Date.now();
+        room.file = {
+          id: fileId,
+          name,
+          size: received,
+          mime,
+          sha256: hash.digest('hex'),
+          path: filePath,
+          uploadedAt: new Date(now).toISOString(),
+          expiresAt: new Date(now + BROADCAST_TTL_MS).toISOString()
+        };
+        room.updatedAt = now;
+        resetReceiverStatesForFile(room);
+
+        const payload = {
+          type: 'broadcast-file-ready',
+          file: publicBroadcastFile(room.file),
+          stats: broadcastStats(room)
+        };
+        emitBroadcastRoom(room, payload);
+        emitBroadcastStats(room);
+
+        res.status(201).json({
+          ok: true,
+          file: publicBroadcastFile(room.file),
+          stats: broadcastStats(room)
+        });
+      });
+    });
+  });
+
+  app.get('/api/broadcast/:room/files/:fileId', (req, res) => {
+    const roomCode = String(req.params.room || '').trim().toUpperCase();
+    const fileId = String(req.params.fileId || '');
+    const room = broadcastRooms.get(roomCode);
+    const file = room?.file;
+
+    if (!room || !file || file.id !== fileId || !fs.existsSync(file.path)) {
+      return res.status(404).json({ error: 'Broadcast file is no longer available' });
+    }
+
+    res.setHeader('Content-Type', file.mime || 'application/octet-stream');
+    res.setHeader('Content-Length', String(file.size));
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-AirGesture-SHA256', file.sha256);
+    const asciiName = file.name.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`);
+
+    const stream = fs.createReadStream(file.path);
+    stream.on('error', () => {
+      if (!res.headersSent) res.status(500).json({ error: 'Could not read broadcast file' });
+      else res.destroy();
+    });
+    stream.pipe(res);
+  });
+
+  app.get('/api/broadcast/:room/status', (req, res) => {
+    const roomCode = String(req.params.room || '').trim().toUpperCase();
+    const room = broadcastRooms.get(roomCode);
+    if (!room) return res.status(404).json({ error: 'Broadcast room not found' });
+    res.json({
+      room: roomCode,
+      hostConnected: Boolean(room.host && room.host.readyState === WebSocket.OPEN),
+      file: publicBroadcastFile(room.file),
+      stats: broadcastStats(room),
+      receiverLimit: CONFIGURED_RECEIVER_LIMIT || null
+    });
+  });
+
   wss.on('connection', (ws) => {
     ws.isAlive = true;
+    ws.clientId = crypto.randomUUID();
     ws.on('pong', () => { ws.isAlive = true; });
 
     ws.on('message', (raw) => {
       let data;
-      try { data = JSON.parse(raw.toString()); } catch { return ws.send(JSON.stringify({ type: 'error', message: 'Invalid signaling message' })); }
-
-      if (data.type === 'join') {
-        leaveRoom(ws);
-        const room = String(data.room || '').trim().toUpperCase().slice(0, 12);
-        const role = data.role === 'receiver' ? 'receiver' : 'sender';
-        if (!/^[A-Z0-9-]{2,12}$/.test(room)) return ws.send(JSON.stringify({ type: 'error', message: 'Valid room code required' }));
-        const peers = roomPeers(room);
-        if (peers.size >= 2) return ws.send(JSON.stringify({ type: 'error', message: 'Room already has two peers' }));
-        if ([...peers].some((peer) => peer.role === role)) return ws.send(JSON.stringify({ type: 'error', message: `Room already has a ${role}. Choose the opposite role.` }));
-
-        ws.room = room;
-        ws.role = role;
-        if (!rooms.has(room)) rooms.set(room, new Set());
-        rooms.get(room).add(ws);
-        const count = rooms.get(room).size;
-        ws.send(JSON.stringify({ type: 'joined', room, peers: count, role, roles: roomRoles(room) }));
-        broadcastRoom(room, { type: 'peer-ready', peers: count, roles: roomRoles(room) });
-        return;
+      try {
+        data = JSON.parse(raw.toString());
+      } catch {
+        return sendJson(ws, { type: 'error', message: 'Invalid signaling message' });
       }
 
-      if (['offer', 'answer', 'ice'].includes(data.type) && ws.room) {
+      if (data.type === 'join') {
+        leaveAnyRoom(ws);
+        const room = String(data.room || '').trim().toUpperCase().slice(0, 12);
+        const role = data.role === 'receiver' ? 'receiver' : 'sender';
+
+        if (!isValidRoomCode(room)) return sendJson(ws, { type: 'error', message: 'Valid room code required' });
+
+        // Universal workflow: every room is one Sender + N Receivers.
+        return joinBroadcast(ws, room, role);
+      }
+
+      if (ws.mode === 'peer' && ['offer', 'answer', 'ice'].includes(data.type) && ws.room) {
         if (data.type === 'offer' && ws.role !== 'sender') return;
         if (data.type === 'answer' && ws.role !== 'receiver') return;
-        broadcastRoom(ws.room, data, ws);
+        return broadcastPeerRoom(ws.room, data, ws);
+      }
+
+      if (ws.mode === 'broadcast' && ws.room) {
+        const room = broadcastRooms.get(ws.room);
+        if (!room) return;
+
+        if (data.type === 'broadcast-accept' && ws.role === 'receiver') {
+          if (!room.file || data.fileId !== room.file.id) {
+            return sendJson(ws, { type: 'error', message: 'Broadcast file is no longer current.' });
+          }
+          const item = room.receiverStates.get(ws.clientId) || {};
+          item.acceptedAt = item.acceptedAt || Date.now();
+          item.failedAt = null;
+          room.receiverStates.set(ws.clientId, item);
+          room.updatedAt = Date.now();
+          sendJson(ws, { type: 'broadcast-accept-confirmed', file: publicBroadcastFile(room.file) });
+          emitBroadcastStats(room);
+          return;
+        }
+
+        if (data.type === 'broadcast-complete' && ws.role === 'receiver') {
+          if (!room.file || data.fileId !== room.file.id) return;
+          const item = room.receiverStates.get(ws.clientId) || {};
+          item.acceptedAt = item.acceptedAt || Date.now();
+          item.completedAt = Date.now();
+          item.failedAt = null;
+          room.receiverStates.set(ws.clientId, item);
+          room.updatedAt = Date.now();
+          emitBroadcastStats(room);
+          return;
+        }
+
+        if (data.type === 'broadcast-failed' && ws.role === 'receiver') {
+          if (!room.file || data.fileId !== room.file.id) return;
+          const item = room.receiverStates.get(ws.clientId) || {};
+          item.failedAt = Date.now();
+          item.failureReason = String(data.reason || 'download failed').slice(0, 160);
+          room.receiverStates.set(ws.clientId, item);
+          room.updatedAt = Date.now();
+          emitBroadcastStats(room);
+          return;
+        }
+
+        if (data.type === 'broadcast-cancel' && ws.role === 'sender' && room.host === ws) {
+          deleteBroadcastFile(room);
+          resetReceiverStatesForFile(room);
+          room.updatedAt = Date.now();
+          emitBroadcastRoom(room, { type: 'broadcast-file-cleared' });
+          emitBroadcastStats(room);
+        }
       }
     });
 
-    ws.on('close', () => leaveRoom(ws));
-    ws.on('error', () => leaveRoom(ws));
+    ws.on('close', () => leaveAnyRoom(ws));
+    ws.on('error', () => leaveAnyRoom(ws));
   });
 
   const heartbeat = setInterval(() => {
     for (const ws of wss.clients) {
-      if (ws.isAlive === false) { ws.terminate(); continue; }
+      if (ws.isAlive === false) {
+        ws.terminate();
+        continue;
+      }
       ws.isAlive = false;
       try { ws.ping(); } catch {}
     }
   }, 30000);
   heartbeat.unref?.();
 
-  server.on('close', () => clearInterval(heartbeat));
-  return { app, server, wss, rooms };
+  const cleanup = setInterval(() => {
+    const now = Date.now();
+    for (const [code, room] of broadcastRooms) {
+      if (room.file && Date.parse(room.file.expiresAt) <= now) {
+        deleteBroadcastFile(room);
+        emitBroadcastRoom(room, { type: 'broadcast-file-cleared', reason: 'expired' });
+        emitBroadcastStats(room);
+      }
+      const hostActive = Boolean(room.host && room.host.readyState === WebSocket.OPEN);
+      if (!hostActive && room.receivers.size === 0 && now - room.updatedAt > 10 * 60 * 1000) {
+        deleteBroadcastFile(room);
+        broadcastRooms.delete(code);
+      }
+    }
+  }, 5 * 60 * 1000);
+  cleanup.unref?.();
+
+  server.on('close', () => {
+    clearInterval(heartbeat);
+    clearInterval(cleanup);
+    for (const room of broadcastRooms.values()) deleteBroadcastFile(room);
+  });
+
+  return { app, server, wss, rooms, broadcastRooms };
 }
 
 if (require.main === module) {
   const { server } = createServer();
   server.listen(PORT, '0.0.0.0', () => {
-    console.log('\nAirGesture Transfer Intelligence v4.2');
+    console.log('\nAirGesture Transfer Intelligence v5.1');
     console.log(`Local:   http://localhost:${PORT}`);
-    console.log('Network: use this Mac\'s LAN IP with the same port for a receiver on the same Wi-Fi.\n');
+    console.log('Mode:    Universal Room (1 Sender → N Receivers; no fixed app cap)');
+    console.log('Network: use HTTPS for camera access from multiple physical devices.\n');
   });
 }
 
-module.exports = { createServer, analyticsSummary, sanitizeEvent };
+module.exports = {
+  createServer,
+  analyticsSummary,
+  sanitizeEvent,
+  CONFIGURED_RECEIVER_LIMIT,
+  MAX_BROADCAST_FILE_BYTES
+};

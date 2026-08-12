@@ -34,49 +34,53 @@ test('both roles may start Vision AI and AI failure preserves manual controls', 
   assert.match(app, /Manual Air Copy\/Air Paste controls remain available/);
 });
 
-test('V4 uses only Open Palm and Closed Fist for the action sequence', () => {
+test('V5 keeps ultra-easy Open Palm then Closed Fist for both roles', () => {
   assert.match(app, /Open_Palm/);
   assert.match(app, /Closed_Fist/);
   assert.doesNotMatch(app, /Victory ✌️/);
-  assert.match(html, /Sender: ✋ → ✊ Air Copy/);
-  assert.match(html, /Receiver: ✋ → ✊ Air Paste/);
-});
-
-test('two-party transfer protocol requires request and receiver acceptance before payload', () => {
-  for (const phrase of ["type: \"transfer-request\"", "type: \"transfer-accept\"", "type: \"meta\"", "type: \"ack\"", "type: \"nack\"", 'senderWaitingAcceptance']) {
-    assert.ok(app.includes(phrase), `missing ${phrase}`);
-  }
-  const request = app.indexOf('function prepareAirCopy');
-  const payload = app.indexOf('async function sendFilePayload');
-  assert.ok(request >= 0 && payload >= 0);
-});
-
-test('manual fallback has role-specific Air Copy and Air Paste controls', () => {
-  assert.match(html, /id="copyBtn"/);
-  assert.match(html, /id="pasteBtn"/);
-  assert.match(app, /prepareAirCopy\("manual"\)/);
-  assert.match(app, /acceptAirPaste\("manual"\)/);
-});
-
-test('server enforces one sender and one receiver per room', () => {
-  assert.match(server, /Room already has a \$\{role\}/);
-  assert.match(server, /Choose the opposite role/);
-});
-
-test('server exposes V4 health endpoint and records copy/paste analytics fields', () => {
-  assert.match(server, /version: '4\.2\.0'/);
-  assert.match(server, /acceptanceLatencySec/);
-  assert.match(server, /avgSenderGestureConfidence/);
-  assert.match(server, /avgReceiverGestureConfidence/);
-});
-
-
-test('V4.2 ultra-easy gesture mode fires on one accepted open then one accepted close', () => {
-  assert.doesNotMatch(app, /GESTURE_CONFIRM_FRAMES/);
-  assert.match(app, /GESTURE_SEQUENCE_TIMEOUT_MS = 12000/);
-  assert.doesNotMatch(app, /GESTURE_HOLD_MS/);
-  assert.match(app, /single accepted Open Palm frame/i);
-  assert.match(app, /supported \? 100/);
-  assert.match(app, /resolveSimpleGesture/);
+  assert.match(html, /✋ → ✊ Air Copy/);
+  assert.match(html, /✋ → ✊ Air Paste/);
   assert.match(html, /Instant sensing/);
+});
+
+test('V5.1 UI exposes one universal room workflow with no transfer-mode selector', () => {
+  assert.doesNotMatch(html, /class="mode-switch"/);
+  assert.doesNotMatch(html, /data-mode="peer"/);
+  assert.doesNotMatch(html, /1 → 200/);
+  assert.doesNotMatch(html, /Peer-to-Peer/);
+  assert.match(html, /Universal Room/);
+  assert.match(html, /no fixed application participant cap/i);
+  assert.match(app, /function connectBroadcastRoom/);
+  assert.match(app, /return connectBroadcastRoom\(\)/);
+});
+
+test('broadcast upload is one server upload and receiver download is independent', () => {
+  assert.match(app, /\/api\/broadcast\/\$\{encodeURIComponent\(state\.room\)\}\/upload/);
+  assert.match(app, /\/api\/broadcast\/\$\{encodeURIComponent\(state\.room\)\}\/files\/\$\{encodeURIComponent\(request\.fileId\)\}/);
+  assert.match(app, /broadcast-accept/);
+  assert.match(app, /broadcast-complete/);
+  assert.match(app, /SHA-256/);
+});
+
+test('server supports one host and no fixed application receiver cap by default', () => {
+  assert.doesNotMatch(server, /MAX_BROADCAST_RECEIVERS = 200/);
+  assert.match(server, /AIRGESTURE_MAX_RECEIVERS/);
+  assert.match(server, /CONFIGURED_RECEIVER_LIMIT > 0/);
+  assert.match(server, /Broadcast room already has a Sender\/Host/);
+});
+
+test('V5 broadcast files are temporary, size-limited and SHA-256 hashed', () => {
+  assert.match(server, /MAX_BROADCAST_FILE_BYTES = 100 \* 1024 \* 1024/);
+  assert.match(server, /BROADCAST_TTL_MS = 2 \* 60 \* 60 \* 1000/);
+  assert.match(server, /createHash\('sha256'\)/);
+  assert.match(server, /deleteBroadcastFile/);
+});
+
+test('server exposes V5.1 health endpoint and universal-room live KPIs', () => {
+  assert.match(server, /version: '5\.1\.0'/);
+  assert.match(server, /receiverLimit/);
+  assert.match(server, /completionRate/);
+  for (const id of ['broadcastConnected','broadcastAccepted','broadcastCompleted','broadcastWaiting','broadcastFailed','broadcastCompletion']) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
 });

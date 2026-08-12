@@ -1,43 +1,15 @@
-# AirGesture Transfer Intelligence V4
+# AirGesture Transfer Intelligence V5.1 — Universal Room
 
-A two-party gesture-controlled peer-to-peer file transfer and decision-intelligence laboratory for **DBA 802 — Data Analytics and Strategic Decision Intelligence**.
+AirGesture V5.1 removes the separate **Peer-to-Peer** and **Classroom Broadcast** choices. The application now has one simple workflow:
 
-## Core interaction
+- **One Sender** creates or joins a room code.
+- **Any number of Receivers supported by the deployed server/network** join the same code.
+- Sender selects a file and performs **✋ Open Hand → ✊ Closed Fist** to **Air Send**.
+- The Sender uploads the file once to temporary server storage.
+- Each Receiver performs the same **✋ → ✊** gesture to **Air Paste** and download independently.
+- Live metrics show connected, accepted, completed, waiting, failed, and completion percentage.
 
-The same gesture sequence is used on both devices:
-
-- **Sender:** ✋ Open Hand → ✊ Closed Fist = **Air Copy / Ready to Send**
-- **Receiver:** ✋ Open Hand → ✊ Closed Fist = **Air Paste / Accept & Receive**
-
-The Sender gesture does **not** immediately send the file. It creates a transfer request containing only metadata. The file payload begins only after the Receiver performs the same gesture and accepts the request.
-
-## Transfer flow
-
-1. Sender and Receiver join the same secure room.
-2. Both start Vision AI.
-3. Sender chooses a file and performs ✋ → ✊.
-4. Receiver sees the incoming file request and performs ✋ → ✊.
-5. WebRTC DataChannel transfers the binary file peer-to-peer.
-6. Receiver reconstructs the file, verifies the exact byte count, and sends an ACK.
-7. Analytics record transfer performance and gesture evidence.
-
-Manual **Air Copy**, **Air Paste**, and **Cancel** controls remain available when camera/AI is unavailable.
-
-## DBA 802 alignment
-
-**Data** → file size, duration, throughput, Sender/Receiver gesture confidence, acceptance latency, success/failure  
-**Insight** → reliability, usability, friction, performance, adoption  
-**Decision** → pilot, improve, scale, or reject
-
-The Executive Analytics view includes KPIs, trend charts, evidence history, and rule-based management recommendations.
-
-## Technology
-
-- Node.js + Express
-- WebSocket room/signaling server
-- WebRTC DataChannel for binary transfer
-- MediaPipe Gesture Recognizer in each browser
-- Chart.js executive analytics
+There is **no hard-coded 200-receiver application cap**. Practical capacity is determined by the server, network, reverse proxy, operating-system connection limits, and deployment architecture. An administrator can optionally set `AIRGESTURE_MAX_RECEIVERS` to impose a room limit.
 
 ## Quick start
 
@@ -49,21 +21,48 @@ npm start
 
 Open `http://localhost:3000`.
 
-### Two tabs on one laptop
+## Same-laptop test
 
-Use one tab as Sender and the other as Receiver. Join the same room code. Both tabs can start Vision AI.
+Open three or more tabs. Use the same room code in every tab. Set one tab to **Sender** and all other tabs to **Receiver**. No transfer-mode selection is required.
 
-### Two laptops
+## Universal transfer flow
 
-For both laptops to use cameras reliably, serve the application through **HTTPS**. A plain LAN URL such as `http://192.168.x.x:3000` may be blocked from camera access by browser secure-context rules.
+1. Sender and Receivers join the same room code.
+2. Sender chooses a file (100 MB classroom safety limit).
+3. Sender performs ✋ → ✊ or uses the manual send button.
+4. The file is uploaded once and announced to all connected Receivers.
+5. Each Receiver performs ✋ → ✊ or uses Air Paste.
+6. The Receiver downloads and verifies the exact byte count plus SHA-256 header.
+7. Sender analytics update as Receivers accept and complete.
 
-WebRTC uses STUN for peer discovery. Restrictive enterprise networks may require TURN for production-grade connectivity.
+## Capacity
 
-## Gesture safeguards
+By default V5.1 does not enforce a fixed Receiver count:
 
-- Open Hand must be held stably before the sequence advances.
-- Closed Fist must follow within about 2.6 seconds.
-- A completed sequence fires only once.
-- Sender cannot transmit until Receiver acceptance is confirmed.
-- Receiver can cancel/decline before or during a transfer.
-- Files are byte-count verified before success is recorded.
+```text
+1 Sender → N Receivers
+```
+
+This does not mean a single Node.js process is infinitely scalable. Production capacity must be load-tested. For large deployments, use HTTPS, a reverse proxy/load balancer, shared object storage, and an appropriate WebSocket scaling strategy.
+
+Optional application-level cap:
+
+```bash
+AIRGESTURE_MAX_RECEIVERS=500 npm start
+```
+
+Leaving the variable unset means no fixed application cap.
+
+## Security / deployment notes
+
+- Camera access on physical devices should be served over HTTPS.
+- Broadcast files are temporary and expire automatically.
+- One active Sender/Host is allowed per room.
+- Room codes should be treated as convenience identifiers, not strong authentication for an Internet-facing production deployment.
+- Files remain limited to 100 MB in this classroom build.
+
+## DBA 802 decision-intelligence alignment
+
+**Data** → connected Receivers, acceptance, completion, failure, file size, duration, throughput, gesture evidence  
+**Insight** → adoption, reliability, friction, performance, scale behavior  
+**Decision** → pilot, improve, scale, or reject

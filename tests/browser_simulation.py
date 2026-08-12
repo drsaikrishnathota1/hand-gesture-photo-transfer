@@ -143,7 +143,70 @@ with sync_playwright() as p:
     assert truncated == {'nack':True,'receivedCount':'0','state':'FAILED'}
     page3.close()
 
-    # 9. Camera permission denial is explained for either role; manual protocol remains independent.
+
+    # 9. Broadcast Sender uploads exactly once and receives live classroom stats.
+    page_b1 = browser.new_page(); bootstrap(page_b1)
+    broadcast_sender = page_b1.evaluate("""async () => {
+      setMode('broadcast');
+      setRole('sender');
+      state.room='DBA802';
+      state.ws={readyState:1, send() {}, close() {}};
+      state.broadcastHostToken='host-token';
+      class FakeXHR {
+        constructor(){ this.upload={}; this.responseType=''; this.status=0; this.response=null; }
+        open(){}
+        setRequestHeader(){}
+        send(file){
+          this.upload.onprogress?.({lengthComputable:true,loaded:file.size,total:file.size});
+          this.status=201;
+          this.response={file:{id:'broadcast-1',name:file.name,size:file.size,mime:file.type},
+            stats:{connected:350,accepted:0,completed:0,failed:0,waiting:350,completionRate:0}};
+          setTimeout(()=>this.onload?.(),0);
+        }
+        abort(){ this.onabort?.(); }
+      }
+      window.XMLHttpRequest=FakeXHR;
+      selectFile(new File([new Uint8Array(2048)], 'class-case.pdf', {type:'application/pdf'}));
+      await prepareBroadcastAirCopy('gesture');
+      return {
+        mode: state.mode,
+        fileId: state.broadcastFileId,
+        connected: document.getElementById('broadcastConnected').textContent,
+        waiting: document.getElementById('broadcastWaiting').textContent,
+        finalState: document.getElementById('transferState').textContent
+      };
+    }""")
+    assert broadcast_sender == {'mode':'broadcast','fileId':'broadcast-1','connected':'350','waiting':'350','finalState':'WAITING RECEIVERS'}
+    page_b1.close()
+
+    # 10. Broadcast Receiver Air Pastes independently and reports completion.
+    page_b2 = browser.new_page(); bootstrap(page_b2)
+    broadcast_receiver = page_b2.evaluate("""async () => {
+      setMode('broadcast');
+      setRole('receiver');
+      const sent=[];
+      state.room='DBA802';
+      state.ws={readyState:1, send(x){sent.push(JSON.parse(x))}, close(){}};
+      renderBroadcastStats({connected:350,accepted:50,completed:45,failed:1,waiting:150,completionRate:22.5});
+      applyBroadcastFile({id:'broadcast-1',name:'case.bin',size:6,mime:'application/octet-stream',sha256:''});
+      window.fetch=async (url,opts={}) => {
+        if (String(url).includes('/api/broadcast/') && String(url).includes('/files/')) {
+          return new Response(new Uint8Array([1,2,3,4,5,6]), {status:200,headers:{'content-length':'6','content-type':'application/octet-stream'}});
+        }
+        return new Response(JSON.stringify({ok:true}), {status:201,headers:{'content-type':'application/json'}});
+      };
+      await acceptBroadcastAirPaste('gesture');
+      return {
+        accepted: sent.some(x=>x.type==='broadcast-accept'),
+        completed: sent.some(x=>x.type==='broadcast-complete'),
+        receivedCount: document.getElementById('receivedCount').textContent,
+        finalState: document.getElementById('transferState').textContent
+      };
+    }""")
+    assert broadcast_receiver == {'accepted':True,'completed':True,'receivedCount':'1','finalState':'RECEIVED'}
+    page_b2.close()
+
+    # 11. Camera permission denial is explained for either role; manual protocol remains independent.
     page4 = browser.new_page()
     page4.set_content(html, wait_until='domcontentloaded')
     page4.evaluate("""(analytics) => {
@@ -165,6 +228,8 @@ with sync_playwright() as p:
       'sender_waits_for_acceptance': sender_proto,
       'receiver_accepts_then_receives': receiver_proto,
       'truncated_payload_rejected': truncated,
+      'universal_sender_350_stats': broadcast_sender,
+      'broadcast_receiver_air_paste': broadcast_receiver,
       'camera_permission_denial_handled': True,
       'page_errors': errors,
     })
