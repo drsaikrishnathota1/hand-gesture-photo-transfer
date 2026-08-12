@@ -4,3 +4,5 @@ node_modules/
 npm-debug.log*
 data/analytics.json
 data/*.tmp
+
+data/broadcasts/

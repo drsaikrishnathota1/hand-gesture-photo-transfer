@@ -7,6 +7,10 @@
     return role === 'receiver' ? 'receiver' : 'sender';
   }
 
+  function normalizeMode() {
+    return 'universal';
+  }
+
   function isValidRoom(room) {
     return /^[A-Z0-9-]{2,12}$/.test(String(room || '').trim().toUpperCase());
   }
@@ -130,9 +134,27 @@
     return { name: 'None', score: modelScore, source: 'none' };
   }
 
+  function summarizeBroadcast(receiverStates = []) {
+    const rows = Array.isArray(receiverStates) ? receiverStates : [];
+    const connected = rows.length;
+    const accepted = rows.filter((x) => Boolean(x?.acceptedAt)).length;
+    const completed = rows.filter((x) => Boolean(x?.completedAt)).length;
+    const failed = rows.filter((x) => Boolean(x?.failedAt)).length;
+    return {
+      connected,
+      accepted,
+      completed,
+      failed,
+      waiting: Math.max(0, connected - accepted),
+      completionRate: connected ? Math.round((completed / connected) * 1000) / 10 : 0
+    };
+  }
+
   return {
     normalizeRole,
+    normalizeMode,
     isValidRoom,
+    summarizeBroadcast,
     canAirCopy,
     canAirPaste,
     transitionAirGesture,

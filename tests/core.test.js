@@ -75,3 +75,26 @@ test('ultra-easy mode accepts clear model labels even at low raw confidence', ()
   assert.ok(open.score >= 0.60);
   assert.ok(close.score >= 0.60);
 });
+
+test('transfer mode normalization uses the single universal workflow', () => {
+  assert.equal(core.normalizeMode('peer'), 'universal');
+  assert.equal(core.normalizeMode('broadcast'), 'universal');
+  assert.equal(core.normalizeMode('anything-else'), 'universal');
+});
+
+test('broadcast KPI summary calculates connected, accepted, completed, failed and waiting', () => {
+  const summary = core.summarizeBroadcast([
+    { acceptedAt: 1, completedAt: 2 },
+    { acceptedAt: 1 },
+    { failedAt: 3 },
+    {}
+  ]);
+  assert.deepEqual(summary, {
+    connected: 4,
+    accepted: 2,
+    completed: 1,
+    failed: 1,
+    waiting: 2,
+    completionRate: 25
+  });
+});

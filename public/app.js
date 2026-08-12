@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const state = {
+  mode: "broadcast",
   role: "sender",
   ws: null,
   room: "",
@@ -39,6 +40,17 @@ const state = {
   acceptedTransferId: null,
   received: null,
   receivedFiles: 0,
+
+  // Universal Room (1 Sender -> N Receivers; no fixed application cap)
+  broadcastHostToken: "",
+  broadcastClientId: "",
+  broadcastFileId: "",
+  broadcastUploadInProgress: false,
+  broadcastDownloadInProgress: false,
+  broadcastXHR: null,
+  broadcastAbortController: null,
+  broadcastStats: { connected: 0, accepted: 0, completed: 0, failed: 0, waiting: 0, completionRate: 0 },
+
   charts: { trend: null, type: null }
 };
 
@@ -104,12 +116,23 @@ function setTransferState(value) {
 
 function updateActionButtons() {
   const isSender = state.role === "sender";
-  const channelReady = Boolean(state.channel && state.channel.readyState === "open");
-  const senderBusy = state.sending || state.senderWaitingAcceptance || state.awaitingAck;
-  const receiverBusy = Boolean(state.acceptedTransferId || state.received);
 
   $("copyBtn").style.display = isSender ? "block" : "none";
   $("pasteBtn").style.display = isSender ? "none" : "block";
+
+  if (state.mode === "broadcast") {
+    const roomReady = Boolean(state.ws && state.ws.readyState === WebSocket.OPEN && state.room);
+    $("copyBtn").disabled = !isSender || !state.selectedFile || !roomReady || !state.broadcastHostToken || state.broadcastUploadInProgress;
+    $("pasteBtn").disabled = isSender || !state.pendingRequest || !roomReady || state.broadcastDownloadInProgress;
+    $("cancelBtn").disabled = isSender
+      ? !(state.broadcastFileId || state.broadcastUploadInProgress)
+      : !(state.pendingRequest || state.broadcastDownloadInProgress);
+    return;
+  }
+
+  const channelReady = Boolean(state.channel && state.channel.readyState === "open");
+  const senderBusy = state.sending || state.senderWaitingAcceptance || state.awaitingAck;
+  const receiverBusy = Boolean(state.acceptedTransferId || state.received);
   $("copyBtn").disabled = !isSender || !state.selectedFile || !channelReady || senderBusy;
   $("pasteBtn").disabled = isSender || !state.pendingRequest || !channelReady || receiverBusy;
   $("cancelBtn").disabled = isSender
@@ -124,6 +147,8 @@ function resetGestureSequence() {
 }
 
 function renderRoleFilePanel() {
+  const broadcast = state.mode === "broadcast";
+
   if (state.role === "sender") {
     $("dropZone").style.opacity = "1";
     $("dropZone").style.pointerEvents = "auto";
@@ -131,8 +156,10 @@ function renderRoleFilePanel() {
       $("fileTitle").textContent = state.selectedFile.name;
       $("fileMeta").textContent = `${formatBytes(state.selectedFile.size)} · ${state.selectedFile.type || "unknown type"}`;
     } else {
-      $("fileTitle").textContent = "Choose a file to Air Copy";
-      $("fileMeta").textContent = "Click or drag & drop · up to 100 MB";
+      $("fileTitle").textContent = broadcast ? "Choose a file to Air Send" : "Choose a file to Air Copy";
+      $("fileMeta").textContent = broadcast
+        ? "Upload once · up to 100 MB · distribute to all receivers in the room"
+        : "Click or drag & drop · up to 100 MB";
     }
   } else {
     $("dropZone").style.opacity = ".75";
@@ -141,10 +168,59 @@ function renderRoleFilePanel() {
       $("fileTitle").textContent = `Incoming: ${state.pendingRequest.name}`;
       $("fileMeta").textContent = `${formatBytes(state.pendingRequest.size)} · show ✋ → ✊ to Air Paste`;
     } else {
-      $("fileTitle").textContent = "Waiting for an incoming Air Copy";
-      $("fileMeta").textContent = "Connect to the Sender room, then start Vision AI";
+      $("fileTitle").textContent = broadcast ? "Waiting for the universal room file" : "Waiting for an incoming Air Copy";
+      $("fileMeta").textContent = broadcast
+        ? "Join the Sender's universal room and wait for the file"
+        : "Connect to the Sender room, then start Vision AI";
     }
   }
+}
+
+
+function renderBroadcastStats(stats = {}) {
+  state.broadcastStats = {
+    connected: Number(stats.connected) || 0,
+    accepted: Number(stats.accepted) || 0,
+    completed: Number(stats.completed) || 0,
+    failed: Number(stats.failed) || 0,
+    waiting: Number(stats.waiting) || 0,
+    completionRate: Number(stats.completionRate) || 0
+  };
+
+  $("broadcastConnected").textContent = String(state.broadcastStats.connected);
+  $("broadcastAccepted").textContent = String(state.broadcastStats.accepted);
+  $("broadcastCompleted").textContent = String(state.broadcastStats.completed);
+  $("broadcastWaiting").textContent = String(state.broadcastStats.waiting);
+  $("broadcastFailed").textContent = String(state.broadcastStats.failed);
+  $("broadcastCompletion").textContent = `${state.broadcastStats.completionRate.toFixed(1)}%`;
+}
+
+function resetBroadcastState({ keepStats = false } = {}) {
+  state.broadcastHostToken = "";
+  state.broadcastClientId = "";
+  state.broadcastFileId = "";
+  state.broadcastUploadInProgress = false;
+  state.broadcastDownloadInProgress = false;
+  state.broadcastXHR = null;
+  state.broadcastAbortController = null;
+  if (!keepStats) renderBroadcastStats({});
+}
+
+function setMode() {
+  // V5.1 uses one universal distribution workflow only.
+  // Internally the proven server-assisted broadcast transport remains the implementation.
+  state.mode = "broadcast";
+  $("connectionTitle").textContent = "Universal Room";
+  $("connectionKicker").textContent = "02 · UNIVERSAL CONNECTION";
+  $("broadcastStatsPanel").hidden = false;
+  $("modeHint").textContent = "1 Sender uploads once · Receivers join the same room code · no fixed application participant cap.";
+
+  resetGestureSequence();
+  renderRoleFilePanel();
+  updateActionButtons();
+  status(state.role === "sender"
+    ? "Sender ready. Join a universal room, choose a file, then show ✋ → ✊ to Air Send it to every connected Receiver."
+    : "Receiver ready. Join the Sender's universal room, start Vision AI, and wait for the incoming file.");
 }
 
 function setRole(role) {
@@ -154,8 +230,13 @@ function setRole(role) {
   document.querySelectorAll(".role-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.role === role));
 
   if (changed && state.ws?.readyState === WebSocket.OPEN) {
-    state.ws.close();
+    try { state.ws.close(); } catch {}
+    state.ws = null;
     closePeerConnection();
+    resetBroadcastState();
+    state.pendingRequest = null;
+    state.acceptedTransferId = null;
+    state.received = null;
     setBadge($("peerBadge"), "Disconnected", "neutral");
   }
 
@@ -164,9 +245,15 @@ function setRole(role) {
   $("startCameraBtn").disabled = state.cameraRunning || state.aiLoading;
   $("stopCameraBtn").disabled = !state.cameraRunning;
 
-  status(role === "sender"
-    ? "Sender ready. Choose a file, connect the Receiver, then show ✋ Open Hand → ✊ Closed Fist to Air Copy."
-    : "Receiver ready. Connect to the same room, start Vision AI, then use ✋ Open Hand → ✊ Closed Fist when an incoming file appears.");
+  if (state.mode === "broadcast") {
+    status(role === "sender"
+      ? "Sender ready. Join the universal room, choose a file, then show ✋ → ✊ to Air Send."
+      : "Receiver ready. Join the universal room, start Vision AI, and wait for the Sender file.");
+  } else {
+    status(role === "sender"
+      ? "Sender ready. Choose a file, connect the Receiver, then show ✋ Open Hand → ✊ Closed Fist to Air Copy."
+      : "Receiver ready. Connect to the same room, start Vision AI, then use ✋ Open Hand → ✊ Closed Fist when an incoming file appears.");
+  }
   updateActionButtons();
 }
 
@@ -184,7 +271,9 @@ function selectFile(file) {
   setTransferState("file selected");
   setProgress(0);
   updateActionButtons();
-  status(`File selected: ${file.name}. Show ✋ Open Hand → ✊ Closed Fist to Air Copy, or use the manual Air Copy button.`);
+  status(state.mode === "broadcast"
+    ? `File selected: ${file.name}. Show ✋ → ✊ to upload it once for all connected receivers, or use Air Copy.`
+    : `File selected: ${file.name}. Show ✋ Open Hand → ✊ Closed Fist to Air Copy, or use the manual Air Copy button.`);
 }
 
 async function logEvent(payload) {
@@ -203,7 +292,137 @@ function webSocketURL() {
   return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
 }
 
+
 function connectRoom() {
+  return connectBroadcastRoom();
+}
+
+function applyBroadcastFile(file) {
+  if (!file) {
+    state.broadcastFileId = "";
+    state.pendingRequest = null;
+    renderRoleFilePanel();
+    return;
+  }
+
+  state.broadcastFileId = file.id || "";
+  if (state.role === "receiver") {
+    state.pendingRequest = {
+      transferId: file.id,
+      fileId: file.id,
+      name: String(file.name || "broadcast-file").slice(0, 180),
+      size: Number(file.size) || 0,
+      mime: file.mime || "application/octet-stream",
+      sha256: file.sha256 || "",
+      requestedAt: performance.now()
+    };
+    renderRoleFilePanel();
+    setTransferState("incoming broadcast");
+    setProgress(0);
+    status(`Universal room file ready: ${state.pendingRequest.name}. Show ✋ → ✊ to Air Paste and receive it.`);
+    toast("File ready — use ✋ → ✊ to receive");
+  }
+}
+
+function connectBroadcastRoom() {
+  const room = $("roomInput").value.trim().toUpperCase();
+  if (!room) return toast("Enter or generate a room code first.");
+  if (!window.AirGestureCore?.isValidRoom(room)) return toast("Room code may contain only letters, numbers, and hyphens.");
+
+  if (state.ws) {
+    try { state.ws.close(); } catch {}
+  }
+  state.ws = null;
+  closePeerConnection();
+  resetBroadcastState();
+  state.pendingRequest = null;
+  state.room = room;
+  setBadge($("peerBadge"), "Joining Room…", "warn");
+  status(`Joining universal room ${room} as ${state.role === "sender" ? "Sender/Host" : "Receiver"}…`);
+
+  const ws = new WebSocket(webSocketURL());
+  state.ws = ws;
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: "join", room, role: state.role, mode: "universal" }));
+  };
+
+  ws.onmessage = async (event) => {
+    let msg;
+    try { msg = JSON.parse(event.data); } catch { return; }
+
+    if (msg.type === "broadcast-joined") {
+      state.broadcastClientId = msg.clientId || "";
+      if (state.role === "sender") state.broadcastHostToken = msg.hostToken || "";
+      renderBroadcastStats(msg.stats || {});
+      applyBroadcastFile(msg.file);
+      setBadge($("peerBadge"), state.role === "sender" ? "Sender Ready" : "Room Joined", "good");
+      status(state.role === "sender"
+        ? `Universal room ${msg.room} ready. ${msg.stats?.connected || 0} receiver(s) connected. Choose a file and use ✋ → ✊ to Air Send.`
+        : `Joined universal room ${msg.room}. Waiting for the Sender file.`);
+      updateActionButtons();
+      return;
+    }
+
+    if (msg.type === "broadcast-stats") {
+      renderBroadcastStats(msg.stats || {});
+      if (state.role === "sender" && state.broadcastFileId) {
+        const s = state.broadcastStats;
+        status(`Broadcast live: ${s.connected} connected · ${s.accepted} accepted · ${s.completed} completed · ${s.failed} failed.`);
+      }
+      return;
+    }
+
+    if (msg.type === "broadcast-file-ready") {
+      renderBroadcastStats(msg.stats || {});
+      applyBroadcastFile(msg.file);
+      if (state.role === "sender") {
+        setTransferState("waiting receivers");
+        status(`File uploaded once. ${state.broadcastStats.connected} receiver(s) can now use ✋ → ✊ to Air Paste.`);
+      }
+      updateActionButtons();
+      return;
+    }
+
+    if (msg.type === "broadcast-file-cleared") {
+      state.broadcastFileId = "";
+      state.pendingRequest = null;
+      state.broadcastDownloadInProgress = false;
+      renderRoleFilePanel();
+      setTransferState("idle");
+      setProgress(0);
+      status(msg.reason === "expired" ? "Broadcast file expired. Ask the Sender to broadcast it again." : "Broadcast file was cleared.");
+      updateActionButtons();
+      return;
+    }
+
+    if (msg.type === "broadcast-host-left") {
+      setBadge($("peerBadge"), "Host Left", "warn");
+      status("The Sender left the room. The current file may remain available temporarily.", "error");
+      return;
+    }
+
+    if (msg.type === "error") {
+      setBadge($("peerBadge"), "Room Error", "warn");
+      status(msg.message, "error");
+      toast(msg.message);
+    }
+  };
+
+  ws.onerror = () => {
+    setBadge($("peerBadge"), "Server Error", "warn");
+    status("Could not connect to the universal room server.", "error");
+  };
+
+  ws.onclose = () => {
+    if (state.ws === ws) {
+      setBadge($("peerBadge"), "Disconnected", "neutral");
+      updateActionButtons();
+    }
+  };
+}
+
+function connectPeerRoom() {
   const room = $('roomInput').value.trim().toUpperCase();
   if (!room) return toast('Enter or generate a room code first.');
   if (!window.AirGestureCore?.isValidRoom(room)) return toast('Room code may contain only letters, numbers, and hyphens.');
@@ -219,7 +438,7 @@ function connectRoom() {
   const ws = new WebSocket(webSocketURL());
   state.ws = ws;
 
-  ws.onopen = () => ws.send(JSON.stringify({ type: 'join', room, role: state.role }));
+  ws.onopen = () => ws.send(JSON.stringify({ type: 'join', room, role: state.role, mode: 'peer' }));
   ws.onmessage = async (event) => {
     let msg;
     try { msg = JSON.parse(event.data); } catch { return; }
@@ -572,7 +791,7 @@ async function failActiveTransfer(reason) {
   status(`Transfer failed: ${reason}`, "error");
   if (file) {
     await logEvent({
-      type: "transfer", success: false, trigger: state.transferTrigger, room: state.room,
+      type: "transfer", success: false, trigger: state.transferTrigger, room: state.room, mode: "peer",
       fileName: file.name, fileType: fileType(file), fileSizeMB: bytesToMB(file.size),
       durationSec: state.transferStart ? Math.round(((performance.now() - state.transferStart) / 1000) * 100) / 100 : 0,
       speedMbps: 0, acceptanceLatencySec: state.acceptanceLatencySec, reason: String(reason).slice(0, 160)
@@ -588,7 +807,269 @@ function newTransferId() {
   return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+
+function uploadBroadcastFile(file) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    state.broadcastXHR = xhr;
+    xhr.open("POST", `/api/broadcast/${encodeURIComponent(state.room)}/upload`);
+    xhr.responseType = "json";
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.setRequestHeader("X-AirGesture-Host-Token", state.broadcastHostToken);
+    xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
+    xhr.setRequestHeader("X-File-Size", String(file.size));
+    xhr.setRequestHeader("X-File-Type", file.type || "application/octet-stream");
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      const pct = event.total ? (event.loaded / event.total) * 100 : 0;
+      const elapsed = (performance.now() - state.transferStart) / 1000;
+      const speed = elapsed > 0 ? (event.loaded * 8) / 1_000_000 / elapsed : 0;
+      setProgress(pct, speed);
+    };
+
+    xhr.onload = () => {
+      state.broadcastXHR = null;
+      const body = xhr.response || (() => {
+        try { return JSON.parse(xhr.responseText || "{}"); } catch { return {}; }
+      })();
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+      else reject(new Error(body?.error || `Broadcast upload failed (${xhr.status})`));
+    };
+    xhr.onerror = () => {
+      state.broadcastXHR = null;
+      reject(new Error("Broadcast upload failed because the server could not be reached."));
+    };
+    xhr.onabort = () => {
+      state.broadcastXHR = null;
+      reject(new DOMException("Broadcast upload cancelled", "AbortError"));
+    };
+
+    xhr.send(file);
+  });
+}
+
+async function prepareBroadcastAirCopy(trigger = "manual") {
+  if (state.role !== "sender") return;
+  if (!state.selectedFile) return toast("Choose a file before Air Send.");
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.broadcastHostToken) {
+    return toast("Join the universal room as Sender first.");
+  }
+  if (state.broadcastUploadInProgress) return;
+
+  state.transferTrigger = trigger;
+  state.broadcastUploadInProgress = true;
+  state.transferStart = performance.now();
+  setTransferState("uploading once");
+  setProgress(0);
+  status(`Air Copy confirmed. Uploading ${state.selectedFile.name} once to the universal distribution server…`);
+  updateActionButtons();
+
+  try {
+    const result = await uploadBroadcastFile(state.selectedFile);
+    state.broadcastFileId = result.file?.id || "";
+    renderBroadcastStats(result.stats || {});
+    setProgress(100);
+    setTransferState("waiting receivers");
+    status(`Broadcast ready. ${state.broadcastStats.connected} receiver(s) can now show ✋ → ✊ to Air Paste ${state.selectedFile.name}.`);
+    toast("Air Send ready for the classroom");
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      setTransferState("cancelled");
+      setProgress(0);
+      status("Broadcast upload cancelled.");
+    } else {
+      console.error("Broadcast upload error:", error);
+      setTransferState("failed");
+      setProgress(0);
+      status(`Broadcast upload failed: ${error.message}`, "error");
+      toast("Broadcast upload failed");
+    }
+  } finally {
+    state.broadcastUploadInProgress = false;
+    state.broadcastXHR = null;
+    updateActionButtons();
+  }
+}
+
+async function sha256Hex(blob) {
+  if (!globalThis.crypto?.subtle) return "";
+  const buffer = await blob.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function acceptBroadcastAirPaste(trigger = "manual") {
+  if (state.role !== "receiver") return;
+  if (!state.pendingRequest?.fileId) return toast("No room file is waiting to be Air Pasted.");
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return toast("Join the classroom room first.");
+  if (state.broadcastDownloadInProgress) return;
+
+  const request = { ...state.pendingRequest };
+  const controller = new AbortController();
+  state.broadcastAbortController = controller;
+  state.broadcastDownloadInProgress = true;
+  state.transferTrigger = trigger;
+  const started = performance.now();
+  const acceptanceLatencySec = request.requestedAt
+    ? Math.round(((started - request.requestedAt) / 1000) * 100) / 100
+    : 0;
+
+  state.ws.send(JSON.stringify({ type: "broadcast-accept", fileId: request.fileId, trigger }));
+  setTransferState("receiving broadcast");
+  setProgress(0);
+  status(`Air Paste accepted. Downloading ${request.name} from the universal room…`);
+  updateActionButtons();
+
+  let receivedBytes = 0;
+  try {
+    const response = await fetch(`/api/broadcast/${encodeURIComponent(state.room)}/files/${encodeURIComponent(request.fileId)}`, {
+      cache: "no-store",
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      let detail = "";
+      try { detail = (await response.json()).error || ""; } catch {}
+      throw new Error(detail || `Download failed (${response.status})`);
+    }
+
+    const expected = Number(response.headers.get("content-length")) || request.size;
+    const serverHash = response.headers.get("x-airgesture-sha256") || request.sha256 || "";
+    const reader = response.body?.getReader();
+    const chunks = [];
+
+    if (reader) {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        receivedBytes += value.byteLength;
+        if (receivedBytes > expected) throw new Error("Received more bytes than expected");
+        const elapsed = (performance.now() - started) / 1000;
+        const speed = elapsed > 0 ? (receivedBytes * 8) / 1_000_000 / elapsed : 0;
+        setProgress(expected ? (receivedBytes / expected) * 100 : 0, speed);
+      }
+    } else {
+      const buffer = await response.arrayBuffer();
+      chunks.push(new Uint8Array(buffer));
+      receivedBytes = buffer.byteLength;
+    }
+
+    if (receivedBytes !== expected || (request.size && receivedBytes !== request.size)) {
+      throw new Error(`Byte verification failed: expected ${request.size || expected}, received ${receivedBytes}`);
+    }
+
+    const blob = new Blob(chunks, { type: request.mime || "application/octet-stream" });
+    if (blob.size !== receivedBytes) throw new Error("File reconstruction size mismatch");
+
+    // SHA-256 verifies that the server-distributed bytes are exactly the bytes uploaded by the Sender.
+    if (serverHash && blob.size <= MAX_FILE_SIZE) {
+      const localHash = await sha256Hex(blob);
+      if (localHash && localHash !== serverHash) throw new Error("SHA-256 integrity verification failed");
+    }
+
+    const durationSec = (performance.now() - started) / 1000;
+    const speedMbps = durationSec > 0 ? (receivedBytes * 8) / 1_000_000 / durationSec : 0;
+    const url = URL.createObjectURL(blob);
+    addReceivedFile(request.name, blob.size, url);
+
+    state.ws.send(JSON.stringify({ type: "broadcast-complete", fileId: request.fileId }));
+    setProgress(100, speedMbps);
+    setTransferState("received");
+    status(`${request.name} received from the universal room and integrity verified.`);
+    toast("Classroom file received successfully");
+
+    await logEvent({
+      type: "transfer",
+      success: true,
+      trigger,
+      room: state.room,
+      mode: "broadcast",
+      receiverCount: state.broadcastStats.connected,
+      fileName: request.name,
+      fileType: fileType({ name: request.name, type: request.mime }),
+      fileSizeMB: bytesToMB(blob.size),
+      durationSec: Math.round(durationSec * 100) / 100,
+      speedMbps: Math.round(speedMbps * 100) / 100,
+      acceptanceLatencySec
+    });
+
+    state.pendingRequest = null;
+    renderRoleFilePanel();
+  } catch (error) {
+    const cancelled = error?.name === "AbortError";
+    try {
+      if (state.ws?.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify({
+          type: "broadcast-failed",
+          fileId: request.fileId,
+          reason: cancelled ? "cancelled" : String(error.message || "download failed")
+        }));
+      }
+    } catch {}
+
+    setProgress(0);
+    setTransferState(cancelled ? "cancelled" : "failed");
+    status(cancelled ? "Broadcast download cancelled." : `Broadcast download failed: ${error.message}`, cancelled ? "info" : "error");
+    if (!cancelled) {
+      await logEvent({
+        type: "transfer",
+        success: false,
+        trigger,
+        room: state.room,
+        mode: "broadcast",
+        receiverCount: state.broadcastStats.connected,
+        fileName: request.name,
+        fileType: fileType({ name: request.name, type: request.mime }),
+        fileSizeMB: bytesToMB(request.size),
+        durationSec: Math.round(((performance.now() - started) / 1000) * 100) / 100,
+        speedMbps: 0,
+        acceptanceLatencySec,
+        reason: String(error.message || "download failed").slice(0, 160)
+      });
+      toast("Download failed");
+    }
+  } finally {
+    state.broadcastDownloadInProgress = false;
+    state.broadcastAbortController = null;
+    updateActionButtons();
+  }
+}
+
+async function cancelBroadcastTransfer() {
+  if (state.role === "sender") {
+    if (state.broadcastXHR) {
+      try { state.broadcastXHR.abort(); } catch {}
+    }
+    if (state.ws?.readyState === WebSocket.OPEN && state.broadcastFileId) {
+      state.ws.send(JSON.stringify({ type: "broadcast-cancel", fileId: state.broadcastFileId }));
+    }
+    state.broadcastFileId = "";
+    state.broadcastUploadInProgress = false;
+    setProgress(0);
+    setTransferState("cancelled");
+    status("Universal room send cancelled.");
+  } else {
+    if (state.broadcastAbortController) {
+      try { state.broadcastAbortController.abort(); } catch {}
+    }
+    if (state.pendingRequest?.fileId && state.ws?.readyState === WebSocket.OPEN) {
+      state.ws.send(JSON.stringify({ type: "broadcast-failed", fileId: state.pendingRequest.fileId, reason: "receiver cancelled" }));
+    }
+    state.pendingRequest = null;
+    state.broadcastDownloadInProgress = false;
+    renderRoleFilePanel();
+    setProgress(0);
+    setTransferState("cancelled");
+    status("Receiver cancelled the Air Paste.");
+  }
+  updateActionButtons();
+  toast("Action cancelled");
+}
+
 function prepareAirCopy(trigger = "manual") {
+  return prepareBroadcastAirCopy(trigger);
+  /* Legacy peer-transfer implementation retained below for migration safety, but is unreachable in V5.1. */
   if (state.role !== "sender") return;
   if (!state.selectedFile) return toast("Choose a file before Air Copy.");
   if (!state.channel || state.channel.readyState !== "open") return toast("Connect a receiver and wait for P2P Ready.");
@@ -619,6 +1100,8 @@ function prepareAirCopy(trigger = "manual") {
 }
 
 function acceptAirPaste(trigger = "manual") {
+  return acceptBroadcastAirPaste(trigger);
+  /* Legacy peer-transfer implementation retained below for migration safety, but is unreachable in V5.1. */
   if (state.role !== "receiver") return;
   if (!state.pendingRequest) return toast("No incoming file is waiting to be Air Pasted.");
   if (!state.channel || state.channel.readyState !== "open") return toast("Peer-to-peer channel is not ready.");
@@ -704,7 +1187,7 @@ async function finishSuccessfulTransfer() {
   setTransferState("complete");
   status(`Transfer verified: ${file.name} delivered after Sender Air Copy + Receiver Air Paste.`);
   await logEvent({
-    type: "transfer", success: true, trigger: state.transferTrigger, room: state.room,
+    type: "transfer", success: true, trigger: state.transferTrigger, room: state.room, mode: "peer",
     fileName: file.name, fileType: fileType(file), fileSizeMB: bytesToMB(file.size),
     durationSec: Math.round(durationSec * 100) / 100,
     speedMbps: Math.round(speedMbps * 100) / 100,
@@ -716,6 +1199,8 @@ async function finishSuccessfulTransfer() {
 }
 
 async function cancelTransfer(trigger = "manual") {
+  return cancelBroadcastTransfer();
+  /* Legacy peer-transfer implementation retained below for migration safety, but is unreachable in V5.1. */
   const channelOpen = state.channel?.readyState === "open";
 
   if (state.role === "sender") {
@@ -735,7 +1220,7 @@ async function cancelTransfer(trigger = "manual") {
     status("Sender cancelled the Air Copy request.");
     if (file) {
       await logEvent({
-        type: "transfer", success: false, trigger, room: state.room,
+        type: "transfer", success: false, trigger, room: state.room, mode: "peer",
         fileName: file.name, fileType: fileType(file), fileSizeMB: bytesToMB(file.size),
         durationSec: state.transferStart ? Math.round(((performance.now() - state.transferStart) / 1000) * 100) / 100 : 0,
         speedMbps: 0, acceptanceLatencySec: state.acceptanceLatencySec, reason: "cancelled"
@@ -965,7 +1450,7 @@ function updateGestureHUD(name, score) {
 
 async function fireAirGestureSequence(confidence) {
   const action = state.role === "sender" ? "Air_Copy" : "Air_Paste";
-  await logEvent({ type: "gesture", gesture: action, confidence, role: state.role, action });
+  await logEvent({ type: "gesture", gesture: action, confidence, role: state.role, action, mode: state.mode });
   if (state.role === "sender") return prepareAirCopy("gesture");
   return acceptAirPaste("gesture");
 }
@@ -975,7 +1460,9 @@ async function handleStableGesture(name, confidence) {
   if (state.gestureSequencePhase === "waiting-close" && now > state.gestureSequenceExpiresAt) {
     resetGestureSequence();
     status(state.role === "sender"
-      ? "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Copy."
+      ? (state.mode === "broadcast"
+        ? "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Send."
+        : "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Copy.")
       : "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Paste.");
   }
 
@@ -985,8 +1472,12 @@ async function handleStableGesture(name, confidence) {
       state.gestureSequenceExpiresAt = now + GESTURE_SEQUENCE_TIMEOUT_MS;
       state.gestureOpenConfidence = confidence;
       status(state.role === "sender"
-        ? "Open Hand ✓ — simply close your hand to ✊ for Air Copy."
-        : "Open Hand ✓ — simply close your hand to ✊ for Air Paste.");
+        ? (state.mode === "broadcast"
+          ? "Open Hand ✓ — close to ✊ to Air Send this file to the classroom."
+          : "Open Hand ✓ — simply close your hand to ✊ for Air Copy.")
+        : (state.mode === "broadcast"
+          ? "Open Hand ✓ — close to ✊ to Air Paste the room file."
+          : "Open Hand ✓ — simply close your hand to ✊ for Air Paste."));
       toast("Open Hand ✓ — now close your hand");
     }
     return;
@@ -1226,8 +1717,10 @@ function bindEvents() {
 function init() {
   $("roomInput").value = randomRoom();
   bindEvents();
+  setMode();
   setRole("sender");
   setProgress(0);
+  renderBroadcastStats({});
   refreshAnalytics();
 }
 

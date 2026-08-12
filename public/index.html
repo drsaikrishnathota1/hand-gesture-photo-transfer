@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#07111f" />
   <title>AirGesture Transfer Intelligence</title>
-  <meta name="description" content="Gesture-controlled peer-to-peer file transfer with executive analytics and decision intelligence." />
+  <meta name="description" content="Gesture-controlled universal room file distribution with executive analytics and decision intelligence." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -45,7 +45,7 @@
           <div class="hero-copy">
             <div class="eyebrow">DBA 802 · WEEK 1 · DATA → INSIGHT → DECISION</div>
             <h1>Move files with a gesture.<br><span>Measure every decision.</span></h1>
-            <p>AirGesture turns touchless interaction into a measurable executive experiment: real-time hand recognition, encrypted peer-to-peer transfer, and decision-ready analytics.</p>
+            <p>AirGesture turns touchless interaction into a measurable executive experiment: one Sender joins a universal room, uploads once, and any number of Receivers supported by the deployed server can join the same code, Air Paste, and generate decision-ready analytics.</p>
             <div class="hero-badges">
               <span>Sender: ✋ → ✊ Air Copy</span>
               <span>Receiver: ✋ → ✊ Air Paste</span>
@@ -92,11 +92,12 @@
           <section class="panel transfer-panel glass">
             <div class="panel-head">
               <div>
-                <span class="section-kicker">02 · CONNECTION</span>
-                <h2>Peer Transfer</h2>
+                <span id="connectionKicker" class="section-kicker">02 · UNIVERSAL CONNECTION</span>
+                <h2 id="connectionTitle">Universal Room</h2>
               </div>
               <span id="peerBadge" class="status-badge neutral">Disconnected</span>
             </div>
+            <p id="modeHint" class="mode-hint">1 Sender uploads once · Receivers join the same room code · no fixed application participant cap.</p>
 
             <div class="role-switch" role="group" aria-label="Transfer role">
               <button class="role-btn active" data-role="sender"><span>↑</span> Sender</button>
@@ -113,6 +114,15 @@
               </label>
               <button id="joinBtn" class="btn secondary">Connect Room</button>
             </div>
+
+            <section id="broadcastStatsPanel" class="broadcast-stats" aria-label="Universal room live statistics">
+              <div class="broadcast-stat"><span>Connected</span><strong id="broadcastConnected">0</strong></div>
+              <div class="broadcast-stat"><span>Accepted</span><strong id="broadcastAccepted">0</strong></div>
+              <div class="broadcast-stat"><span>Completed</span><strong id="broadcastCompleted">0</strong></div>
+              <div class="broadcast-stat"><span>Waiting</span><strong id="broadcastWaiting">0</strong></div>
+              <div class="broadcast-stat"><span>Failed</span><strong id="broadcastFailed">0</strong></div>
+              <div class="broadcast-stat emphasis"><span>Completion</span><strong id="broadcastCompletion">0.0%</strong></div>
+            </section>
 
             <div id="dropZone" class="drop-zone">
               <input id="fileInput" type="file" hidden />
@@ -139,7 +149,7 @@
 
             <div class="decision-ticker">
               <span class="ticker-label">LIVE EVENT</span>
-              <span id="statusText">Select a role, connect the same room on both laptops, and start Vision AI.</span>
+              <span id="statusText">Select Sender or Receiver, enter the same universal room code, connect, and start Vision AI.</span>
             </div>
           </section>
         </div>
