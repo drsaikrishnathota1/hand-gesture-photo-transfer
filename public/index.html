@@ -47,9 +47,9 @@
             <h1>Move files with a gesture.<br><span>Measure every decision.</span></h1>
             <p>AirGesture turns touchless interaction into a measurable executive experiment: real-time hand recognition, encrypted peer-to-peer transfer, and decision-ready analytics.</p>
             <div class="hero-badges">
-              <span>✋ Open Palm → Arm</span>
-              <span>✌️ Victory → Send</span>
-              <span>✊ Closed Fist → Cancel</span>
+              <span>Sender: ✋ → ✊ Air Copy</span>
+              <span>Receiver: ✋ → ✊ Air Paste</span>
+              <span>Easy Gesture Mode · no long hold</span>
             </div>
           </div>
           <div class="hero-metric glass-soft">
@@ -85,7 +85,7 @@
             <div class="gesture-controls">
               <button id="startCameraBtn" class="btn primary">Start Vision AI</button>
               <button id="stopCameraBtn" class="btn ghost" disabled>Stop Camera</button>
-              <span class="privacy-note">Camera frames stay in your browser.</span>
+              <span class="privacy-note">Easy Gesture Mode: simply show an open hand ✋, then close naturally to ✊. Instant sensing · no hold required. Camera frames stay in your browser.</span>
             </div>
           </section>
 
@@ -132,14 +132,14 @@
             </div>
 
             <div class="action-grid">
-              <button id="armBtn" class="btn glow">✋ Arm</button>
-              <button id="sendBtn" class="btn primary" disabled>✌️ Send</button>
-              <button id="cancelBtn" class="btn danger" disabled>✊ Cancel</button>
+              <button id="copyBtn" class="btn glow">✋ → ✊ Air Copy</button>
+              <button id="pasteBtn" class="btn primary" disabled>✋ → ✊ Air Paste</button>
+              <button id="cancelBtn" class="btn danger" disabled>Cancel</button>
             </div>
 
             <div class="decision-ticker">
               <span class="ticker-label">LIVE EVENT</span>
-              <span id="statusText">Select a role, connect a room, and start Vision AI.</span>
+              <span id="statusText">Select a role, connect the same room on both laptops, and start Vision AI.</span>
             </div>
           </section>
         </div>
@@ -167,7 +167,7 @@
               </div>
             </div>
             <div class="decision-flow">
-              <div><b>DATA</b><span>file size · duration · confidence</span></div>
+              <div><b>DATA</b><span>file size · copy/paste confidence · latency</span></div>
               <i>→</i>
               <div><b>INSIGHT</b><span>reliability · friction · performance</span></div>
               <i>→</i>
@@ -221,7 +221,7 @@
               <li>Which metric matters most: reliability, speed, or gesture confidence?</li>
               <li>What evidence is still missing before scaling?</li>
               <li>Where could touchless transfer create business value?</li>
-              <li>What privacy, security, accessibility, or adoption risks remain?</li>
+              <li>What privacy, security, accessibility, consent, or adoption risks remain?</li>
             </ol>
           </section>
         </div>
@@ -239,12 +239,13 @@
     </main>
 
     <footer>
-      <span>AirGesture Transfer Intelligence · DBA 802 Week 1</span>
-      <span>WebRTC · MediaPipe · Decision Intelligence</span>
+      <span>AirGesture Transfer Intelligence V4.1 · DBA 802 Residency</span>
+      <span>Air Copy/Paste · WebRTC · MediaPipe · Decision Intelligence</span>
     </footer>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="core.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script type="module" src="app.js"></script>
 </body>
