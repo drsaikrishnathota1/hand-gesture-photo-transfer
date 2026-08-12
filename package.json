@@ -1,12 +1,13 @@
 {
   "name": "hand-gesture-photo-transfer",
-  "version": "2.0.0",
-  "description": "AirGesture Transfer Intelligence — gesture-controlled peer-to-peer file transfer with executive analytics for DBA 802.",
+  "version": "4.2.0",
+  "description": "AirGesture Transfer Intelligence V4.1 \u2014 easy Open\u2192Close gesture copy/paste with DBA 802 analytics.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check server.js && node --check public/app.js"
+    "check": "node --check server.js && node --check public/core.js && node --check public/app.js && node --test tests/*.test.js",
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [
     "mediapipe",
