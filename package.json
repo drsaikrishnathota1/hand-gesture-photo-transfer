@@ -1,16 +1,27 @@
 {
   "name": "hand-gesture-photo-transfer",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "AirGesture Transfer Intelligence — gesture-controlled peer-to-peer file transfer with executive analytics for DBA 802.",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check": "node --check server.js && node --check public/app.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "mediapipe",
+    "webrtc",
+    "gesture-recognition",
+    "file-transfer",
+    "decision-intelligence",
+    "analytics"
+  ],
+  "author": "Dr. Sai Krishna Thota",
+  "license": "MIT",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "express": "^5.2.1",
     "ws": "^8.21.0"

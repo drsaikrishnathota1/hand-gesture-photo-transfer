@@ -1,32 +1,251 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Hand Gesture Photo Transfer</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#07111f" />
+  <title>AirGesture Transfer Intelligence</title>
+  <meta name="description" content="Gesture-controlled peer-to-peer file transfer with executive analytics and decision intelligence." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <h1>Hand Gesture Photo Transfer ✅</h1>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <div class="grid-bg"></div>
 
-  <input id="roomInput" placeholder="Enter room code" value="1234" />
-  <button id="joinBtn">Join Room</button>
+  <div class="app-shell">
+    <header class="topbar glass">
+      <a class="brand" href="#" aria-label="AirGesture home">
+        <span class="brand-mark">
+          <svg viewBox="0 0 42 42" aria-hidden="true"><path d="M8 22c6-12 11-13 13-2 2-10 7-9 8-1 3-6 8-3 6 5-3 11-11 15-20 9C7 28 5 26 8 22Z"/><circle cx="31" cy="10" r="3"/></svg>
+        </span>
+        <span>
+          <strong>AirGesture</strong>
+          <small>Transfer Intelligence</small>
+        </span>
+      </a>
 
-  <br><br>
+      <nav class="nav-tabs" aria-label="Primary navigation">
+        <button class="nav-tab active" data-view="transferView">Transfer Lab</button>
+        <button class="nav-tab" data-view="analyticsView">Executive Analytics</button>
+      </nav>
 
-  <input id="fileInput" type="file" accept="image/*" />
-  <button id="sendBtn">Send Photo Manually</button>
+      <div class="top-actions">
+        <span class="system-pill"><i class="pulse-dot"></i><span id="systemStatus">System Ready</span></span>
+        <button id="themeBtn" class="icon-btn" title="Toggle visual mode" aria-label="Toggle visual mode">◐</button>
+      </div>
+    </header>
 
-  <h3>Camera Preview</h3>
-  <video id="video" width="480" height="360" autoplay playsinline></video>
+    <main>
+      <section id="transferView" class="view active">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <div class="eyebrow">DBA 802 · WEEK 1 · DATA → INSIGHT → DECISION</div>
+            <h1>Move files with a gesture.<br><span>Measure every decision.</span></h1>
+            <p>AirGesture turns touchless interaction into a measurable executive experiment: real-time hand recognition, encrypted peer-to-peer transfer, and decision-ready analytics.</p>
+            <div class="hero-badges">
+              <span>✋ Open Palm → Arm</span>
+              <span>✌️ Victory → Send</span>
+              <span>✊ Closed Fist → Cancel</span>
+            </div>
+          </div>
+          <div class="hero-metric glass-soft">
+            <div class="metric-orbit"><span id="heroConfidence">--</span><small>gesture confidence</small></div>
+            <div class="metric-caption">Live intelligence layer</div>
+            <div class="signal-line"><span></span></div>
+          </div>
+        </div>
 
-  <h3>Gesture Status</h3>
-  <p id="gestureStatus">Waiting for hand...</p>
+        <div class="workspace-grid">
+          <section class="panel camera-panel glass">
+            <div class="panel-head">
+              <div>
+                <span class="section-kicker">01 · PERCEPTION</span>
+                <h2>Gesture Vision</h2>
+              </div>
+              <span id="cameraBadge" class="status-badge neutral">Camera Off</span>
+            </div>
 
-  <h3>Received Photo</h3>
-  <img id="receivedImage" width="300" />
+            <div class="camera-stage">
+              <video id="video" autoplay playsinline muted></video>
+              <canvas id="overlay"></canvas>
+              <div class="scanner-line"></div>
+              <div class="camera-corners"><i></i><i></i><i></i><i></i></div>
+              <div class="gesture-hud">
+                <small>DETECTED GESTURE</small>
+                <strong id="gestureName">Waiting for camera</strong>
+                <div class="confidence-track"><span id="confidenceBar"></span></div>
+                <span id="confidenceText">0%</span>
+              </div>
+            </div>
 
-  <p id="status"></p>
+            <div class="gesture-controls">
+              <button id="startCameraBtn" class="btn primary">Start Vision AI</button>
+              <button id="stopCameraBtn" class="btn ghost" disabled>Stop Camera</button>
+              <span class="privacy-note">Camera frames stay in your browser.</span>
+            </div>
+          </section>
 
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script src="app.js"></script>
+          <section class="panel transfer-panel glass">
+            <div class="panel-head">
+              <div>
+                <span class="section-kicker">02 · CONNECTION</span>
+                <h2>Peer Transfer</h2>
+              </div>
+              <span id="peerBadge" class="status-badge neutral">Disconnected</span>
+            </div>
+
+            <div class="role-switch" role="group" aria-label="Transfer role">
+              <button class="role-btn active" data-role="sender"><span>↑</span> Sender</button>
+              <button class="role-btn" data-role="receiver"><span>↓</span> Receiver</button>
+            </div>
+
+            <div class="room-row">
+              <label>
+                <span>Secure Room Code</span>
+                <div class="room-input-wrap">
+                  <input id="roomInput" maxlength="12" placeholder="e.g. DBA802" autocomplete="off" />
+                  <button id="generateRoomBtn" class="mini-btn" title="Generate room">↻</button>
+                </div>
+              </label>
+              <button id="joinBtn" class="btn secondary">Connect Room</button>
+            </div>
+
+            <div id="dropZone" class="drop-zone">
+              <input id="fileInput" type="file" hidden />
+              <div class="drop-icon">⇧</div>
+              <strong id="fileTitle">Choose a file to transfer</strong>
+              <p id="fileMeta">Click or drag & drop · up to 100 MB</p>
+              <button id="chooseFileBtn" class="btn ghost small">Browse File</button>
+            </div>
+
+            <div class="transfer-state">
+              <div class="state-row">
+                <span>Transfer state</span>
+                <strong id="transferState">IDLE</strong>
+              </div>
+              <div class="progress-track"><span id="transferProgress"></span></div>
+              <div class="progress-meta"><span id="progressLabel">0%</span><span id="speedLabel">0 Mbps</span></div>
+            </div>
+
+            <div class="action-grid">
+              <button id="armBtn" class="btn glow">✋ Arm</button>
+              <button id="sendBtn" class="btn primary" disabled>✌️ Send</button>
+              <button id="cancelBtn" class="btn danger" disabled>✊ Cancel</button>
+            </div>
+
+            <div class="decision-ticker">
+              <span class="ticker-label">LIVE EVENT</span>
+              <span id="statusText">Select a role, connect a room, and start Vision AI.</span>
+            </div>
+          </section>
+        </div>
+
+        <div class="lower-grid">
+          <section class="panel glass">
+            <div class="panel-head compact">
+              <div>
+                <span class="section-kicker">03 · EVIDENCE</span>
+                <h2>Received Files</h2>
+              </div>
+              <span id="receivedCount" class="counter">0</span>
+            </div>
+            <div id="receivedFiles" class="received-list empty-state">
+              <div class="empty-visual">↘</div>
+              <p>Received files will appear here with download controls.</p>
+            </div>
+          </section>
+
+          <section class="panel glass teaching-card">
+            <div class="panel-head compact">
+              <div>
+                <span class="section-kicker">DBA DECISION LENS</span>
+                <h2>From Interaction to Strategy</h2>
+              </div>
+            </div>
+            <div class="decision-flow">
+              <div><b>DATA</b><span>file size · duration · confidence</span></div>
+              <i>→</i>
+              <div><b>INSIGHT</b><span>reliability · friction · performance</span></div>
+              <i>→</i>
+              <div><b>DECISION</b><span>pilot · improve · scale · reject</span></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="analyticsView" class="view">
+        <div class="analytics-hero">
+          <div>
+            <div class="eyebrow">EXECUTIVE DECISION INTELLIGENCE</div>
+            <h1>Operational evidence,<br><span>translated into action.</span></h1>
+            <p>Use the experiment to decide whether the technology is ready for an organizational pilot.</p>
+          </div>
+          <div class="analytics-actions">
+            <button id="refreshAnalyticsBtn" class="btn secondary">Refresh</button>
+            <button id="demoDataBtn" class="btn primary">Load Classroom Demo Data</button>
+            <button id="clearDataBtn" class="btn ghost">Clear Evidence</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <article class="kpi-card glass"><span>Transfer Success</span><strong id="kpiSuccess">--%</strong><small id="kpiTransfers">0 observations</small></article>
+          <article class="kpi-card glass"><span>Avg. Speed</span><strong id="kpiSpeed">--</strong><small>Mbps · successful transfers</small></article>
+          <article class="kpi-card glass"><span>Gesture Confidence</span><strong id="kpiGesture">--%</strong><small>vision-model confidence</small></article>
+          <article class="kpi-card glass"><span>Gesture Adoption</span><strong id="kpiAdoption">--%</strong><small>manual vs gesture trigger</small></article>
+        </div>
+
+        <div class="analytics-grid">
+          <section class="panel glass chart-card wide">
+            <div class="panel-head compact"><div><span class="section-kicker">PERFORMANCE TREND</span><h2>Transfer Evidence</h2></div></div>
+            <canvas id="trendChart"></canvas>
+          </section>
+          <section class="panel glass chart-card">
+            <div class="panel-head compact"><div><span class="section-kicker">MIX</span><h2>File Types</h2></div></div>
+            <canvas id="typeChart"></canvas>
+          </section>
+        </div>
+
+        <div class="analytics-grid second-row">
+          <section class="panel glass recommendation-panel">
+            <div class="panel-head compact"><div><span class="section-kicker">AI-STYLE RULE ENGINE</span><h2>Executive Recommendations</h2></div></div>
+            <div id="recommendations" class="recommendations"></div>
+          </section>
+          <section class="panel glass discussion-panel">
+            <div class="panel-head compact"><div><span class="section-kicker">DBA 802 DISCUSSION</span><h2>Boardroom Questions</h2></div></div>
+            <ol>
+              <li>Would you approve an organizational pilot based on this evidence?</li>
+              <li>Which metric matters most: reliability, speed, or gesture confidence?</li>
+              <li>What evidence is still missing before scaling?</li>
+              <li>Where could touchless transfer create business value?</li>
+              <li>What privacy, security, accessibility, or adoption risks remain?</li>
+            </ol>
+          </section>
+        </div>
+
+        <section class="panel glass evidence-table-card">
+          <div class="panel-head compact"><div><span class="section-kicker">AUDIT TRAIL</span><h2>Recent Transfer Evidence</h2></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>File</th><th>Size</th><th>Trigger</th><th>Duration</th><th>Speed</th><th>Result</th></tr></thead>
+              <tbody id="evidenceBody"><tr><td colspan="7" class="table-empty">No evidence collected yet.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer>
+      <span>AirGesture Transfer Intelligence · DBA 802 Week 1</span>
+      <span>WebRTC · MediaPipe · Decision Intelligence</span>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
