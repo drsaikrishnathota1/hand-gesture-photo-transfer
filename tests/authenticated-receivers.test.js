@@ -63,11 +63,11 @@ test('protected classroom API rejects unauthenticated requests', async () => {
     assert.equal(health.status, 200);
 
     const data = await health.json();
-    assert.equal(data.version, '5.3.2');
+    assert.equal(data.version, '5.4.0');
   });
 });
 
-test('V5.3.2 authenticates WebSocket upgrades and host UI includes participant identity', () => {
+test('V5.4.0 authenticates WebSocket upgrades and host UI includes participant identity', () => {
   const server = fs.readFileSync(
     path.join(__dirname, '..', 'server.js'),
     'utf8'

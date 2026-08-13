@@ -6,7 +6,9 @@ const crypto = require('crypto');
 const net = require('net');
 const WebSocket = require('ws');
 const session = require('express-session');
+const connectPgSimple = require('connect-pg-simple');
 const { createAuthRouter } = require('./auth');
+const { createDatabase } = require('./db');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -340,6 +342,7 @@ function receiverIntelligenceRecord(clientId, state = {}) {
 
 function createServer() {
   const app = express();
+  const database = createDatabase();
 
   // Integration-test-only authentication bypass.
   // This cannot activate in production because NODE_ENV must equal "test".
@@ -362,7 +365,7 @@ function createServer() {
     throw new Error('SESSION_SECRET is required in production');
   }
 
-  const sessionParser = session({
+  const sessionOptions = {
     name: 'airgesture.sid',
     secret: sessionSecret,
     resave: false,
@@ -373,10 +376,29 @@ function createServer() {
       sameSite: 'lax',
       maxAge: 8 * 60 * 60 * 1000
     }
-  });
+  };
+
+  if (database.enabled) {
+    const PgSessionStore =
+      connectPgSimple(session);
+
+    sessionOptions.store =
+      new PgSessionStore({
+        pool: database.pool,
+        tableName: 'user_sessions',
+        createTableIfMissing: true
+      });
+  }
+
+  const sessionParser =
+    session(sessionOptions);
 
   app.use(sessionParser);
-  app.use('/api/auth', createAuthRouter());
+
+  app.use(
+    '/api/auth',
+    createAuthRouter({ database })
+  );
 
   const server = http.createServer(app);
   const wss = new WebSocket.Server({
@@ -442,12 +464,13 @@ function createServer() {
 
   app.get('/api/health', (_req, res) => res.json({
     ok: true,
-    version: '5.3.2',
+    version: '5.4.0',
     peerRooms: rooms.size,
     broadcastRooms: broadcastRooms.size,
     receiverLimit: CONFIGURED_RECEIVER_LIMIT || null,
     networkIntelligence: true,
-    ipEnrichmentConfigured: Boolean(IP_ENRICH_URL_TEMPLATE)
+    ipEnrichmentConfigured: Boolean(IP_ENRICH_URL_TEMPLATE),
+    database: database.status()
   }));
 
   app.get('/api/network/ping', (_req, res) => {
@@ -1017,20 +1040,78 @@ function createServer() {
   server.on('close', () => {
     clearInterval(heartbeat);
     clearInterval(cleanup);
-    for (const room of broadcastRooms.values()) deleteBroadcastFile(room);
+
+    for (const room of broadcastRooms.values()) {
+      deleteBroadcastFile(room);
+    }
+
+    void database.close().catch((error) => {
+      console.error(
+        'Database shutdown error:',
+        error.message
+      );
+    });
   });
 
-  return { app, server, wss, rooms, broadcastRooms };
+  return {
+    app,
+    server,
+    wss,
+    rooms,
+    broadcastRooms,
+    database
+  };
 }
 
 if (require.main === module) {
-  const { server } = createServer();
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log('\nAirGesture Transfer Intelligence v5.3.2');
-    console.log(`Local:   http://localhost:${PORT}`);
-    console.log('Mode:    Universal Room (1 Sender → N Receivers; no fixed app cap)');
-    console.log('Network: use HTTPS for camera access from multiple physical devices.\n');
-  });
+  const {
+    server,
+    database
+  } = createServer();
+
+  (async () => {
+    try {
+      const dbStatus =
+        await database.initialize();
+
+      server.listen(
+        PORT,
+        '0.0.0.0',
+        () => {
+          console.log(
+            '\nAirGesture Transfer Intelligence v5.4.0'
+          );
+
+          console.log(
+            `Local:   http://localhost:${PORT}`
+          );
+
+          console.log(
+            'Mode:    Universal Room (1 Sender → N Receivers; no fixed app cap)'
+          );
+
+          console.log(
+            `Database: ${
+              dbStatus.ready
+                ? 'PostgreSQL ready'
+                : 'not configured locally'
+            }`
+          );
+
+          console.log(
+            'Network: use HTTPS for camera access from multiple physical devices.\n'
+          );
+        }
+      );
+    } catch (error) {
+      console.error(
+        'PostgreSQL initialization failed:',
+        error.message
+      );
+
+      process.exit(1);
+    }
+  })();
 }
 
 module.exports = {

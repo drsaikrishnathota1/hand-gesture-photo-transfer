@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-test('V5.3.2 gives Receivers a personal intelligence view and Senders the classroom table', () => {
+test('V5.4.0 gives Receivers a personal intelligence view and Senders the classroom table', () => {
   const html = fs.readFileSync(
     path.join(__dirname, '..', 'public', 'index.html'),
     'utf8'
@@ -20,7 +20,7 @@ test('V5.3.2 gives Receivers a personal intelligence view and Senders the classr
   assert.match(html, /<th>Participant<\/th>/);
 });
 
-test('V5.3.2 switches intelligence by role and builds personal transfer evidence', () => {
+test('V5.4.0 switches intelligence by role and builds personal transfer evidence', () => {
   const js = fs.readFileSync(
     path.join(__dirname, '..', 'public', 'app.js'),
     'utf8'
@@ -35,7 +35,7 @@ test('V5.3.2 switches intelligence by role and builds personal transfer evidence
   assert.match(js, /broadcastStatsPanel/);
 });
 
-test('V5.3.2 exposes only the browser-safe Google profile to the personal view', () => {
+test('V5.4.0 exposes only the browser-safe Google profile to the personal view', () => {
   const js = fs.readFileSync(
     path.join(__dirname, '..', 'public', 'auth-client.js'),
     'utf8'
