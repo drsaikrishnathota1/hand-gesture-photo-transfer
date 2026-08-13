@@ -238,15 +238,125 @@
           </section>
         </div>
 
-        <section class="panel glass network-intelligence-panel">
+        <section id="myIntelligencePanel" class="panel glass my-intelligence-panel" hidden>
           <div class="panel-head compact">
             <div>
-              <span class="section-kicker">04 · LIVE DATA</span>
+              <span class="section-kicker">04 · MY LIVE DATA</span>
+              <h2>My AirGesture Intelligence</h2>
+            </div>
+            <span id="myTransferResult" class="status-badge neutral">WAITING</span>
+          </div>
+
+          <p class="my-intelligence-intro">
+            Your personal receiver evidence. This view shows only your own identity,
+            device, network, gesture and transfer results.
+          </p>
+
+          <div class="my-profile-strip">
+            <img id="myProfilePicture" class="my-profile-picture" alt="" hidden />
+
+            <div class="my-profile-copy">
+              <span>SIGNED-IN PARTICIPANT</span>
+              <strong id="myIdentityName">Signed-in participant</strong>
+              <small id="myIdentityEmail">Waiting for profile…</small>
+            </div>
+
+            <div class="my-profile-meta">
+              <span>RECEIVER ID</span>
+              <strong id="myReceiverId">Not joined</strong>
+            </div>
+
+            <div class="my-profile-meta">
+              <span>ROOM</span>
+              <strong id="myRoomCode">Not joined</strong>
+            </div>
+          </div>
+
+          <div class="my-intelligence-grid">
+            <article class="my-intelligence-card">
+              <span>MY DEVICE</span>
+              <strong id="myDevice">Waiting…</strong>
+              <div class="my-card-lines">
+                <small>Masked IP <b id="myMaskedIp">Waiting…</b></small>
+                <small>Location <b id="myLocation">Waiting…</b></small>
+                <small>Provider <b id="myProvider">Waiting…</b></small>
+                <small>Server latency <b id="myLatency">Waiting…</b></small>
+              </div>
+            </article>
+
+            <article class="my-intelligence-card">
+              <span>MY TRANSFER</span>
+              <strong id="myTransferFile">Waiting for Sender</strong>
+              <div class="my-card-lines">
+                <small>Size <b id="myTransferSize">--</b></small>
+                <small>Speed <b id="myTransferSpeed">--</b></small>
+                <small>Duration <b id="myTransferDuration">--</b></small>
+                <small>Integrity <b id="myTransferIntegrity">WAITING</b></small>
+              </div>
+            </article>
+
+            <article class="my-intelligence-card">
+              <span>MY GESTURE</span>
+              <strong id="myGestureAction">Waiting for Air Paste</strong>
+              <div class="my-card-lines">
+                <small>Confidence <b id="myGestureConfidence">--</b></small>
+                <small>Action <b>✋ → ✊ Air Paste</b></small>
+                <small>Processing <b>On-device Vision AI</b></small>
+                <small>Frames stored <b>NO</b></small>
+              </div>
+            </article>
+
+            <article class="my-intelligence-card">
+              <span>MY NETWORK</span>
+              <strong id="myNetworkQuality">WAITING</strong>
+              <div class="my-card-lines">
+                <small>Privacy <b>Masked network data</b></small>
+                <small>Full IP stored <b>NO</b></small>
+                <small>Camera upload <b>NO</b></small>
+                <small>Evidence scope <b>My session</b></small>
+              </div>
+            </article>
+          </div>
+
+          <div class="my-decision-grid">
+            <article>
+              <span>DESCRIPTIVE</span>
+              <strong>What happened to me?</strong>
+              <p id="myDescriptiveInsight">Complete an Air Paste to generate your transfer evidence.</p>
+            </article>
+
+            <article>
+              <span>DATA QUALITY</span>
+              <strong id="myDataQuality">WAITING</strong>
+              <p>Byte count, SHA-256 integrity and session telemetry determine evidence quality.</p>
+            </article>
+
+            <article class="my-recommendation-card">
+              <span>PRESCRIPTIVE</span>
+              <strong>What should I do?</strong>
+              <p id="myRecommendation">Join the Sender room and complete an Air Paste.</p>
+            </article>
+          </div>
+
+          <p class="privacy-note my-privacy-note">
+            Receiver privacy: other participants' identities and intelligence rows are
+            not shown in this view.
+          </p>
+        </section>
+
+        <section id="senderIntelligencePanel" class="panel glass network-intelligence-panel">
+          <div class="panel-head compact">
+            <div>
+              <span class="section-kicker">04 · CLASSROOM LIVE DATA</span>
               <h2>Receiver Network Intelligence</h2>
             </div>
             <span id="receiverIntelligenceCount" class="counter">0</span>
           </div>
-          <p class="network-intro">Authenticated operational telemetry for the DBA analytics lab. Signed-in participant identity is visible only to the active Sender/Host. Receivers do not receive other participants' intelligence rows. Full IP addresses are never displayed or persisted.</p>
+
+          <p class="network-intro">
+            Sender/Host operational view of authenticated Receivers in the active room.
+            Full IP addresses are never displayed or persisted.
+          </p>
 
           <div class="own-network-grid">
             <div><span>This Device IP</span><strong id="ownNetworkIp">Waiting…</strong></div>
@@ -261,10 +371,16 @@
               <thead>
                 <tr><th>Participant</th><th>Receiver</th><th>Masked IP</th><th>Location</th><th>Provider</th><th>Device / Browser / OS</th><th>Latency</th><th>Speed</th><th>Quality</th><th>Result</th></tr>
               </thead>
-              <tbody id="receiverIntelligenceBody"><tr><td colspan="10" class="table-empty">No authenticated receiver evidence yet.</td></tr></tbody>
+              <tbody id="receiverIntelligenceBody">
+                <tr><td colspan="10" class="table-empty">No authenticated receiver evidence yet.</td></tr>
+              </tbody>
             </table>
           </div>
-          <p class="privacy-note network-privacy">Location/provider are shown only when supplied by the deployment proxy or an explicitly configured server-side IP enrichment service. Localhost tests correctly show local/private-network values.</p>
+
+          <p class="privacy-note network-privacy">
+            Location/provider are shown only when supplied by the deployment proxy
+            or an explicitly configured server-side enrichment service.
+          </p>
         </section>
 
       </section>
@@ -331,7 +447,7 @@
     </main>
 
     <footer>
-      <span>AirGesture Transfer Intelligence V5.3.1 · DBA 802 Residency</span>
+      <span>AirGesture Transfer Intelligence V5.3.2 · DBA 802 Residency</span>
       <span>Universal Air Copy/Paste · Network Intelligence · MediaPipe · Decision Intelligence</span>
     </footer>
   </div>

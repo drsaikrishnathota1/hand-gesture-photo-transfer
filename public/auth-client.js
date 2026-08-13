@@ -20,6 +20,18 @@
   }
 
   function showUser(user) {
+    // Expose only the browser-safe profile needed by the personal
+    // receiver intelligence view. Google subject IDs are not exposed here.
+    window.AirGestureAuthUser = {
+      name: String(user?.name || ''),
+      email: String(user?.email || ''),
+      picture: String(user?.picture || '')
+    };
+
+    window.dispatchEvent(new CustomEvent('airgesture-auth-user', {
+      detail: window.AirGestureAuthUser
+    }));
+
     document.body.classList.add('auth-ready');
 
     const gate = $('authGate');

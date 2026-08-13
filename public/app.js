@@ -54,6 +54,8 @@ const state = {
   lastGestureConfidence: 0,
   ownNetwork: {},
   receiverIntelligence: [],
+  authUser: null,
+  myTransfer: null,
 
   charts: { trend: null, type: null }
 };
@@ -160,11 +162,268 @@ function networkQuality(latencyMs, speedMbps) {
 
 function renderOwnNetwork(network = {}) {
   state.ownNetwork = network || {};
+
   if ($('ownNetworkIp')) $('ownNetworkIp').textContent = network.maskedIp || 'Unavailable';
   if ($('ownNetworkLocation')) $('ownNetworkLocation').textContent = network.location || 'Unavailable';
   if ($('ownNetworkProvider')) $('ownNetworkProvider').textContent = network.provider || 'Unavailable';
   if ($('ownNetworkDevice')) $('ownNetworkDevice').textContent = `${detectDeviceType()} · ${detectBrowser()} · ${detectOS()}`;
-  if ($('ownNetworkLatency')) $('ownNetworkLatency').textContent = state.networkLatencyMs ? `${state.networkLatencyMs.toFixed(1)} ms` : 'Measuring…';
+  if ($('ownNetworkLatency')) $('ownNetworkLatency').textContent =
+    state.networkLatencyMs ? `${state.networkLatencyMs.toFixed(1)} ms` : 'Measuring…';
+
+  if (state.role === 'receiver') renderMyIntelligence();
+}
+
+function setText(id, value) {
+  const el = $(id);
+  if (el) el.textContent = value;
+}
+
+function setStatusPill(id, text, tone = 'neutral') {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = `status-badge ${tone}`;
+}
+
+function currentAuthUser() {
+  const user = state.authUser || window.AirGestureAuthUser || {};
+
+  return {
+    name: String(user.name || 'Signed-in participant'),
+    email: String(user.email || ''),
+    picture: String(user.picture || '')
+  };
+}
+
+function receiverDisplayId() {
+  if (!state.broadcastClientId) return 'Not joined';
+
+  const compact = String(state.broadcastClientId)
+    .replace(/-/g, '')
+    .slice(0, 6)
+    .toUpperCase();
+
+  return compact ? `RCV-${compact}` : 'Receiver';
+}
+
+function personalRecommendation(result, quality) {
+  if (result === 'SUCCESS') {
+    if (quality === 'EXCELLENT' || quality === 'GOOD') {
+      return 'Transfer verified successfully. Your current conditions are ready for normal AirGesture use.';
+    }
+
+    return 'Transfer succeeded, but network performance could be improved for a faster experience.';
+  }
+
+  if (result === 'FAILED') {
+    return 'Retry Air Paste. If the problem continues, change network conditions or reconnect to the room.';
+  }
+
+  if (result === 'CANCELLED') {
+    return 'The transfer was cancelled. Air Paste again when you are ready.';
+  }
+
+  if (result === 'RECEIVING') {
+    return 'Keep this tab open until byte-count and SHA-256 verification complete.';
+  }
+
+  if (result === 'READY') {
+    return 'The Sender file is ready. Use ✋ → ✊ or the Air Paste button to receive it.';
+  }
+
+  return 'Join the Sender room and complete an Air Paste to generate your evidence.';
+}
+
+function renderMyIntelligence() {
+  if (state.role !== 'receiver') return;
+
+  const user = currentAuthUser();
+  const network = state.ownNetwork || {};
+  const transfer = state.myTransfer || {};
+  const client = collectClientInfo();
+
+  const latencyMs =
+    Number(transfer.latencyMs) ||
+    Number(state.networkLatencyMs) ||
+    0;
+
+  const speedMbps = Number(transfer.speedMbps) || 0;
+  const quality = networkQuality(latencyMs, speedMbps);
+
+  const result =
+    transfer.result ||
+    (state.pendingRequest ? 'READY' : 'WAITING');
+
+  const transferSize =
+    Number(transfer.fileSize) ||
+    Number(state.pendingRequest?.size) ||
+    0;
+
+  const transferName =
+    transfer.fileName ||
+    state.pendingRequest?.name ||
+    'Waiting for Sender';
+
+  const gestureConfidence =
+    Number(transfer.gestureConfidence) ||
+    Number(state.lastGestureConfidence) ||
+    0;
+
+  const trigger = transfer.trigger || '';
+
+  setText('myIdentityName', user.name);
+  setText('myIdentityEmail', user.email || 'Google account');
+  setText('myReceiverId', receiverDisplayId());
+  setText('myRoomCode', state.room || 'Not joined');
+
+  const picture = $('myProfilePicture');
+  if (picture) {
+    if (user.picture) {
+      picture.src = user.picture;
+      picture.hidden = false;
+    } else {
+      picture.hidden = true;
+    }
+  }
+
+  setText(
+    'myDevice',
+    `${client.deviceType} · ${client.browser} · ${client.os}`
+  );
+
+  setText('myMaskedIp', network.maskedIp || 'Unavailable');
+  setText('myLocation', network.location || 'Unavailable');
+  setText('myProvider', network.provider || 'Unavailable');
+  setText(
+    'myLatency',
+    latencyMs ? `${latencyMs.toFixed(1)} ms` : 'Measuring…'
+  );
+
+  setText('myTransferFile', transferName);
+  setText('myTransferSize', transferSize ? formatBytes(transferSize) : '--');
+  setText(
+    'myTransferSpeed',
+    speedMbps ? `${speedMbps.toFixed(2)} Mbps` : '--'
+  );
+  setText(
+    'myTransferDuration',
+    Number(transfer.durationSec)
+      ? `${Number(transfer.durationSec).toFixed(2)} s`
+      : '--'
+  );
+
+  setText(
+    'myTransferIntegrity',
+    transfer.integrityVerified === true
+      ? 'SHA-256 VERIFIED'
+      : result === 'FAILED'
+        ? 'NOT VERIFIED'
+        : 'WAITING'
+  );
+
+  setText(
+    'myGestureAction',
+    trigger === 'gesture'
+      ? 'Air Paste · Gesture'
+      : trigger === 'manual'
+        ? 'Air Paste · Manual'
+        : 'Waiting for Air Paste'
+  );
+
+  setText(
+    'myGestureConfidence',
+    trigger === 'gesture' && gestureConfidence
+      ? `${(gestureConfidence * 100).toFixed(1)}%`
+      : trigger === 'manual'
+        ? 'Manual control'
+        : '--'
+  );
+
+  setText('myNetworkQuality', quality);
+
+  const dataQuality =
+    result === 'SUCCESS' && transfer.integrityVerified
+      ? 'COMPLETE'
+      : result === 'FAILED'
+        ? 'ATTENTION'
+        : result === 'CANCELLED'
+          ? 'INCOMPLETE'
+          : result === 'RECEIVING' || result === 'READY'
+            ? 'COLLECTING'
+            : 'WAITING';
+
+  setText('myDataQuality', dataQuality);
+
+  if (result === 'SUCCESS') {
+    setText(
+      'myDescriptiveInsight',
+      `${transferName} was received in ${
+        Number(transfer.durationSec || 0).toFixed(2)
+      } s at ${
+        speedMbps.toFixed(2)
+      } Mbps with SHA-256 integrity verified.`
+    );
+  } else if (result === 'FAILED') {
+    setText(
+      'myDescriptiveInsight',
+      `Your transfer failed${
+        transfer.failureReason ? `: ${transfer.failureReason}` : '.'
+      }`
+    );
+  } else if (result === 'RECEIVING') {
+    setText(
+      'myDescriptiveInsight',
+      `${transferName} is currently being received and verified.`
+    );
+  } else if (result === 'READY') {
+    setText(
+      'myDescriptiveInsight',
+      `${transferName} is available from the Sender and waiting for your Air Paste.`
+    );
+  } else {
+    setText(
+      'myDescriptiveInsight',
+      'Complete an Air Paste to generate your personal transfer evidence.'
+    );
+  }
+
+  setText(
+    'myRecommendation',
+    personalRecommendation(result, quality)
+  );
+
+  const tone =
+    result === 'SUCCESS'
+      ? 'good'
+      : result === 'FAILED'
+        ? 'warn'
+        : result === 'RECEIVING' || result === 'READY'
+          ? 'warn'
+          : 'neutral';
+
+  setStatusPill('myTransferResult', result, tone);
+}
+
+function renderRoleIntelligence() {
+  const isReceiver = state.role === 'receiver';
+
+  if ($('myIntelligencePanel')) {
+    $('myIntelligencePanel').hidden = !isReceiver;
+  }
+
+  if ($('senderIntelligencePanel')) {
+    $('senderIntelligencePanel').hidden = isReceiver;
+  }
+
+  // Receiver does not need classroom-wide completion counters.
+  if ($('broadcastStatsPanel')) {
+    $('broadcastStatsPanel').hidden = isReceiver;
+  }
+
+  document.body.classList.toggle('receiver-role', isReceiver);
+  document.body.classList.toggle('sender-role', !isReceiver);
+
+  if (isReceiver) renderMyIntelligence();
 }
 
 function renderReceiverIntelligence(receivers = []) {
@@ -333,7 +592,7 @@ function setMode() {
   state.mode = "broadcast";
   $("connectionTitle").textContent = "Universal Room";
   $("connectionKicker").textContent = "02 · UNIVERSAL CONNECTION";
-  $("broadcastStatsPanel").hidden = false;
+  $("broadcastStatsPanel").hidden = state.role === "receiver";
   $("modeHint").textContent = "1 Sender uploads once · Receivers join the same room code · no fixed application participant cap.";
 
   resetGestureSequence();
@@ -349,6 +608,9 @@ function setRole(role) {
   const changed = state.role !== role;
   state.role = role;
   document.querySelectorAll(".role-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.role === role));
+
+  if (changed) state.myTransfer = null;
+  renderRoleIntelligence();
 
   if (changed && state.ws?.readyState === WebSocket.OPEN) {
     try { state.ws.close(); } catch {}
@@ -437,7 +699,17 @@ function applyBroadcastFile(file) {
       sha256: file.sha256 || "",
       requestedAt: performance.now()
     };
+
+    state.myTransfer = {
+      result: 'READY',
+      fileName: state.pendingRequest.name,
+      fileSize: state.pendingRequest.size,
+      latencyMs: state.networkLatencyMs,
+      integrityVerified: false
+    };
+
     renderRoleFilePanel();
+    renderMyIntelligence();
     setTransferState("incoming broadcast");
     setProgress(0);
     status(`Universal room file ready: ${state.pendingRequest.name}. Show ✋ → ✊ to Air Paste and receive it.`);
@@ -479,6 +751,7 @@ function connectBroadcastRoom() {
       renderOwnNetwork(msg.network || {});
       renderBroadcastStats(msg.stats || {});
       applyBroadcastFile(msg.file);
+      renderRoleIntelligence();
       setBadge($("peerBadge"), state.role === "sender" ? "Sender Ready" : "Room Joined", "good");
       status(state.role === "sender"
         ? `Universal room ${msg.room} ready. ${msg.stats?.connected || 0} receiver(s) connected. Choose a file and use ✋ → ✊ to Air Send.`
@@ -1052,6 +1325,19 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
     gestureConfidence: state.lastGestureConfidence,
     clientInfo: collectClientInfo()
   }));
+  state.myTransfer = {
+    result: 'RECEIVING',
+    fileName: request.name,
+    fileSize: request.size,
+    trigger,
+    gestureConfidence: state.lastGestureConfidence,
+    acceptanceLatencySec,
+    latencyMs: state.networkLatencyMs,
+    integrityVerified: false
+  };
+
+  renderMyIntelligence();
+
   setTransferState("receiving broadcast");
   setProgress(0);
   status(`Air Paste accepted. Downloading ${request.name} from the universal room…`);
@@ -1109,6 +1395,21 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
     const url = URL.createObjectURL(blob);
     addReceivedFile(request.name, blob.size, url);
 
+    state.myTransfer = {
+      result: 'SUCCESS',
+      fileName: request.name,
+      fileSize: blob.size,
+      trigger,
+      gestureConfidence: state.lastGestureConfidence,
+      acceptanceLatencySec,
+      latencyMs: state.networkLatencyMs,
+      speedMbps: Math.round(speedMbps * 100) / 100,
+      durationSec: Math.round(durationSec * 100) / 100,
+      integrityVerified: true
+    };
+
+    renderMyIntelligence();
+
     state.ws.send(JSON.stringify({
       type: "broadcast-complete",
       fileId: request.fileId,
@@ -1159,6 +1460,25 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
         }));
       }
     } catch {}
+
+    state.myTransfer = {
+      result: cancelled ? 'CANCELLED' : 'FAILED',
+      fileName: request.name,
+      fileSize: request.size,
+      trigger,
+      gestureConfidence: state.lastGestureConfidence,
+      acceptanceLatencySec,
+      latencyMs: state.networkLatencyMs,
+      durationSec: Math.round(
+        ((performance.now() - started) / 1000) * 100
+      ) / 100,
+      integrityVerified: false,
+      failureReason: cancelled
+        ? 'Transfer cancelled'
+        : String(error.message || 'Download failed').slice(0, 160)
+    };
+
+    renderMyIntelligence();
 
     setProgress(0);
     setTransferState(cancelled ? "cancelled" : "failed");
@@ -1602,6 +1922,11 @@ function updateGestureHUD(name, score) {
 
 async function fireAirGestureSequence(confidence) {
   state.lastGestureConfidence = Number(confidence) || 0;
+
+  if (state.role === 'receiver') {
+    renderMyIntelligence();
+  }
+
   const action = state.role === "sender" ? "Air_Copy" : "Air_Paste";
   await logEvent({ type: "gesture", gesture: action, confidence, role: state.role, action, mode: state.mode });
   if (state.role === "sender") return prepareAirCopy("gesture");
@@ -1713,6 +2038,11 @@ function chartColors() {
 
 async function refreshAnalytics() {
   const response = await fetch("/api/analytics");
+
+  // During a first-time Google login the application script can initialize
+  // before the authenticated session has been established.
+  if (!response.ok) return;
+
   const data = await response.json();
   const { kpis } = data;
   $("kpiSuccess").textContent = `${kpis.successRate}%`;
@@ -1863,6 +2193,11 @@ function bindEvents() {
   $("demoDataBtn").addEventListener("click", loadDemoData);
   $("clearDataBtn").addEventListener("click", clearAnalytics);
   $("themeBtn").addEventListener("click", () => { document.body.classList.toggle("light"); if ($("analyticsView").classList.contains("active")) refreshAnalytics(); });
+  window.addEventListener('airgesture-auth-user', (event) => {
+    state.authUser = event.detail || null;
+    if (state.role === 'receiver') renderMyIntelligence();
+  });
+
   window.addEventListener("resize", () => state.cameraRunning && resizeOverlay());
   window.addEventListener("beforeunload", () => { state.ws?.close(); stopCamera(); });
 }

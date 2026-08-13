@@ -441,3 +441,196 @@ body:not(.auth-ready) .app-shell {
     display: none;
   }
 }
+
+
+/* V5.3.2 ROLE-AWARE INTELLIGENCE */
+
+.my-intelligence-panel[hidden],
+.network-intelligence-panel[hidden] {
+  display: none !important;
+}
+
+.receiver-role .broadcast-stats {
+  display: none;
+}
+
+.my-intelligence-intro {
+  margin: -2px 0 22px;
+  color: var(--muted);
+  line-height: 1.65;
+  max-width: 920px;
+}
+
+.my-profile-strip {
+  display: grid;
+  grid-template-columns: auto minmax(240px, 1fr) minmax(150px, auto) minmax(150px, auto);
+  align-items: center;
+  gap: 18px;
+  padding: 18px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.025);
+}
+
+.my-profile-picture {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--line);
+}
+
+.my-profile-copy,
+.my-profile-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.my-profile-copy > span,
+.my-profile-meta > span,
+.my-intelligence-card > span,
+.my-decision-grid article > span {
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .11em;
+}
+
+.my-profile-copy strong {
+  font-size: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.my-profile-copy small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.my-profile-meta strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 15px;
+}
+
+.my-intelligence-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.my-intelligence-card {
+  min-height: 220px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.025);
+}
+
+.my-intelligence-card > strong {
+  display: block;
+  margin: 11px 0 18px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 18px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.my-card-lines {
+  display: grid;
+  gap: 10px;
+}
+
+.my-card-lines small {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.my-card-lines b {
+  color: var(--text);
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.my-decision-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.my-decision-grid article {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.025);
+}
+
+.my-decision-grid strong {
+  display: block;
+  margin: 9px 0;
+  font-size: 16px;
+}
+
+.my-decision-grid p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.my-recommendation-card {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(69,217,255,.06),
+      rgba(155,124,255,.05)
+    ) !important;
+}
+
+.my-privacy-note {
+  display: block;
+  margin-top: 18px;
+}
+
+@media (max-width: 1180px) {
+  .my-intelligence-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .my-profile-strip {
+    grid-template-columns: auto 1fr;
+  }
+
+  .my-profile-meta {
+    padding-left: 76px;
+  }
+}
+
+@media (max-width: 720px) {
+  .my-intelligence-grid,
+  .my-decision-grid,
+  .my-profile-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .my-profile-meta {
+    padding-left: 0;
+  }
+
+  .my-profile-picture {
+    width: 52px;
+    height: 52px;
+  }
+
+  .my-intelligence-card {
+    min-height: 0;
+  }
+}

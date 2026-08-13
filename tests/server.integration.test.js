@@ -54,11 +54,11 @@ async function withServer(fn) {
   }
 }
 
-test('V5.3.1 health endpoint reports universal room mode with no fixed receiver cap by default', { skip: !depsAvailable }, async () => {
+test('V5.3.2 health endpoint reports universal room mode with no fixed receiver cap by default', { skip: !depsAvailable }, async () => {
   await withServer(async ({ port }) => {
     const health = await fetch(`http://127.0.0.1:${port}/api/health`).then((r) => r.json());
     assert.equal(health.ok, true);
-    assert.equal(health.version, '5.3.1');
+    assert.equal(health.version, '5.3.2');
     assert.equal(health.receiverLimit, null);
   });
 });

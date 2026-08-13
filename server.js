@@ -442,7 +442,7 @@ function createServer() {
 
   app.get('/api/health', (_req, res) => res.json({
     ok: true,
-    version: '5.3.1',
+    version: '5.3.2',
     peerRooms: rooms.size,
     broadcastRooms: broadcastRooms.size,
     receiverLimit: CONFIGURED_RECEIVER_LIMIT || null,
@@ -1026,7 +1026,7 @@ function createServer() {
 if (require.main === module) {
   const { server } = createServer();
   server.listen(PORT, '0.0.0.0', () => {
-    console.log('\nAirGesture Transfer Intelligence v5.3.1');
+    console.log('\nAirGesture Transfer Intelligence v5.3.2');
     console.log(`Local:   http://localhost:${PORT}`);
     console.log('Mode:    Universal Room (1 Sender → N Receivers; no fixed app cap)');
     console.log('Network: use HTTPS for camera access from multiple physical devices.\n');
