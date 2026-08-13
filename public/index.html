@@ -185,6 +185,36 @@
             </div>
           </section>
         </div>
+
+        <section class="panel glass network-intelligence-panel">
+          <div class="panel-head compact">
+            <div>
+              <span class="section-kicker">04 · LIVE DATA</span>
+              <h2>Receiver Network Intelligence</h2>
+            </div>
+            <span id="receiverIntelligenceCount" class="counter">0</span>
+          </div>
+          <p class="network-intro">Privacy-first operational telemetry for the DBA analytics lab. Full IP addresses are never displayed or persisted; only masked network identifiers are retained.</p>
+
+          <div class="own-network-grid">
+            <div><span>This Device IP</span><strong id="ownNetworkIp">Waiting…</strong></div>
+            <div><span>Approx. Location</span><strong id="ownNetworkLocation">Waiting…</strong></div>
+            <div><span>Provider</span><strong id="ownNetworkProvider">Waiting…</strong></div>
+            <div><span>Device</span><strong id="ownNetworkDevice">Waiting…</strong></div>
+            <div><span>Measured Server Latency</span><strong id="ownNetworkLatency">Waiting…</strong></div>
+          </div>
+
+          <div class="table-wrap network-table-wrap">
+            <table class="network-table">
+              <thead>
+                <tr><th>Receiver</th><th>Masked IP</th><th>Location</th><th>Provider</th><th>Device / Browser / OS</th><th>Latency</th><th>Speed</th><th>Quality</th><th>Result</th></tr>
+              </thead>
+              <tbody id="receiverIntelligenceBody"><tr><td colspan="9" class="table-empty">No receiver network evidence yet.</td></tr></tbody>
+            </table>
+          </div>
+          <p class="privacy-note network-privacy">Location/provider are shown only when supplied by the deployment proxy or an explicitly configured server-side IP enrichment service. Localhost tests correctly show local/private-network values.</p>
+        </section>
+
       </section>
 
       <section id="analyticsView" class="view">
@@ -249,8 +279,8 @@
     </main>
 
     <footer>
-      <span>AirGesture Transfer Intelligence V4.1 · DBA 802 Residency</span>
-      <span>Air Copy/Paste · WebRTC · MediaPipe · Decision Intelligence</span>
+      <span>AirGesture Transfer Intelligence V5.2 · DBA 802 Residency</span>
+      <span>Universal Air Copy/Paste · Network Intelligence · MediaPipe · Decision Intelligence</span>
     </footer>
   </div>
 

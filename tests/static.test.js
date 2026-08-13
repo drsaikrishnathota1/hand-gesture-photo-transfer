@@ -43,7 +43,7 @@ test('V5 keeps ultra-easy Open Palm then Closed Fist for both roles', () => {
   assert.match(html, /Instant sensing/);
 });
 
-test('V5.1 UI exposes one universal room workflow with no transfer-mode selector', () => {
+test('V5.2 UI exposes one universal room workflow with no transfer-mode selector', () => {
   assert.doesNotMatch(html, /class="mode-switch"/);
   assert.doesNotMatch(html, /data-mode="peer"/);
   assert.doesNotMatch(html, /1 → 200/);
@@ -76,8 +76,8 @@ test('V5 broadcast files are temporary, size-limited and SHA-256 hashed', () => 
   assert.match(server, /deleteBroadcastFile/);
 });
 
-test('server exposes V5.1 health endpoint and universal-room live KPIs', () => {
-  assert.match(server, /version: '5\.1\.0'/);
+test('server exposes V5.2 health endpoint and universal-room live KPIs', () => {
+  assert.match(server, /version: '5\.2\.0'/);
   assert.match(server, /receiverLimit/);
   assert.match(server, /completionRate/);
   for (const id of ['broadcastConnected','broadcastAccepted','broadcastCompleted','broadcastWaiting','broadcastFailed','broadcastCompletion']) {

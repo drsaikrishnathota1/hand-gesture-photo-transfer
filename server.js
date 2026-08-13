@@ -3,6 +3,7 @@ const path = require('path');
 const http = require('http');
 const fs = require('fs');
 const crypto = require('crypto');
+const net = require('net');
 const WebSocket = require('ws');
 
 const PORT = Number(process.env.PORT || 3000);
@@ -15,6 +16,8 @@ const MAX_BROADCAST_FILE_BYTES = 100 * 1024 * 1024;
 const CONFIGURED_RECEIVER_LIMIT = Math.max(0, Number.parseInt(process.env.AIRGESTURE_MAX_RECEIVERS || '0', 10) || 0);
 const BROADCAST_TTL_MS = 2 * 60 * 60 * 1000;
 const BROADCAST_DIR = path.join(DATA_DIR, 'broadcasts');
+const TRUST_PROXY = String(process.env.AIRGESTURE_TRUST_PROXY || '').trim() === '1';
+const IP_ENRICH_URL_TEMPLATE = String(process.env.AIRGESTURE_IP_ENRICH_URL_TEMPLATE || '').trim();
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(BROADCAST_DIR, { recursive: true });
@@ -167,6 +170,168 @@ function createDemoData() {
 }
 
 
+function normalizeIp(value) {
+  let ip = String(value || '').trim();
+  if (ip.startsWith('::ffff:')) ip = ip.slice(7);
+  if (ip.includes('%')) ip = ip.split('%')[0];
+  return ip;
+}
+
+function classifyIp(value) {
+  const ip = normalizeIp(value);
+  if (!ip) return 'unknown';
+  if (ip === '::1' || ip === '127.0.0.1') return 'loopback';
+  if (net.isIP(ip) === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) return 'private';
+    return 'public';
+  }
+  if (net.isIP(ip) === 6) {
+    const lower = ip.toLowerCase();
+    if (lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80:')) return 'private';
+    return 'public';
+  }
+  return 'unknown';
+}
+
+function maskIp(value) {
+  const ip = normalizeIp(value);
+  const kind = net.isIP(ip);
+  if (kind === 4) {
+    const p = ip.split('.');
+    if (ip === '127.0.0.1') return '127.xxx.xxx.xxx';
+    return `${p[0]}.${p[1]}.xxx.xxx`;
+  }
+  if (kind === 6) {
+    if (ip === '::1') return '::1 (local)';
+    const parts = ip.split(':').filter(Boolean);
+    return `${parts.slice(0, 3).join(':') || 'IPv6'}:xxxx:xxxx:xxxx`;
+  }
+  return 'Unavailable';
+}
+
+function requestIp(req) {
+  if (TRUST_PROXY) {
+    const forwarded = String(req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+    if (forwarded) return normalizeIp(forwarded);
+  }
+  return normalizeIp(req?.socket?.remoteAddress || '');
+}
+
+function firstHeader(headers, names) {
+  for (const name of names) {
+    const value = headers?.[name];
+    if (value) {
+      try { return decodeURIComponent(String(Array.isArray(value) ? value[0] : value)); }
+      catch { return String(Array.isArray(value) ? value[0] : value); }
+    }
+  }
+  return '';
+}
+
+function sanitizeClientInfo(input = {}) {
+  const clean = (value, max = 80) => String(value || '').replace(/[\\r\\n\\t]/g, ' ').slice(0, max);
+  const finite = (value, min, max) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : 0;
+  };
+  return {
+    browser: clean(input.browser),
+    os: clean(input.os),
+    deviceType: clean(input.deviceType, 32),
+    timezone: clean(input.timezone),
+    language: clean(input.language, 24),
+    connectionType: clean(input.connectionType, 32),
+    effectiveType: clean(input.effectiveType, 16),
+    downlinkMbps: finite(input.downlinkMbps, 0, 100000),
+    rttEstimateMs: finite(input.rttEstimateMs, 0, 120000),
+    screen: clean(input.screen, 32),
+    cpuCores: finite(input.cpuCores, 0, 512),
+    memoryGB: finite(input.memoryGB, 0, 1024)
+  };
+}
+
+function baseNetworkIdentity(rawIp, headers = {}) {
+  const addressClass = classifyIp(rawIp);
+  const city = firstHeader(headers, ['x-airgesture-city', 'x-vercel-ip-city', 'cf-ipcity']);
+  const region = firstHeader(headers, ['x-airgesture-region', 'x-vercel-ip-country-region', 'cf-region']);
+  const country = firstHeader(headers, ['x-airgesture-country', 'x-vercel-ip-country', 'cf-ipcountry']);
+  const provider = firstHeader(headers, ['x-airgesture-provider', 'cf-as-organization']);
+  const fallbackLocation = addressClass === 'loopback' ? 'Local device'
+    : addressClass === 'private' ? 'Private network'
+    : 'Approximate location unavailable';
+  return {
+    maskedIp: maskIp(rawIp),
+    addressClass,
+    city: city || '',
+    region: region || '',
+    country: country || '',
+    location: [city, region].filter(Boolean).join(', ') || country || fallbackLocation,
+    provider: provider || (addressClass === 'loopback' ? 'Localhost' : addressClass === 'private' ? 'LAN' : 'Not enriched')
+  };
+}
+
+async function enrichNetworkIdentity(rawIp, identity) {
+  if (!IP_ENRICH_URL_TEMPLATE || identity.addressClass !== 'public' || !globalThis.fetch) return identity;
+  if (!IP_ENRICH_URL_TEMPLATE.includes('{ip}')) return identity;
+  const url = IP_ENRICH_URL_TEMPLATE.replace('{ip}', encodeURIComponent(rawIp));
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1800);
+    const response = await fetch(url, { signal: controller.signal, headers: { accept: 'application/json' } });
+    clearTimeout(timer);
+    if (!response.ok) return identity;
+    const data = await response.json();
+    const city = String(data.city || data.town || '').slice(0, 80);
+    const region = String(data.region || data.regionName || data.state || '').slice(0, 80);
+    const country = String(data.country_name || data.countryName || data.country || '').slice(0, 80);
+    const provider = String(data.org || data.isp || data.provider || data.asn?.name || '').slice(0, 120);
+    return {
+      ...identity,
+      city: city || identity.city,
+      region: region || identity.region,
+      country: country || identity.country,
+      location: [city || identity.city, region || identity.region].filter(Boolean).join(', ') || country || identity.location,
+      provider: provider || identity.provider
+    };
+  } catch {
+    return identity;
+  }
+}
+
+function safeMetric(value, max = 1000000) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(max, n)) : 0;
+}
+
+function receiverIntelligenceRecord(clientId, state = {}) {
+  const network = state.network || {};
+  const client = state.clientInfo || {};
+  return {
+    receiverId: `RCV-${String(clientId || '').replace(/-/g, '').slice(0, 6).toUpperCase()}`,
+    maskedIp: network.maskedIp || 'Unavailable',
+    location: network.location || 'Unavailable',
+    provider: network.provider || 'Unavailable',
+    addressClass: network.addressClass || 'unknown',
+    browser: client.browser || 'Unknown',
+    os: client.os || 'Unknown',
+    deviceType: client.deviceType || 'Unknown',
+    timezone: client.timezone || '',
+    connectionType: client.connectionType || client.effectiveType || 'Unknown',
+    downlinkMbps: safeMetric(client.downlinkMbps),
+    browserRttMs: safeMetric(client.rttEstimateMs, 120000),
+    latencyMs: safeMetric(state.latencyMs, 120000),
+    transferSpeedMbps: safeMetric(state.transferSpeedMbps),
+    downloadTimeSec: safeMetric(state.downloadTimeSec, 86400),
+    acceptanceLatencySec: safeMetric(state.acceptanceLatencySec, 86400),
+    gestureConfidence: safeMetric(state.gestureConfidence, 1),
+    retries: Math.floor(safeMetric(state.retries, 1000)),
+    integrityVerified: Boolean(state.integrityVerified),
+    result: state.completedAt ? 'SUCCESS' : state.failedAt ? 'FAILED' : state.acceptedAt ? 'RECEIVING' : 'WAITING',
+    failureReason: String(state.failureReason || '').slice(0, 160)
+  };
+}
+
 function createServer() {
   const app = express();
   const server = http.createServer(app);
@@ -191,11 +356,18 @@ function createServer() {
 
   app.get('/api/health', (_req, res) => res.json({
     ok: true,
-    version: '5.1.0',
+    version: '5.2.0',
     peerRooms: rooms.size,
     broadcastRooms: broadcastRooms.size,
-    receiverLimit: CONFIGURED_RECEIVER_LIMIT || null
+    receiverLimit: CONFIGURED_RECEIVER_LIMIT || null,
+    networkIntelligence: true,
+    ipEnrichmentConfigured: Boolean(IP_ENRICH_URL_TEMPLATE)
   }));
+
+  app.get('/api/network/ping', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ ok: true, serverTime: Date.now() });
+  });
 
   app.get('/api/analytics', (_req, res) => res.json(analyticsSummary(safeReadEvents())));
 
@@ -297,6 +469,17 @@ function createServer() {
     return room;
   }
 
+  function receiverIntelligence(room) {
+    return [...(room?.receivers || new Map())].map(([clientId]) =>
+      receiverIntelligenceRecord(clientId, room.receiverStates.get(clientId) || {})
+    );
+  }
+
+  function emitReceiverIntelligence(room) {
+    if (!room?.host) return;
+    sendJson(room.host, { type: 'receiver-intelligence', receivers: receiverIntelligence(room) });
+  }
+
   function broadcastStats(room) {
     const total = room?.receivers?.size || 0;
     let accepted = 0;
@@ -362,6 +545,7 @@ function createServer() {
     room.updatedAt = Date.now();
     ws.room = null;
     emitBroadcastStats(room);
+    emitReceiverIntelligence(room);
   }
 
   function leaveAnyRoom(ws) {
@@ -371,8 +555,9 @@ function createServer() {
     ws.role = null;
   }
 
-  function joinBroadcast(ws, roomCode, role) {
+  function joinBroadcast(ws, roomCode, role, clientInfo = {}) {
     const room = getBroadcastRoom(roomCode, true);
+    ws.clientInfo = sanitizeClientInfo(clientInfo);
 
     if (role === 'sender') {
       if (room.host && room.host !== ws && room.host.readyState === WebSocket.OPEN) {
@@ -386,7 +571,13 @@ function createServer() {
       }
       ws.clientId = ws.clientId || crypto.randomUUID();
       room.receivers.set(ws.clientId, ws);
-      if (!room.receiverStates.has(ws.clientId)) room.receiverStates.set(ws.clientId, {});
+      const previous = room.receiverStates.get(ws.clientId) || {};
+      room.receiverStates.set(ws.clientId, {
+        ...previous,
+        joinedAt: previous.joinedAt || Date.now(),
+        network: ws.network || previous.network || {},
+        clientInfo: ws.clientInfo || previous.clientInfo || {}
+      });
     }
 
     ws.room = roomCode;
@@ -402,7 +593,8 @@ function createServer() {
       hostToken: role === 'sender' ? room.hostToken : undefined,
       stats: broadcastStats(room),
       file: publicBroadcastFile(room.file),
-      receiverLimit: CONFIGURED_RECEIVER_LIMIT || null
+      receiverLimit: CONFIGURED_RECEIVER_LIMIT || null,
+      network: ws.network || {}
     });
 
     if (role === 'receiver' && room.file) {
@@ -410,6 +602,7 @@ function createServer() {
     }
 
     emitBroadcastStats(room);
+    emitReceiverIntelligence(room);
   }
 
   // Upload once from the Host. The file is streamed to temporary server storage;
@@ -551,9 +744,26 @@ function createServer() {
     });
   });
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
     ws.isAlive = true;
     ws.clientId = crypto.randomUUID();
+    const rawIp = requestIp(req);
+    ws.network = baseNetworkIdentity(rawIp, req.headers || {});
+    ws.clientInfo = {};
+    if (IP_ENRICH_URL_TEMPLATE && ws.network.addressClass === 'public') {
+      enrichNetworkIdentity(rawIp, ws.network).then((enriched) => {
+        ws.network = enriched;
+        if (ws.mode === 'broadcast' && ws.role === 'receiver' && ws.room) {
+          const room = broadcastRooms.get(ws.room);
+          const item = room?.receiverStates.get(ws.clientId);
+          if (room && item) {
+            item.network = enriched;
+            room.receiverStates.set(ws.clientId, item);
+            emitReceiverIntelligence(room);
+          }
+        }
+      }).catch(() => {});
+    }
     ws.on('pong', () => { ws.isAlive = true; });
 
     ws.on('message', (raw) => {
@@ -572,7 +782,7 @@ function createServer() {
         if (!isValidRoomCode(room)) return sendJson(ws, { type: 'error', message: 'Valid room code required' });
 
         // Universal workflow: every room is one Sender + N Receivers.
-        return joinBroadcast(ws, room, role);
+        return joinBroadcast(ws, room, role, data.clientInfo || {});
       }
 
       if (ws.mode === 'peer' && ['offer', 'answer', 'ice'].includes(data.type) && ws.room) {
@@ -592,10 +802,16 @@ function createServer() {
           const item = room.receiverStates.get(ws.clientId) || {};
           item.acceptedAt = item.acceptedAt || Date.now();
           item.failedAt = null;
+          item.clientInfo = sanitizeClientInfo(data.clientInfo || item.clientInfo || ws.clientInfo || {});
+          item.network = ws.network || item.network || {};
+          item.latencyMs = safeMetric(data.latencyMs, 120000);
+          item.acceptanceLatencySec = safeMetric(data.acceptanceLatencySec, 86400);
+          item.gestureConfidence = safeMetric(data.gestureConfidence, 1);
           room.receiverStates.set(ws.clientId, item);
           room.updatedAt = Date.now();
           sendJson(ws, { type: 'broadcast-accept-confirmed', file: publicBroadcastFile(room.file) });
           emitBroadcastStats(room);
+          emitReceiverIntelligence(room);
           return;
         }
 
@@ -605,9 +821,19 @@ function createServer() {
           item.acceptedAt = item.acceptedAt || Date.now();
           item.completedAt = Date.now();
           item.failedAt = null;
+          item.latencyMs = safeMetric(data.latencyMs || item.latencyMs, 120000);
+          item.transferSpeedMbps = safeMetric(data.speedMbps);
+          item.downloadTimeSec = safeMetric(data.durationSec, 86400);
+          item.acceptanceLatencySec = safeMetric(data.acceptanceLatencySec || item.acceptanceLatencySec, 86400);
+          item.gestureConfidence = safeMetric(data.gestureConfidence || item.gestureConfidence, 1);
+          item.retries = Math.floor(safeMetric(data.retries, 1000));
+          item.integrityVerified = Boolean(data.integrityVerified);
+          item.clientInfo = sanitizeClientInfo(data.clientInfo || item.clientInfo || ws.clientInfo || {});
+          item.network = ws.network || item.network || {};
           room.receiverStates.set(ws.clientId, item);
           room.updatedAt = Date.now();
           emitBroadcastStats(room);
+          emitReceiverIntelligence(room);
           return;
         }
 
@@ -616,9 +842,16 @@ function createServer() {
           const item = room.receiverStates.get(ws.clientId) || {};
           item.failedAt = Date.now();
           item.failureReason = String(data.reason || 'download failed').slice(0, 160);
+          item.latencyMs = safeMetric(data.latencyMs || item.latencyMs, 120000);
+          item.downloadTimeSec = safeMetric(data.durationSec, 86400);
+          item.acceptanceLatencySec = safeMetric(data.acceptanceLatencySec || item.acceptanceLatencySec, 86400);
+          item.gestureConfidence = safeMetric(data.gestureConfidence || item.gestureConfidence, 1);
+          item.clientInfo = sanitizeClientInfo(data.clientInfo || item.clientInfo || ws.clientInfo || {});
+          item.network = ws.network || item.network || {};
           room.receiverStates.set(ws.clientId, item);
           room.updatedAt = Date.now();
           emitBroadcastStats(room);
+          emitReceiverIntelligence(room);
           return;
         }
 
@@ -677,7 +910,7 @@ function createServer() {
 if (require.main === module) {
   const { server } = createServer();
   server.listen(PORT, '0.0.0.0', () => {
-    console.log('\nAirGesture Transfer Intelligence v5.1');
+    console.log('\nAirGesture Transfer Intelligence v5.2');
     console.log(`Local:   http://localhost:${PORT}`);
     console.log('Mode:    Universal Room (1 Sender → N Receivers; no fixed app cap)');
     console.log('Network: use HTTPS for camera access from multiple physical devices.\n');
@@ -689,5 +922,9 @@ module.exports = {
   analyticsSummary,
   sanitizeEvent,
   CONFIGURED_RECEIVER_LIMIT,
-  MAX_BROADCAST_FILE_BYTES
+  MAX_BROADCAST_FILE_BYTES,
+  maskIp,
+  classifyIp,
+  sanitizeClientInfo,
+  receiverIntelligenceRecord
 };
