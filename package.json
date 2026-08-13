@@ -1,7 +1,7 @@
 {
   "name": "hand-gesture-photo-transfer",
   "version": "5.2.0",
-  "description": "AirGesture Transfer Intelligence V5.1 \u2014 one universal room workflow: 1 Sender uploads once and any number of Receivers supported by server capacity can Air Paste.",
+  "description": "AirGesture Transfer Intelligence V5.1 — one universal room workflow: 1 Sender uploads once and any number of Receivers supported by server capacity can Air Paste.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -26,6 +26,8 @@
   },
   "dependencies": {
     "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "google-auth-library": "^11.0.2",
     "ws": "^8.21.0"
   }
 }

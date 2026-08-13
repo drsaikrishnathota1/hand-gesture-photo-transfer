@@ -5,6 +5,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const net = require('net');
 const WebSocket = require('ws');
+const session = require('express-session');
+const { createAuthRouter } = require('./auth');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -334,6 +336,37 @@ function receiverIntelligenceRecord(clientId, state = {}) {
 
 function createServer() {
   const app = express();
+
+  if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+  }
+
+  const sessionSecret = String(
+    process.env.SESSION_SECRET ||
+    (process.env.NODE_ENV === 'production'
+      ? ''
+      : 'airgesture-local-development-session-secret')
+  );
+
+  if (!sessionSecret) {
+    throw new Error('SESSION_SECRET is required in production');
+  }
+
+  app.use(session({
+    name: 'airgesture.sid',
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 8 * 60 * 60 * 1000
+    }
+  }));
+
+  app.use('/api/auth', createAuthRouter());
+
   const server = http.createServer(app);
   const wss = new WebSocket.Server({ server, maxPayload: MAX_SIGNAL_BYTES });
 

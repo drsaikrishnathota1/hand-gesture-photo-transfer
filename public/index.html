@@ -12,6 +12,48 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <section id="authGate" class="auth-gate">
+    <div class="auth-card glass">
+      <div class="auth-logo">✋</div>
+
+      <div class="eyebrow">DBA 802 · DECISION INTELLIGENCE LAB</div>
+
+      <h1>
+        Welcome to
+        <span>AirGesture</span>
+      </h1>
+
+      <p>
+        Sign in with your Google account to enter the live
+        Data Analytics & Decision Intelligence laboratory.
+      </p>
+
+      <div class="auth-purpose">
+        <div>
+          <strong>IDENTITY</strong>
+          <span>Your Google account identifies your classroom session.</span>
+        </div>
+
+        <div>
+          <strong>PRIVACY</strong>
+          <span>AirGesture never receives or stores your Google password.</span>
+        </div>
+
+        <div>
+          <strong>EVIDENCE</strong>
+          <span>Your interactions will later become your personal analytics dataset.</span>
+        </div>
+      </div>
+
+      <div id="googleSignInButton" class="google-signin"></div>
+      <p id="authMessage" class="auth-message">Loading secure sign-in…</p>
+
+      <small class="auth-footnote">
+        Authentication is provided by Google. Technical telemetry is used
+        for the DBA 802 classroom laboratory.
+      </small>
+    </div>
+  </section>
   <div class="ambient ambient-one"></div>
   <div class="ambient ambient-two"></div>
   <div class="grid-bg"></div>
@@ -35,6 +77,16 @@
 
       <div class="top-actions">
         <span class="system-pill"><i class="pulse-dot"></i><span id="systemStatus">System Ready</span></span>
+
+        <div id="authUser" class="auth-user" hidden>
+          <img id="authUserPicture" alt="" hidden />
+          <div>
+            <strong id="authUserName">Signed In</strong>
+            <small id="authUserEmail"></small>
+          </div>
+          <button id="logoutBtn" class="mini-btn" type="button">Sign out</button>
+        </div>
+
         <button id="themeBtn" class="icon-btn" title="Toggle visual mode" aria-label="Toggle visual mode">◐</button>
       </div>
     </header>
@@ -285,6 +337,8 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth-client.js"></script>
   <script src="core.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script type="module" src="app.js"></script>
