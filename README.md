@@ -66,3 +66,32 @@ Leaving the variable unset means no fixed application cap.
 **Data** → connected Receivers, acceptance, completion, failure, file size, duration, throughput, gesture evidence  
 **Insight** → adoption, reliability, friction, performance, scale behavior  
 **Decision** → pilot, improve, scale, or reject
+
+
+## V5.2 Receiver Network Intelligence
+
+V5.2 adds privacy-first receiver telemetry for DBA 802 analytics exercises:
+
+- anonymized receiver ID
+- masked IP address (full IP is not written to analytics storage)
+- approximate location/provider when the deployment supplies enrichment data
+- browser, OS, device type, timezone, connection hints
+- measured round-trip latency to the AirGesture server
+- browser network RTT/downlink hints when supported
+- actual file transfer speed and download time
+- gesture confidence, acceptance latency, integrity verification, and final result
+- live Sender-side Receiver Network Intelligence table
+
+### Optional IP location/provider enrichment
+
+AirGesture works without any external IP lookup. Local/private/public address class and masked IP are available automatically.
+
+For an explicitly configured server-side enrichment service, set a URL template containing `{ip}`:
+
+```bash
+AIRGESTURE_TRUST_PROXY=1 \\
+AIRGESTURE_IP_ENRICH_URL_TEMPLATE='https://your-approved-ip-service.example/{ip}' \\
+npm start
+```
+
+The lookup is **off by default**. If enabled, the configured service receives the connection IP, so only use an institution-approved provider with an appropriate privacy policy. AirGesture stores/displays only the masked IP and coarse enrichment results.

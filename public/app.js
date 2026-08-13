@@ -50,6 +50,10 @@ const state = {
   broadcastXHR: null,
   broadcastAbortController: null,
   broadcastStats: { connected: 0, accepted: 0, completed: 0, failed: 0, waiting: 0, completionRate: 0 },
+  networkLatencyMs: 0,
+  lastGestureConfidence: 0,
+  ownNetwork: {},
+  receiverIntelligence: [],
 
   charts: { trend: null, type: null }
 };
@@ -86,6 +90,117 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 ** 2).toFixed(2)} MB`;
+}
+
+
+function detectBrowser() {
+  const ua = navigator.userAgent || '';
+  if (/Edg\//.test(ua)) return 'Edge';
+  if (/Chrome\//.test(ua) && !/Edg\//.test(ua)) return 'Chrome';
+  if (/Firefox\//.test(ua)) return 'Firefox';
+  if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) return 'Safari';
+  return 'Other';
+}
+
+function detectOS() {
+  const ua = navigator.userAgent || '';
+  const platform = navigator.userAgentData?.platform || navigator.platform || '';
+  if (/Windows/i.test(platform) || /Windows NT/i.test(ua)) return 'Windows';
+  if (/Mac/i.test(platform) || /Mac OS X/i.test(ua)) return 'macOS';
+  if (/Android/i.test(ua)) return 'Android';
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS/iPadOS';
+  if (/Linux/i.test(platform) || /Linux/i.test(ua)) return 'Linux';
+  return 'Other';
+}
+
+function detectDeviceType() {
+  const ua = navigator.userAgent || '';
+  if (/iPad|Tablet/i.test(ua)) return 'Tablet';
+  if (/Mobi|Android|iPhone|iPod/i.test(ua)) return 'Mobile';
+  return 'Laptop/Desktop';
+}
+
+function collectClientInfo() {
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection || {};
+  return {
+    browser: detectBrowser(),
+    os: detectOS(),
+    deviceType: detectDeviceType(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+    language: navigator.language || '',
+    connectionType: connection.type || '',
+    effectiveType: connection.effectiveType || '',
+    downlinkMbps: Number(connection.downlink) || 0,
+    rttEstimateMs: Number(connection.rtt) || 0,
+    screen: `${screen.width || 0}x${screen.height || 0}`,
+    cpuCores: Number(navigator.hardwareConcurrency) || 0,
+    memoryGB: Number(navigator.deviceMemory) || 0
+  };
+}
+
+async function measureServerLatency(samples = 3) {
+  const values = [];
+  for (let i = 0; i < samples; i += 1) {
+    const started = performance.now();
+    try {
+      const response = await fetch(`/api/network/ping?t=${Date.now()}-${i}`, { cache: 'no-store' });
+      if (response.ok) values.push(performance.now() - started);
+    } catch {}
+  }
+  if (!values.length) return 0;
+  return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
+}
+
+function networkQuality(latencyMs, speedMbps) {
+  if (speedMbps >= 15 && latencyMs > 0 && latencyMs <= 50) return 'EXCELLENT';
+  if (speedMbps >= 5 && (latencyMs === 0 || latencyMs <= 120)) return 'GOOD';
+  if (speedMbps > 0 || latencyMs > 0) return 'FAIR';
+  return 'WAITING';
+}
+
+function renderOwnNetwork(network = {}) {
+  state.ownNetwork = network || {};
+  if ($('ownNetworkIp')) $('ownNetworkIp').textContent = network.maskedIp || 'Unavailable';
+  if ($('ownNetworkLocation')) $('ownNetworkLocation').textContent = network.location || 'Unavailable';
+  if ($('ownNetworkProvider')) $('ownNetworkProvider').textContent = network.provider || 'Unavailable';
+  if ($('ownNetworkDevice')) $('ownNetworkDevice').textContent = `${detectDeviceType()} · ${detectBrowser()} · ${detectOS()}`;
+  if ($('ownNetworkLatency')) $('ownNetworkLatency').textContent = state.networkLatencyMs ? `${state.networkLatencyMs.toFixed(1)} ms` : 'Measuring…';
+}
+
+function renderReceiverIntelligence(receivers = []) {
+  state.receiverIntelligence = Array.isArray(receivers) ? receivers : [];
+  const body = $('receiverIntelligenceBody');
+  const count = $('receiverIntelligenceCount');
+  if (count) count.textContent = String(state.receiverIntelligence.length);
+  if (!body) return;
+  if (!state.receiverIntelligence.length) {
+    body.innerHTML = '<tr><td colspan="9" class="table-empty">No receiver network evidence yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = '';
+  for (const row of state.receiverIntelligence) {
+    const tr = document.createElement('tr');
+    const quality = networkQuality(Number(row.latencyMs) || Number(row.browserRttMs) || 0, Number(row.transferSpeedMbps) || 0);
+    const result = row.result || 'WAITING';
+    const values = [
+      row.receiverId || 'Receiver',
+      row.maskedIp || 'Unavailable',
+      row.location || 'Unavailable',
+      row.provider || 'Unavailable',
+      `${row.deviceType || 'Unknown'} · ${row.browser || 'Unknown'} / ${row.os || 'Unknown'}`,
+      row.latencyMs ? `${Number(row.latencyMs).toFixed(1)} ms` : row.browserRttMs ? `~${Number(row.browserRttMs).toFixed(0)} ms` : '--',
+      row.transferSpeedMbps ? `${Number(row.transferSpeedMbps).toFixed(1)} Mbps` : '--',
+      quality,
+      result
+    ];
+    values.forEach((value, index) => {
+      const td = document.createElement('td');
+      td.textContent = value;
+      if (index === 8) td.className = `network-result ${String(result).toLowerCase()}`;
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  }
 }
 
 function fileType(file) {
@@ -343,8 +458,9 @@ function connectBroadcastRoom() {
   const ws = new WebSocket(webSocketURL());
   state.ws = ws;
 
-  ws.onopen = () => {
-    ws.send(JSON.stringify({ type: "join", room, role: state.role, mode: "universal" }));
+  ws.onopen = async () => {
+    state.networkLatencyMs = await measureServerLatency();
+    ws.send(JSON.stringify({ type: "join", room, role: state.role, mode: "universal", clientInfo: collectClientInfo() }));
   };
 
   ws.onmessage = async (event) => {
@@ -354,6 +470,7 @@ function connectBroadcastRoom() {
     if (msg.type === "broadcast-joined") {
       state.broadcastClientId = msg.clientId || "";
       if (state.role === "sender") state.broadcastHostToken = msg.hostToken || "";
+      renderOwnNetwork(msg.network || {});
       renderBroadcastStats(msg.stats || {});
       applyBroadcastFile(msg.file);
       setBadge($("peerBadge"), state.role === "sender" ? "Sender Ready" : "Room Joined", "good");
@@ -361,6 +478,11 @@ function connectBroadcastRoom() {
         ? `Universal room ${msg.room} ready. ${msg.stats?.connected || 0} receiver(s) connected. Choose a file and use ✋ → ✊ to Air Send.`
         : `Joined universal room ${msg.room}. Waiting for the Sender file.`);
       updateActionButtons();
+      return;
+    }
+
+    if (msg.type === "receiver-intelligence") {
+      renderReceiverIntelligence(msg.receivers || []);
       return;
     }
 
@@ -915,7 +1037,15 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
     ? Math.round(((started - request.requestedAt) / 1000) * 100) / 100
     : 0;
 
-  state.ws.send(JSON.stringify({ type: "broadcast-accept", fileId: request.fileId, trigger }));
+  state.ws.send(JSON.stringify({
+    type: "broadcast-accept",
+    fileId: request.fileId,
+    trigger,
+    acceptanceLatencySec,
+    latencyMs: state.networkLatencyMs,
+    gestureConfidence: state.lastGestureConfidence,
+    clientInfo: collectClientInfo()
+  }));
   setTransferState("receiving broadcast");
   setProgress(0);
   status(`Air Paste accepted. Downloading ${request.name} from the universal room…`);
@@ -973,7 +1103,18 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
     const url = URL.createObjectURL(blob);
     addReceivedFile(request.name, blob.size, url);
 
-    state.ws.send(JSON.stringify({ type: "broadcast-complete", fileId: request.fileId }));
+    state.ws.send(JSON.stringify({
+      type: "broadcast-complete",
+      fileId: request.fileId,
+      latencyMs: state.networkLatencyMs,
+      speedMbps: Math.round(speedMbps * 100) / 100,
+      durationSec: Math.round(durationSec * 100) / 100,
+      acceptanceLatencySec,
+      gestureConfidence: state.lastGestureConfidence,
+      retries: 0,
+      integrityVerified: true,
+      clientInfo: collectClientInfo()
+    }));
     setProgress(100, speedMbps);
     setTransferState("received");
     status(`${request.name} received from the universal room and integrity verified.`);
@@ -1003,7 +1144,12 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
         state.ws.send(JSON.stringify({
           type: "broadcast-failed",
           fileId: request.fileId,
-          reason: cancelled ? "cancelled" : String(error.message || "download failed")
+          reason: cancelled ? "cancelled" : String(error.message || "download failed"),
+          latencyMs: state.networkLatencyMs,
+          durationSec: Math.round(((performance.now() - started) / 1000) * 100) / 100,
+          acceptanceLatencySec,
+          gestureConfidence: state.lastGestureConfidence,
+          clientInfo: collectClientInfo()
         }));
       }
     } catch {}
@@ -1449,6 +1595,7 @@ function updateGestureHUD(name, score) {
 }
 
 async function fireAirGestureSequence(confidence) {
+  state.lastGestureConfidence = Number(confidence) || 0;
   const action = state.role === "sender" ? "Air_Copy" : "Air_Paste";
   await logEvent({ type: "gesture", gesture: action, confidence, role: state.role, action, mode: state.mode });
   if (state.role === "sender") return prepareAirCopy("gesture");
