@@ -272,7 +272,7 @@ footer { display: flex; justify-content: space-between; color: var(--muted); fon
 .own-network-grid span { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; opacity: .62; margin-bottom: 6px; }
 .own-network-grid strong { display: block; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .network-table-wrap { margin-top: 6px; }
-.network-table { min-width: 1180px; }
+.network-table { min-width: 1450px; }
 .network-table th, .network-table td { white-space: nowrap; }
 .network-result { font-weight: 800; }
 .network-result.success { color: #68e6ad; }

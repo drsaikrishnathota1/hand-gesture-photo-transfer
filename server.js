@@ -309,7 +309,11 @@ function safeMetric(value, max = 1000000) {
 function receiverIntelligenceRecord(clientId, state = {}) {
   const network = state.network || {};
   const client = state.clientInfo || {};
+  const identity = state.identity || {};
+
   return {
+    participantName: String(identity.name || 'Signed-in participant').slice(0, 120),
+    participantEmail: String(identity.email || '').slice(0, 180),
     receiverId: `RCV-${String(clientId || '').replace(/-/g, '').slice(0, 6).toUpperCase()}`,
     maskedIp: network.maskedIp || 'Unavailable',
     location: network.location || 'Unavailable',
@@ -337,6 +341,12 @@ function receiverIntelligenceRecord(clientId, state = {}) {
 function createServer() {
   const app = express();
 
+  // Integration-test-only authentication bypass.
+  // This cannot activate in production because NODE_ENV must equal "test".
+  const allowTestAuthBypass =
+    process.env.NODE_ENV === 'test' &&
+    process.env.AIRGESTURE_TEST_AUTH_BYPASS === '1';
+
   if (process.env.NODE_ENV === 'production') {
     app.set('trust proxy', 1);
   }
@@ -352,7 +362,7 @@ function createServer() {
     throw new Error('SESSION_SECRET is required in production');
   }
 
-  app.use(session({
+  const sessionParser = session({
     name: 'airgesture.sid',
     secret: sessionSecret,
     resave: false,
@@ -363,12 +373,35 @@ function createServer() {
       sameSite: 'lax',
       maxAge: 8 * 60 * 60 * 1000
     }
-  }));
+  });
 
+  app.use(sessionParser);
   app.use('/api/auth', createAuthRouter());
 
   const server = http.createServer(app);
-  const wss = new WebSocket.Server({ server, maxPayload: MAX_SIGNAL_BYTES });
+  const wss = new WebSocket.Server({
+    noServer: true,
+    maxPayload: MAX_SIGNAL_BYTES
+  });
+
+  // WebSockets are accepted only when the browser has a valid
+  // AirGesture Google-authenticated session.
+  server.on('upgrade', (req, socket, head) => {
+    sessionParser(req, {}, () => {
+      if (!req.session?.user?.googleSub && !allowTestAuthBypass) {
+        socket.write(
+          'HTTP/1.1 401 Unauthorized\r\n' +
+          'Connection: close\r\n\r\n'
+        );
+        socket.destroy();
+        return;
+      }
+
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    });
+  });
 
   // V5.1 uses one universal server-assisted room model.
   // Legacy peer-room storage is retained only for backward data compatibility; new joins do not use it.
@@ -387,9 +420,29 @@ function createServer() {
   app.use(express.json({ limit: '128kb' }));
   app.use(express.static(PUBLIC_DIR, { etag: true, maxAge: 0 }));
 
+  function requireAuth(req, res, next) {
+    if (allowTestAuthBypass) return next();
+
+    if (!req.session?.user?.googleSub) {
+      return res.status(401).json({
+        error: 'Google Sign-In required.'
+      });
+    }
+
+    next();
+  }
+
+  // Public: /api/auth/* and /api/health
+  // Protected: classroom data, transfer files and telemetry.
+  app.use('/api/network/ping', requireAuth);
+  app.use('/api/analytics', requireAuth);
+  app.use('/api/events', requireAuth);
+  app.use('/api/demo-data', requireAuth);
+  app.use('/api/broadcast', requireAuth);
+
   app.get('/api/health', (_req, res) => res.json({
     ok: true,
-    version: '5.2.0',
+    version: '5.3.1',
     peerRooms: rooms.size,
     broadcastRooms: broadcastRooms.size,
     receiverLimit: CONFIGURED_RECEIVER_LIMIT || null,
@@ -556,7 +609,14 @@ function createServer() {
 
   function resetReceiverStatesForFile(room) {
     for (const clientId of room.receivers.keys()) {
-      room.receiverStates.set(clientId, {});
+      const previous = room.receiverStates.get(clientId) || {};
+
+      room.receiverStates.set(clientId, {
+        joinedAt: previous.joinedAt || Date.now(),
+        identity: previous.identity || {},
+        network: previous.network || {},
+        clientInfo: previous.clientInfo || {}
+      });
     }
   }
 
@@ -608,6 +668,7 @@ function createServer() {
       room.receiverStates.set(ws.clientId, {
         ...previous,
         joinedAt: previous.joinedAt || Date.now(),
+        identity: ws.user || previous.identity || {},
         network: ws.network || previous.network || {},
         clientInfo: ws.clientInfo || previous.clientInfo || {}
       });
@@ -780,6 +841,28 @@ function createServer() {
   wss.on('connection', (ws, req) => {
     ws.isAlive = true;
     ws.clientId = crypto.randomUUID();
+
+    const sessionUser = req.session?.user || (
+      allowTestAuthBypass
+        ? {
+            googleSub: 'integration-test-user',
+            name: 'Integration Test User',
+            email: 'integration@example.test'
+          }
+        : {}
+    );
+
+    ws.user = {
+      googleSub: String(sessionUser.googleSub || ''),
+      name: String(sessionUser.name || '').slice(0, 120),
+      email: String(sessionUser.email || '').slice(0, 180)
+    };
+
+    if (!ws.user.googleSub) {
+      ws.close(4401, 'Authentication required');
+      return;
+    }
+
     const rawIp = requestIp(req);
     ws.network = baseNetworkIdentity(rawIp, req.headers || {});
     ws.clientInfo = {};
@@ -943,7 +1026,7 @@ function createServer() {
 if (require.main === module) {
   const { server } = createServer();
   server.listen(PORT, '0.0.0.0', () => {
-    console.log('\nAirGesture Transfer Intelligence v5.2');
+    console.log('\nAirGesture Transfer Intelligence v5.3.1');
     console.log(`Local:   http://localhost:${PORT}`);
     console.log('Mode:    Universal Room (1 Sender → N Receivers; no fixed app cap)');
     console.log('Network: use HTTPS for camera access from multiple physical devices.\n');

@@ -174,7 +174,7 @@ function renderReceiverIntelligence(receivers = []) {
   if (count) count.textContent = String(state.receiverIntelligence.length);
   if (!body) return;
   if (!state.receiverIntelligence.length) {
-    body.innerHTML = '<tr><td colspan="9" class="table-empty">No receiver network evidence yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="table-empty">No authenticated receiver evidence yet.</td></tr>';
     return;
   }
   body.innerHTML = '';
@@ -182,7 +182,13 @@ function renderReceiverIntelligence(receivers = []) {
     const tr = document.createElement('tr');
     const quality = networkQuality(Number(row.latencyMs) || Number(row.browserRttMs) || 0, Number(row.transferSpeedMbps) || 0);
     const result = row.result || 'WAITING';
+
+    const participant = row.participantEmail
+      ? `${row.participantName || 'Signed-in participant'} · ${row.participantEmail}`
+      : (row.participantName || 'Signed-in participant');
+
     const values = [
+      participant,
       row.receiverId || 'Receiver',
       row.maskedIp || 'Unavailable',
       row.location || 'Unavailable',
@@ -196,7 +202,7 @@ function renderReceiverIntelligence(receivers = []) {
     values.forEach((value, index) => {
       const td = document.createElement('td');
       td.textContent = value;
-      if (index === 8) td.className = `network-result ${String(result).toLowerCase()}`;
+      if (index === 9) td.className = `network-result ${String(result).toLowerCase()}`;
       tr.appendChild(td);
     });
     body.appendChild(tr);

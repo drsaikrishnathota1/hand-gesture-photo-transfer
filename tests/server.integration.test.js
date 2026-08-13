@@ -1,3 +1,6 @@
+process.env.NODE_ENV = 'test';
+process.env.AIRGESTURE_TEST_AUTH_BYPASS = '1';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -51,11 +54,11 @@ async function withServer(fn) {
   }
 }
 
-test('V5.2 health endpoint reports universal room mode with no fixed receiver cap by default', { skip: !depsAvailable }, async () => {
+test('V5.3.1 health endpoint reports universal room mode with no fixed receiver cap by default', { skip: !depsAvailable }, async () => {
   await withServer(async ({ port }) => {
     const health = await fetch(`http://127.0.0.1:${port}/api/health`).then((r) => r.json());
     assert.equal(health.ok, true);
-    assert.equal(health.version, '5.2.0');
+    assert.equal(health.version, '5.3.1');
     assert.equal(health.receiverLimit, null);
   });
 });

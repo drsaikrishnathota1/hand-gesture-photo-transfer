@@ -4,12 +4,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { maskIp, classifyIp, sanitizeClientInfo, receiverIntelligenceRecord } = require('../server');
 
-test('V5.2 masks IPv4 rather than exposing a full public address', () => {
+test('V5.3.1 masks IPv4 rather than exposing a full public address', () => {
   assert.equal(maskIp('73.184.122.57'), '73.184.xxx.xxx');
   assert.notEqual(maskIp('73.184.122.57'), '73.184.122.57');
 });
 
-test('V5.2 recognizes loopback, private and public network classes', () => {
+test('V5.3.1 recognizes loopback, private and public network classes', () => {
   assert.equal(classifyIp('127.0.0.1'), 'loopback');
   assert.equal(classifyIp('192.168.1.44'), 'private');
   assert.equal(classifyIp('73.184.122.57'), 'public');
@@ -41,7 +41,7 @@ test('receiver intelligence record contains masked network and business telemetr
   assert.equal(row.integrityVerified, true);
 });
 
-test('V5.2 UI includes Receiver Network Intelligence without a full-IP field', () => {
+test('V5.3.1 UI includes Receiver Network Intelligence without a full-IP field', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
   assert.match(html, /Receiver Network Intelligence/);
   assert.match(html, /Masked IP/);
@@ -49,7 +49,7 @@ test('V5.2 UI includes Receiver Network Intelligence without a full-IP field', (
   assert.doesNotMatch(html, /Full IP Address/);
 });
 
-test('V5.2 browser code collects device and network signals and measures server latency', () => {
+test('V5.3.1 browser code collects device and network signals and measures server latency', () => {
   const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
   assert.match(js, /collectClientInfo/);
   assert.match(js, /measureServerLatency/);
