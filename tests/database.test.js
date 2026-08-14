@@ -819,3 +819,353 @@ test(
   }
 );
 
+
+
+test(
+  'V5.4.2 grab release gesture experience is present',
+  () => {
+    const html =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'index.html'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      html,
+      /id="gestureExperience"/
+    );
+
+    assert.match(
+      html,
+      /id="gestureFileCard"/
+    );
+
+    assert.match(
+      html,
+      /id="gestureExperienceHand"/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 sender grabs while receiver catches and releases',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'app.js'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /waiting-fist/
+    );
+
+    assert.match(
+      source,
+      /waiting-release/
+    );
+
+    assert.match(
+      source,
+      /READY TO GRAB/
+    );
+
+    assert.match(
+      source,
+      /CAUGHT/
+    );
+
+    assert.match(
+      source,
+      /RELEASED/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 animates the file toward the detected hand',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'app.js'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /updateGestureHandAnchor/
+    );
+
+    assert.match(
+      source,
+      /animateAirFile/
+    );
+
+    assert.match(
+      source,
+      /lastHandAnchor/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 incoming receiver UI uses a soft pulse',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'styles.css'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /airIncomingPulse/
+    );
+
+    assert.match(
+      source,
+      /prefers-reduced-motion/
+    );
+  }
+);
+
+
+
+test(
+  'V5.4.2 stores classroom SEND and RECEIVE rows',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(root, 'db.js'),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /classroom_data_events/
+    );
+
+    assert.match(
+      source,
+      /recordLiveDataEvent/
+    );
+
+    assert.match(
+      source,
+      /'SEND'/
+    );
+
+    assert.match(
+      source,
+      /'RECEIVE'/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 server creates SEND and RECEIVE live data events',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(root, 'server.js'),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /live SEND persistence/
+    );
+
+    assert.match(
+      source,
+      /live RECEIVE persistence/
+    );
+
+    assert.match(
+      source,
+      /\/api\/live-data/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 main UI removes Executive Analytics navigation',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'index.html'
+        ),
+        'utf8'
+      );
+
+    assert.doesNotMatch(
+      source,
+      /data-view="analyticsView"/
+    );
+
+    assert.match(
+      source,
+      /id="openLiveDataBtn"/
+    );
+
+    assert.match(
+      source,
+      /id="classroomAnalyticsConsent"/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 separate Live Data page auto-refreshes and downloads CSV',
+  () => {
+    const html =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'live-data.html'
+        ),
+        'utf8'
+      );
+
+    const js =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'live-data.js'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      html,
+      /Classroom Records/
+    );
+
+    assert.match(
+      html,
+      /Download CSV/
+    );
+
+    assert.match(
+      js,
+      /setInterval/
+    );
+
+    assert.match(
+      js,
+      /1000/
+    );
+
+    assert.match(
+      js,
+      /text\/csv/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 student Live Data excludes email Google ID and full IP',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(root, 'db.js'),
+        'utf8'
+      );
+
+    const start =
+      source.indexOf(
+        'async function liveClassroomData'
+      );
+
+    const end =
+      source.indexOf(
+        'async function dashboardData',
+        start
+      );
+
+    assert.ok(start >= 0);
+    assert.ok(end > start);
+
+    const live =
+      source.slice(
+        start,
+        end
+      );
+
+    assert.doesNotMatch(
+      live,
+      /u\.email/i
+    );
+
+    assert.doesNotMatch(
+      live,
+      /google_sub/i
+    );
+
+    assert.doesNotMatch(
+      live,
+      /masked_ip/i
+    );
+  }
+);
+
+
+
+test(
+  'V5.4.2 Live Data requires membership in the requested room',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'server.js'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /isRoomParticipant/
+    );
+
+    assert.match(
+      source,
+      /Join this AirGesture room before viewing its live data/
+    );
+
+    assert.match(
+      source,
+      /receiver\?\.user/
+    );
+  }
+);
+

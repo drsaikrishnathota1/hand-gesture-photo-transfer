@@ -34,12 +34,12 @@ test('both roles may start Vision AI and AI failure preserves manual controls', 
   assert.match(app, /Manual Air Copy\/Air Paste controls remain available/);
 });
 
-test('V5 keeps ultra-easy Open Palm then Closed Fist for both roles', () => {
+test('V5.4.2 uses sender Grab and receiver Catch Release gestures', () => {
   assert.match(app, /Open_Palm/);
   assert.match(app, /Closed_Fist/);
   assert.doesNotMatch(app, /Victory ✌️/);
   assert.match(html, /✋ → ✊ Air Copy/);
-  assert.match(html, /✋ → ✊ Air Paste/);
+  assert.match(html, /✊ → ✋ Air Paste/);
   assert.match(html, /Instant sensing/);
 });
 

@@ -865,6 +865,44 @@ function createServer() {
           );
         }
 
+        if (result === 'SUCCESS') {
+          try {
+            const liveConsent =
+              await database
+                .getConsentPreferences(
+                  userId
+                );
+
+            await database
+              .recordLiveDataEvent({
+                sessionId,
+                userId,
+                roomCode,
+                action:
+                  'RECEIVE',
+                file,
+                clientInfo:
+                  receiverState.clientInfo ||
+                  receiverWs?.clientInfo ||
+                  participantClient,
+                network:
+                  receiverState.network ||
+                  receiverWs?.network ||
+                  participantNetwork,
+                commercialAllowed:
+                  Boolean(
+                    liveConsent
+                      .analyticsConsent
+                  )
+              });
+          } catch (liveError) {
+            databaseError(
+              'live HTTP RECEIVE persistence',
+              liveError
+            );
+          }
+        }
+
         console.log(
           'PostgreSQL HTTP transfer persisted:',
           result,
@@ -1145,6 +1183,111 @@ function createServer() {
     }
   );
 
+
+
+
+
+  app.get(
+    '/api/live-data',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const roomCode =
+          String(
+            req.query?.room || ''
+          )
+            .trim()
+            .toUpperCase();
+
+        if (!isValidRoomCode(roomCode)) {
+          return res.status(400).json({
+            error:
+              'Open Live Data from an AirGesture room.'
+          });
+        }
+
+        const activeRoom =
+          broadcastRooms.get(
+            roomCode
+          );
+
+        const googleSub =
+          String(
+            req.session?.user
+              ?.googleSub || ''
+          );
+
+        let isRoomParticipant =
+          Boolean(
+            activeRoom?.host?.user
+              ?.googleSub ===
+            googleSub
+          );
+
+        if (
+          !isRoomParticipant &&
+          activeRoom
+        ) {
+          for (
+            const receiver
+            of activeRoom
+              .receivers.values()
+          ) {
+            if (
+              receiver?.user
+                ?.googleSub ===
+              googleSub
+            ) {
+              isRoomParticipant =
+                true;
+              break;
+            }
+          }
+        }
+
+        if (!isRoomParticipant) {
+          return res.status(403).json({
+            error:
+              'Join this AirGesture room before viewing its live data.'
+          });
+        }
+
+        const data =
+          await database
+            .liveClassroomData({
+              roomCode,
+              limit: 250
+            });
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        return res.json({
+          ok: true,
+          ...data
+        });
+      } catch (error) {
+        databaseError(
+          'live classroom data',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not load live classroom data.'
+        });
+      }
+    }
+  );
 
 
 
@@ -1493,6 +1636,45 @@ function createServer() {
           ws.network ||
           {}
       });
+
+    if (result === 'SUCCESS') {
+      try {
+        const consent =
+          await database
+            .getConsentPreferences(
+              userId
+            );
+
+        await database
+          .recordLiveDataEvent({
+            sessionId,
+            userId,
+            roomCode:
+              room.code,
+            action:
+              'RECEIVE',
+            file,
+            clientInfo:
+              state.clientInfo ||
+              ws.clientInfo ||
+              {},
+            network:
+              state.network ||
+              ws.network ||
+              {},
+            commercialAllowed:
+              Boolean(
+                consent
+                  .analyticsConsent
+              )
+          });
+      } catch (error) {
+        databaseError(
+          'live RECEIVE persistence',
+          error
+        );
+      }
+    }
 
     console.log(
       'PostgreSQL transfer event persisted:',
@@ -1895,6 +2077,71 @@ function createServer() {
         };
         room.updatedAt = now;
         resetReceiverStatesForFile(room);
+
+        // The file transfer must never fail just because
+        // classroom analytics persistence has a problem.
+        void (async () => {
+          if (!database.enabled) {
+            return;
+          }
+
+          const sessionId =
+            await ensureClassSession(
+              room
+            );
+
+          if (
+            !sessionId ||
+            !room.host
+          ) {
+            return;
+          }
+
+          const userId =
+            await resolveDatabaseUserId(
+              room.host
+            );
+
+          if (!userId) {
+            return;
+          }
+
+          const consent =
+            await database
+              .getConsentPreferences(
+                userId
+              );
+
+          await database
+            .recordLiveDataEvent({
+              sessionId,
+              userId,
+              roomCode:
+                room.code,
+              action:
+                'SEND',
+              file:
+                room.file,
+              clientInfo:
+                room.host
+                  .clientInfo ||
+                {},
+              network:
+                room.host
+                  .network ||
+                {},
+              commercialAllowed:
+                Boolean(
+                  consent
+                    .analyticsConsent
+                )
+            });
+        })().catch((error) => {
+          databaseError(
+            'live SEND persistence',
+            error
+          );
+        });
 
         const payload = {
           type: 'broadcast-file-ready',

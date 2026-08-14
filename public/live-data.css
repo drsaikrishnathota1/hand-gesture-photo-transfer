@@ -1,0 +1,223 @@
+
+.live-data-page {
+  min-height: 100vh;
+  background: #07111f;
+}
+
+.live-shell {
+  width: min(1500px, 96%);
+  margin: auto;
+  padding: 28px 0 60px;
+}
+
+.live-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 18px;
+}
+
+.live-header h1 {
+  margin: 6px 0;
+  font-size: clamp(30px, 4vw, 50px);
+}
+
+.live-header h1 span {
+  color: var(--cyan);
+}
+
+.live-header p {
+  color: var(--muted);
+}
+
+.live-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.live-status,
+.room-strip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 10px 14px;
+}
+
+.room-strip {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+  border-radius: 14px;
+}
+
+.room-strip small {
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.live-kpis,
+.commercial-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.live-kpis article,
+.commercial-grid article,
+.live-panel,
+.business-opportunities article {
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.025);
+  border-radius: 15px;
+}
+
+.live-kpis article,
+.commercial-grid article {
+  padding: 15px;
+}
+
+.live-kpis span,
+.commercial-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .08em;
+  margin-bottom: 6px;
+}
+
+.live-kpis strong,
+.commercial-grid strong {
+  font-size: 24px;
+}
+
+.live-panel {
+  margin-top: 15px;
+  padding: 20px;
+}
+
+.live-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.live-panel-head h2 {
+  margin: 4px 0 0;
+}
+
+.live-panel-head small {
+  color: var(--muted);
+}
+
+.live-table-wrap {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+}
+
+.live-table {
+  width: 100%;
+  min-width: 1050px;
+  border-collapse: collapse;
+}
+
+.live-table th {
+  position: sticky;
+  top: 0;
+  background: #0b1727;
+}
+
+.live-table th,
+.live-table td {
+  padding: 11px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.live-table th {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.action-send {
+  color: var(--cyan);
+  font-weight: 800;
+}
+
+.action-receive {
+  color: var(--green);
+  font-weight: 800;
+}
+
+.commercial-grid {
+  margin-top: 8px;
+}
+
+.business-opportunities {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.business-opportunities article {
+  padding: 16px;
+}
+
+.business-opportunities article > strong {
+  display: block;
+}
+
+.business-opportunities article > span {
+  display: block;
+  color: var(--cyan);
+  margin-top: 5px;
+}
+
+.business-opportunities ul {
+  color: var(--muted);
+  line-height: 1.7;
+  padding-left: 18px;
+}
+
+.business-empty {
+  color: var(--muted);
+  padding: 20px;
+}
+
+.live-privacy {
+  text-align: center;
+  color: var(--muted);
+  margin-top: 16px;
+  font-size: 11px;
+}
+
+@media (max-width: 950px) {
+  .live-kpis,
+  .commercial-grid {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+  }
+
+  .business-opportunities {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .live-header {
+    flex-direction: column;
+  }
+
+  .live-kpis,
+  .commercial-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

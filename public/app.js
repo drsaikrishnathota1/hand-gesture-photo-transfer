@@ -52,6 +52,11 @@ const state = {
   broadcastStats: { connected: 0, accepted: 0, completed: 0, failed: 0, waiting: 0, completionRate: 0 },
   networkLatencyMs: 0,
   lastGestureConfidence: 0,
+
+  lastHandAnchor: {
+    x: 0.5,
+    y: 0.5
+  },
   ownNetwork: {},
   receiverIntelligence: [],
   authUser: null,
@@ -324,6 +329,13 @@ function commercialSignals() {
 function renderCommercialConsent() {
   const consent =
     state.commercialConsent || {};
+
+  if ($('classroomAnalyticsConsent')) {
+    $('classroomAnalyticsConsent').checked =
+      Boolean(
+        consent.analyticsConsent
+      );
+  }
 
   if ($('analyticsConsent')) {
     $('analyticsConsent').checked =
@@ -956,10 +968,457 @@ function updateActionButtons() {
     : !(state.pendingRequest || state.acceptedTransferId || state.received);
 }
 
+function gestureExperienceFile() {
+  if (state.role === 'sender') {
+    return state.selectedFile
+      ? {
+          name:
+            state.selectedFile.name,
+
+          type:
+            state.selectedFile.type || '',
+
+          size:
+            state.selectedFile.size || 0
+        }
+      : null;
+  }
+
+  return state.pendingRequest
+    ? {
+        name:
+          state.pendingRequest.name,
+
+        type:
+          state.pendingRequest.mime || '',
+
+        size:
+          state.pendingRequest.size || 0
+      }
+    : null;
+}
+
+
+function gestureFileIcon(file = {}) {
+  const type =
+    String(
+      file.type || ''
+    ).toLowerCase();
+
+  const name =
+    String(
+      file.name || ''
+    ).toLowerCase();
+
+  if (
+    type.startsWith('image/') ||
+    /\.(png|jpg|jpeg|gif|webp|heic)$/i.test(
+      name
+    )
+  ) {
+    return '🖼️';
+  }
+
+  if (
+    type.startsWith('video/') ||
+    /\.(mp4|mov|webm)$/i.test(
+      name
+    )
+  ) {
+    return '🎬';
+  }
+
+  if (
+    type === 'application/pdf' ||
+    name.endsWith('.pdf')
+  ) {
+    return '📕';
+  }
+
+  return '📄';
+}
+
+
+function setGestureExperience(
+  mode,
+  title,
+  hint,
+  hand
+) {
+  const root =
+    $('gestureExperience');
+
+  if (!root) return;
+
+  root.className =
+    `gesture-experience ${mode}`;
+
+  setText(
+    'gestureExperienceTitle',
+    title
+  );
+
+  setText(
+    'gestureExperienceHint',
+    hint
+  );
+
+  setText(
+    'gestureExperienceHand',
+    hand
+  );
+
+  const file =
+    gestureExperienceFile();
+
+  setText(
+    'gestureFileName',
+    file?.name ||
+      (
+        state.role === 'sender'
+          ? 'No file selected'
+          : 'Waiting for Sender'
+      )
+  );
+
+  setText(
+    'gestureFileLabel',
+    file?.size
+      ? formatBytes(
+          Number(file.size)
+        )
+      : 'AIR FILE'
+  );
+
+  setText(
+    'gestureFileIcon',
+    gestureFileIcon(
+      file || {}
+    )
+  );
+}
+
+
+function syncGestureExperience() {
+  if (
+    state.role === 'receiver'
+  ) {
+    if (state.pendingRequest) {
+      setGestureExperience(
+        'incoming',
+        'INCOMING AIR FILE',
+        'Make a fist ✊ to catch the file.',
+        '✊'
+      );
+    } else {
+      setGestureExperience(
+        'waiting',
+        'WAITING FOR FILE',
+        'Stay connected. The screen will pulse when a file arrives.',
+        '✋'
+      );
+    }
+
+    return;
+  }
+
+
+  if (state.selectedFile) {
+    setGestureExperience(
+      'ready',
+      'READY TO GRAB',
+      'Show your open palm ✋, then close your fist.',
+      '✋'
+    );
+  } else {
+    setGestureExperience(
+      'idle',
+      'CHOOSE A FILE',
+      'Select a file, connect the room and start Vision AI.',
+      '✋'
+    );
+  }
+}
+
+
+function updateGestureHandAnchor(
+  landmarks = []
+) {
+  if (!landmarks.length) return;
+
+  const average =
+    landmarks.reduce(
+      (result, point) => ({
+        x:
+          result.x +
+          Number(point.x || 0),
+
+        y:
+          result.y +
+          Number(point.y || 0)
+      }),
+      {
+        x: 0,
+        y: 0
+      }
+    );
+
+  const count =
+    landmarks.length || 1;
+
+  state.lastHandAnchor = {
+    // Front-facing webcam feels natural
+    // when the interaction follows the mirror.
+    x:
+      Math.max(
+        0,
+        Math.min(
+          1,
+          1 -
+            average.x /
+              count
+        )
+      ),
+
+    y:
+      Math.max(
+        0,
+        Math.min(
+          1,
+          average.y /
+            count
+        )
+      )
+  };
+
+
+  const root =
+    $('gestureExperience');
+
+  if (!root) return;
+
+  root.style.setProperty(
+    '--hand-x',
+    `${
+      state.lastHandAnchor.x *
+      100
+    }%`
+  );
+
+  root.style.setProperty(
+    '--hand-y',
+    `${
+      state.lastHandAnchor.y *
+      100
+    }%`
+  );
+}
+
+
+function animateAirFile(
+  direction = 'grab'
+) {
+  const card =
+    $('gestureFileCard');
+
+  const stage =
+    card?.closest(
+      '.camera-stage'
+    );
+
+  if (
+    !card ||
+    !stage ||
+    typeof card.animate !==
+      'function'
+  ) {
+    return Promise.resolve();
+  }
+
+  const stageRect =
+    stage.getBoundingClientRect();
+
+  const cardRect =
+    card.getBoundingClientRect();
+
+  const anchor =
+    state.lastHandAnchor || {
+      x: 0.5,
+      y: 0.5
+    };
+
+  const targetX =
+    stageRect.left +
+    stageRect.width *
+      anchor.x;
+
+  const targetY =
+    stageRect.top +
+    stageRect.height *
+      anchor.y;
+
+  const cardX =
+    cardRect.left +
+    cardRect.width / 2;
+
+  const cardY =
+    cardRect.top +
+    cardRect.height / 2;
+
+  const dx =
+    targetX - cardX;
+
+  const dy =
+    targetY - cardY;
+
+
+  const grabFrames = [
+    {
+      transform:
+        'translate(0, 0) scale(1)',
+      opacity: 1,
+      filter:
+        'blur(0px)'
+    },
+
+    {
+      transform:
+        `translate(${dx * 0.65}px, ${dy * 0.65}px) scale(.45)`,
+      opacity: 0.9,
+      filter:
+        'blur(0px)',
+      offset: 0.72
+    },
+
+    {
+      transform:
+        `translate(${dx}px, ${dy}px) scale(.05)`,
+      opacity: 0,
+      filter:
+        'blur(3px)'
+    }
+  ];
+
+
+  const releaseFrames = [
+    {
+      transform:
+        `translate(${dx}px, ${dy}px) scale(.05)`,
+      opacity: 0,
+      filter:
+        'blur(3px)'
+    },
+
+    {
+      transform:
+        `translate(${dx * 0.42}px, ${dy * 0.42}px) scale(.58)`,
+      opacity: 0.9,
+      filter:
+        'blur(0px)',
+      offset: 0.55
+    },
+
+    {
+      transform:
+        'translate(0, 0) scale(1)',
+      opacity: 1,
+      filter:
+        'blur(0px)'
+    }
+  ];
+
+
+  const animation =
+    card.animate(
+      direction === 'release'
+        ? releaseFrames
+        : grabFrames,
+      {
+        duration: 560,
+
+        easing:
+          'cubic-bezier(.2,.8,.2,1)',
+
+        fill:
+          'both'
+      }
+    );
+
+
+  return new Promise(
+    (resolve) => {
+      const done = () => {
+        try {
+          animation.cancel();
+        } catch {}
+
+        resolve();
+      };
+
+      animation.addEventListener(
+        'finish',
+        done,
+        {
+          once: true
+        }
+      );
+
+      animation.addEventListener(
+        'cancel',
+        resolve,
+        {
+          once: true
+        }
+      );
+    }
+  );
+}
+
+
+async function playGestureSuccessAnimation(
+  role
+) {
+  if (role === 'sender') {
+
+    setGestureExperience(
+      'grabbed',
+      'COPIED',
+      'File grabbed. Sending through AirGesture…',
+      '✊'
+    );
+
+    await animateAirFile(
+      'grab'
+    );
+
+    return;
+  }
+
+
+  setGestureExperience(
+    'released',
+    'RELEASED',
+    'File released from your hand. Receiving now…',
+    '✋'
+  );
+
+  await animateAirFile(
+    'release'
+  );
+}
+
+
 function resetGestureSequence() {
-  state.gestureSequencePhase = "waiting-open";
-  state.gestureSequenceExpiresAt = 0;
-  state.gestureOpenConfidence = 0;
+  state.gestureSequencePhase =
+    state.role === 'receiver'
+      ? 'waiting-fist'
+      : 'waiting-open';
+
+  state.gestureSequenceExpiresAt =
+    0;
+
+  state.gestureOpenConfidence =
+    0;
 }
 
 function renderRoleFilePanel() {
@@ -982,7 +1441,7 @@ function renderRoleFilePanel() {
     $("dropZone").style.pointerEvents = "none";
     if (state.pendingRequest) {
       $("fileTitle").textContent = `Incoming: ${state.pendingRequest.name}`;
-      $("fileMeta").textContent = `${formatBytes(state.pendingRequest.size)} · show ✋ → ✊ to Air Paste`;
+      $("fileMeta").textContent = `${formatBytes(state.pendingRequest.size)} · show ✊ → ✋ to Air Paste`;
     } else {
       $("fileTitle").textContent = broadcast ? "Waiting for the universal room file" : "Waiting for an incoming Air Copy";
       $("fileMeta").textContent = broadcast
@@ -1033,6 +1492,7 @@ function setMode() {
 
   resetGestureSequence();
   renderRoleFilePanel();
+  syncGestureExperience();
   updateActionButtons();
   status(state.role === "sender"
     ? "Sender ready. Join a universal room, choose a file, then show ✋ → ✊ to Air Send it to every connected Receiver."
@@ -1061,6 +1521,7 @@ function setRole(role) {
 
   resetGestureSequence();
   renderRoleFilePanel();
+  syncGestureExperience();
   $("startCameraBtn").disabled = state.cameraRunning || state.aiLoading;
   $("stopCameraBtn").disabled = !state.cameraRunning;
 
@@ -1071,7 +1532,7 @@ function setRole(role) {
   } else {
     status(role === "sender"
       ? "Sender ready. Choose a file, connect the Receiver, then show ✋ Open Hand → ✊ Closed Fist to Air Copy."
-      : "Receiver ready. Connect to the same room, start Vision AI, then use ✋ Open Hand → ✊ Closed Fist when an incoming file appears.");
+      : "Receiver ready. Connect to the same room, start Vision AI, then use ✊ Closed Fist → ✋ Open Hand when an incoming file appears.");
   }
   updateActionButtons();
 }
@@ -1083,6 +1544,8 @@ function selectFile(file) {
     return;
   }
   state.selectedFile = file;
+
+  syncGestureExperience();
   $("fileTitle").textContent = file.name;
   $("fileMeta").textContent = `${formatBytes(file.size)} · ${file.type || "unknown type"}`;
   state.senderWaitingAcceptance = false;
@@ -1121,6 +1584,7 @@ function applyBroadcastFile(file) {
     state.broadcastFileId = "";
     state.pendingRequest = null;
     renderRoleFilePanel();
+    syncGestureExperience();
     return;
   }
 
@@ -1146,10 +1610,20 @@ function applyBroadcastFile(file) {
 
     renderRoleFilePanel();
     renderMyIntelligence();
+
+    resetGestureSequence();
+    syncGestureExperience();
+
     setTransferState("incoming broadcast");
     setProgress(0);
-    status(`Universal room file ready: ${state.pendingRequest.name}. Show ✋ → ✊ to Air Paste and receive it.`);
-    toast("File ready — use ✋ → ✊ to receive");
+
+    status(
+      `Incoming Air File: ${state.pendingRequest.name}. Make a fist ✊ to catch it, then open your hand ✋ to receive.`
+    );
+
+    toast(
+      "Incoming Air File — make a fist ✊"
+    );
   }
 }
 
@@ -1215,7 +1689,7 @@ function connectBroadcastRoom() {
       applyBroadcastFile(msg.file);
       if (state.role === "sender") {
         setTransferState("waiting receivers");
-        status(`File uploaded once. ${state.broadcastStats.connected} receiver(s) can now use ✋ → ✊ to Air Paste.`);
+        status(`File uploaded once. ${state.broadcastStats.connected} receiver(s) can now use ✊ → ✋ to Air Paste.`);
       }
       updateActionButtons();
       return;
@@ -1708,8 +2182,15 @@ async function prepareBroadcastAirCopy(trigger = "manual") {
     renderBroadcastStats(result.stats || {});
     setProgress(100);
     setTransferState("waiting receivers");
-    status(`Broadcast ready. ${state.broadcastStats.connected} receiver(s) can now show ✋ → ✊ to Air Paste ${state.selectedFile.name}.`);
+    status(`Broadcast ready. ${state.broadcastStats.connected} receiver(s) can now show ✊ → ✋ to Air Paste ${state.selectedFile.name}.`);
     toast("Air Send ready for the classroom");
+
+    setGestureExperience(
+      'sent',
+      'SENT',
+      'File is in the AirGesture room and ready for receivers.',
+      '✓'
+    );
   } catch (error) {
     if (error?.name === "AbortError") {
       setTransferState("cancelled");
@@ -1905,6 +2386,13 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
     setTransferState("received");
     status(`${request.name} received from the universal room and integrity verified.`);
     toast("Classroom file received successfully");
+
+    setGestureExperience(
+      'received',
+      'RECEIVED',
+      'Transfer complete ✓',
+      '✓'
+    );
 
     await logEvent({
       type: "transfer",
@@ -2286,7 +2774,13 @@ async function loadVisionAI(startToken) {
     state.drawingUtils = new vision.DrawingUtils($('overlay').getContext('2d'));
     state.aiReady = true;
     setBadge($('cameraBadge'), `Vision AI Live · ${delegate}`, 'good');
-    status(state.role === 'sender' ? 'Vision AI is live. Show ✋ Open Hand → ✊ Closed Fist to Air Copy.' : 'Vision AI is live. Wait for an incoming file, then show ✋ Open Hand → ✊ Closed Fist to Air Paste.');
+    status(
+      state.role === 'sender'
+        ? 'Vision AI is live. Show ✋ Open Palm, then close to ✊ to grab and Air Copy.'
+        : 'Vision AI is live. Wait for the incoming pulse. Make ✊ to catch, then open ✋ to Air Paste.'
+    );
+
+    syncGestureExperience();
     if (!state.animationFrameId) state.animationFrameId = requestAnimationFrame(predictGesture);
   } catch (error) {
     if (startToken !== state.cameraStartToken) return;
@@ -2399,51 +2893,264 @@ function updateGestureHUD(name, score) {
   $("heroConfidence").textContent = pct ? `${pct}%` : "--";
 }
 
-async function fireAirGestureSequence(confidence) {
-  state.lastGestureConfidence = Number(confidence) || 0;
+async function fireAirGestureSequence(
+  confidence
+) {
+  state.lastGestureConfidence =
+    Number(confidence) || 0;
 
-  if (state.role === 'receiver') {
+  await playGestureSuccessAnimation(
+    state.role
+  );
+
+  if (
+    state.role === 'receiver'
+  ) {
     renderMyIntelligence();
   }
 
-  const action = state.role === "sender" ? "Air_Copy" : "Air_Paste";
-  await logEvent({ type: "gesture", gesture: action, confidence, role: state.role, action, mode: state.mode });
-  if (state.role === "sender") return prepareAirCopy("gesture");
-  return acceptAirPaste("gesture");
-}
+  const action =
+    state.role === 'sender'
+      ? 'Air_Copy'
+      : 'Air_Paste';
 
-async function handleStableGesture(name, confidence) {
-  const now = performance.now();
-  if (state.gestureSequencePhase === "waiting-close" && now > state.gestureSequenceExpiresAt) {
-    resetGestureSequence();
-    status(state.role === "sender"
-      ? (state.mode === "broadcast"
-        ? "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Send."
-        : "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Copy.")
-      : "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Paste.");
+  await logEvent({
+    type:
+      'gesture',
+
+    gesture:
+      action,
+
+    confidence,
+
+    role:
+      state.role,
+
+    action,
+
+    mode:
+      state.mode
+  });
+
+
+  if (
+    state.role === 'sender'
+  ) {
+    return prepareAirCopy(
+      'gesture'
+    );
   }
 
-  if (name === "Open_Palm") {
-    if (state.gestureSequencePhase === "waiting-open") {
-      state.gestureSequencePhase = "waiting-close";
-      state.gestureSequenceExpiresAt = now + GESTURE_SEQUENCE_TIMEOUT_MS;
-      state.gestureOpenConfidence = confidence;
-      status(state.role === "sender"
-        ? (state.mode === "broadcast"
-          ? "Open Hand ✓ — close to ✊ to Air Send this file to the classroom."
-          : "Open Hand ✓ — simply close your hand to ✊ for Air Copy.")
-        : (state.mode === "broadcast"
-          ? "Open Hand ✓ — close to ✊ to Air Paste the room file."
-          : "Open Hand ✓ — simply close your hand to ✊ for Air Paste."));
-      toast("Open Hand ✓ — now close your hand");
+  return acceptAirPaste(
+    'gesture'
+  );
+}
+
+async function handleStableGesture(
+  name,
+  confidence
+) {
+  const now =
+    performance.now();
+
+
+  // ---------------------------------
+  // RECEIVER
+  // ✊ CATCH -> ✋ RELEASE
+  // ---------------------------------
+  if (
+    state.role === 'receiver'
+  ) {
+
+    if (!state.pendingRequest) {
+      syncGestureExperience();
+
+      return;
     }
+
+
+    if (
+      state.gestureSequencePhase ===
+        'waiting-release' &&
+      now >
+        state.gestureSequenceExpiresAt
+    ) {
+      resetGestureSequence();
+      syncGestureExperience();
+
+      status(
+        'Catch reset. Make a fist ✊ again, then open your hand ✋.'
+      );
+
+      return;
+    }
+
+
+    if (
+      name === 'Closed_Fist' &&
+      state.gestureSequencePhase ===
+        'waiting-fist'
+    ) {
+      state.gestureSequencePhase =
+        'waiting-release';
+
+      state.gestureSequenceExpiresAt =
+        now +
+        GESTURE_SEQUENCE_TIMEOUT_MS;
+
+      state.gestureOpenConfidence =
+        confidence;
+
+
+      setGestureExperience(
+        'caught',
+        'CAUGHT',
+        'Great. Now open your hand ✋ to release and receive.',
+        '✊'
+      );
+
+
+      status(
+        'File caught ✓ — open your hand ✋ to Air Paste.'
+      );
+
+      toast(
+        'Caught ✓ — now open your hand ✋'
+      );
+
+
+      await animateAirFile(
+        'grab'
+      );
+
+      return;
+    }
+
+
+    if (
+      name === 'Open_Palm' &&
+      state.gestureSequencePhase ===
+        'waiting-release' &&
+      now <=
+        state.gestureSequenceExpiresAt
+    ) {
+      const combinedConfidence =
+        Math.min(
+          1,
+          (
+            state.gestureOpenConfidence +
+            confidence
+          ) / 2
+        );
+
+      resetGestureSequence();
+
+      await fireAirGestureSequence(
+        combinedConfidence
+      );
+
+      state.gestureCooldownUntil =
+        performance.now() +
+        GESTURE_COOLDOWN_MS;
+
+      return;
+    }
+
+
     return;
   }
 
-  if (name === "Closed_Fist" && state.gestureSequencePhase === "waiting-close" && now <= state.gestureSequenceExpiresAt) {
-    const combinedConfidence = Math.min(1, (state.gestureOpenConfidence + confidence) / 2);
+
+  // ---------------------------------
+  // SENDER
+  // ✋ ARM -> ✊ GRAB
+  // ---------------------------------
+
+  if (!state.selectedFile) {
+    syncGestureExperience();
+
+    return;
+  }
+
+
+  if (
+    state.gestureSequencePhase ===
+      'waiting-close' &&
+    now >
+      state.gestureSequenceExpiresAt
+  ) {
     resetGestureSequence();
-    await fireAirGestureSequence(combinedConfidence);
+    syncGestureExperience();
+
+    status(
+      'Grab reset. Show your open palm ✋ again, then close your fist ✊.'
+    );
+
+    return;
+  }
+
+
+  if (
+    name === 'Open_Palm' &&
+    state.gestureSequencePhase ===
+      'waiting-open'
+  ) {
+    state.gestureSequencePhase =
+      'waiting-close';
+
+    state.gestureSequenceExpiresAt =
+      now +
+      GESTURE_SEQUENCE_TIMEOUT_MS;
+
+    state.gestureOpenConfidence =
+      confidence;
+
+
+    setGestureExperience(
+      'armed',
+      'READY TO GRAB',
+      'Open Palm detected ✓ — close your fist ✊ to grab the file.',
+      '✋'
+    );
+
+
+    status(
+      'Open Palm ✓ — close your fist ✊ to grab and Air Copy.'
+    );
+
+    toast(
+      'Ready to grab — close your fist ✊'
+    );
+
+    return;
+  }
+
+
+  if (
+    name === 'Closed_Fist' &&
+    state.gestureSequencePhase ===
+      'waiting-close' &&
+    now <=
+      state.gestureSequenceExpiresAt
+  ) {
+    const combinedConfidence =
+      Math.min(
+        1,
+        (
+          state.gestureOpenConfidence +
+          confidence
+        ) / 2
+      );
+
+    resetGestureSequence();
+
+    await fireAirGestureSequence(
+      combinedConfidence
+    );
+
+    state.gestureCooldownUntil =
+      performance.now() +
+      GESTURE_COOLDOWN_MS;
   }
 }
 
@@ -2466,7 +3173,15 @@ async function predictGesture() {
         }
       }
 
-      // ULTRA-EASY GESTURE MODE:
+      if (
+        result.landmarks?.[0]?.length
+      ) {
+        updateGestureHandAnchor(
+          result.landmarks[0]
+        );
+      }
+
+      // AIRGESTURE GRAB / RELEASE MODE:
       // A single accepted Open Palm frame latches OPEN.
       // A single accepted Closed Fist frame after that completes Air Copy/Air Paste.
       // No hold, no repeated-frame confirmation, and intermediate motion is ignored.
@@ -2475,20 +3190,79 @@ async function predictGesture() {
       const rawScore = simple.score;
       updateGestureHUD(name, rawScore);
 
-      const now = performance.now();
-      if (state.gestureSequencePhase === 'waiting-close' && now > state.gestureSequenceExpiresAt) {
+      const now =
+        performance.now();
+
+      const expired =
+        (
+          state.gestureSequencePhase ===
+            'waiting-close' ||
+          state.gestureSequencePhase ===
+            'waiting-release'
+        ) &&
+        now >
+          state.gestureSequenceExpiresAt;
+
+      if (expired) {
         resetGestureSequence();
-        status(state.role === 'sender'
-          ? 'Ready. Show ✋ once, then simply close to ✊ for Air Copy.'
-          : 'Ready. Show ✋ once, then simply close to ✊ for Air Paste.');
+        syncGestureExperience();
       }
 
-      if (now >= state.gestureCooldownUntil) {
-        if (name === 'Open_Palm' && state.gestureSequencePhase === 'waiting-open') {
-          await handleStableGesture('Open_Palm', rawScore);
-        } else if (name === 'Closed_Fist' && state.gestureSequencePhase === 'waiting-close') {
-          await handleStableGesture('Closed_Fist', rawScore);
-          state.gestureCooldownUntil = performance.now() + GESTURE_COOLDOWN_MS;
+
+      if (
+        now >=
+        state.gestureCooldownUntil
+      ) {
+
+        if (
+          state.role === 'sender'
+        ) {
+
+          if (
+            name === 'Open_Palm' &&
+            state.gestureSequencePhase ===
+              'waiting-open'
+          ) {
+            await handleStableGesture(
+              'Open_Palm',
+              rawScore
+            );
+
+          } else if (
+            name === 'Closed_Fist' &&
+            state.gestureSequencePhase ===
+              'waiting-close'
+          ) {
+            await handleStableGesture(
+              'Closed_Fist',
+              rawScore
+            );
+          }
+
+        } else if (
+          state.pendingRequest
+        ) {
+
+          if (
+            name === 'Closed_Fist' &&
+            state.gestureSequencePhase ===
+              'waiting-fist'
+          ) {
+            await handleStableGesture(
+              'Closed_Fist',
+              rawScore
+            );
+
+          } else if (
+            name === 'Open_Palm' &&
+            state.gestureSequencePhase ===
+              'waiting-release'
+          ) {
+            await handleStableGesture(
+              'Open_Palm',
+              rawScore
+            );
+          }
         }
       }
     } catch (error) {
@@ -3104,6 +3878,134 @@ async function loadAdminDatabase(
 }
 
 
+
+async function saveSimpleClassroomConsent() {
+  const checkbox =
+    $('classroomAnalyticsConsent');
+
+  if (!checkbox) return;
+
+  checkbox.disabled = true;
+
+  try {
+    const enabled =
+      Boolean(
+        checkbox.checked
+      );
+
+    const response =
+      await fetch(
+        '/api/commercial/consent',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body:
+            JSON.stringify({
+              analyticsConsent:
+                enabled,
+
+              personalizationConsent:
+                false,
+
+              marketingConsent:
+                false
+            })
+        }
+      );
+
+    const data =
+      await response
+        .json()
+        .catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        'Could not save preference.'
+      );
+    }
+
+    state.commercialConsent = {
+      analyticsConsent:
+        Boolean(
+          data.analyticsConsent
+        ),
+
+      personalizationConsent:
+        false,
+
+      marketingConsent:
+        false
+    };
+
+    state.commercialProfileSynced =
+      false;
+
+    renderCommercialConsent();
+
+    if (
+      state.commercialConsent
+        .analyticsConsent
+    ) {
+      await syncCommercialProfile();
+
+      toast(
+        'Commercial classroom analysis enabled'
+      );
+    } else {
+      toast(
+        'Commercial classroom analysis disabled'
+      );
+    }
+  } catch (error) {
+    checkbox.checked =
+      !checkbox.checked;
+
+    console.error(
+      'Classroom consent failed:',
+      error
+    );
+
+    toast(
+      'Could not save preference'
+    );
+  } finally {
+    checkbox.disabled = false;
+  }
+}
+
+
+function openLiveDataWindow() {
+  const room =
+    String(
+      state.room ||
+      $('roomInput')?.value ||
+      ''
+    )
+      .trim()
+      .toUpperCase();
+
+  if (!room) {
+    toast(
+      'Enter or join a room first'
+    );
+
+    return;
+  }
+
+  window.open(
+    `/live-data.html?room=${encodeURIComponent(room)}`,
+    '_blank',
+    'noopener'
+  );
+}
+
+
 function switchView(id) {
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === id));
   document.querySelectorAll(".nav-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === id));
@@ -3143,6 +4045,19 @@ function bindEvents() {
     }
   );
   $("themeBtn").addEventListener("click", () => { document.body.classList.toggle("light"); if ($("analyticsView").classList.contains("active")) refreshAnalytics(); });
+
+  $('classroomAnalyticsConsent')
+    ?.addEventListener(
+      'change',
+      saveSimpleClassroomConsent
+    );
+
+  $('openLiveDataBtn')
+    ?.addEventListener(
+      'click',
+      openLiveDataWindow
+    );
+
   window.addEventListener('airgesture-auth-user', (event) => {
     state.authUser = event.detail || null;
 

@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="classroom-simplified">
   <section id="authGate" class="auth-gate">
     <div class="auth-card glass">
       <div class="auth-logo">✋</div>
@@ -70,10 +70,9 @@
         </span>
       </a>
 
-      <nav class="nav-tabs" aria-label="Primary navigation">
-        <button class="nav-tab active" data-view="transferView">Transfer Lab</button>
-        <button class="nav-tab" data-view="analyticsView">Executive Analytics</button>
-      </nav>
+      <div class="classroom-mode-label">
+        LIVE CLASSROOM LAB
+      </div>
 
       <div class="top-actions">
         <span class="system-pill"><i class="pulse-dot"></i><span id="systemStatus">System Ready</span></span>
@@ -96,11 +95,11 @@
         <div class="hero-grid">
           <div class="hero-copy">
             <div class="eyebrow">DBA 802 · WEEK 1 · DATA → INSIGHT → DECISION</div>
-            <h1>Move files with a gesture.<br><span>Measure every decision.</span></h1>
+            <h1>Grab. Send. Catch.<br><span>Watch data become insight.</span></h1>
             <p>AirGesture turns touchless interaction into a measurable executive experiment: one Sender joins a universal room, uploads once, and any number of Receivers supported by the deployed server can join the same code, Air Paste, and generate decision-ready analytics.</p>
             <div class="hero-badges">
               <span>Sender: ✋ → ✊ Air Copy</span>
-              <span>Receiver: ✋ → ✊ Air Paste</span>
+              <span>Receiver: ✊ → ✋ Air Paste</span>
               <span>Easy Gesture Mode · no long hold</span>
             </div>
           </div>
@@ -132,6 +131,78 @@
                 <div class="confidence-track"><span id="confidenceBar"></span></div>
                 <span id="confidenceText">0%</span>
               </div>
+
+              <div
+                id="gestureExperience"
+                class="gesture-experience idle"
+                aria-live="polite"
+              >
+
+                <div
+                  id="gestureHandAnchor"
+                  class="gesture-hand-anchor"
+                ></div>
+
+                <div class="gesture-experience-shell">
+
+                  <div
+                    id="gestureFileCard"
+                    class="air-file-card"
+                  >
+                    <span
+                      id="gestureFileIcon"
+                      class="air-file-icon"
+                    >
+                      📄
+                    </span>
+
+                    <div>
+                      <small id="gestureFileLabel">
+                        AIR FILE
+                      </small>
+
+                      <strong id="gestureFileName">
+                        No file selected
+                      </strong>
+                    </div>
+                  </div>
+
+
+                  <div class="gesture-action-content">
+
+                    <span
+                      id="gestureExperienceEyebrow"
+                      class="gesture-experience-eyebrow"
+                    >
+                      AIRGESTURE
+                    </span>
+
+                    <strong
+                      id="gestureExperienceTitle"
+                      class="gesture-experience-title"
+                    >
+                      READY
+                    </strong>
+
+                    <div
+                      id="gestureExperienceHand"
+                      class="gesture-big-hand"
+                    >
+                      ✋
+                    </div>
+
+                    <p
+                      id="gestureExperienceHint"
+                      class="gesture-experience-hint"
+                    >
+                      Choose a file and start Vision AI.
+                    </p>
+
+                  </div>
+
+                </div>
+              </div>
+
             </div>
 
             <div class="gesture-controls">
@@ -195,13 +266,38 @@
 
             <div class="action-grid">
               <button id="copyBtn" class="btn glow">✋ → ✊ Air Copy</button>
-              <button id="pasteBtn" class="btn primary" disabled>✋ → ✊ Air Paste</button>
+              <button id="pasteBtn" class="btn primary" disabled>✊ → ✋ Air Paste</button>
               <button id="cancelBtn" class="btn danger" disabled>Cancel</button>
             </div>
 
             <div class="decision-ticker">
               <span class="ticker-label">LIVE EVENT</span>
               <span id="statusText">Select Sender or Receiver, enter the same universal room code, connect, and start Vision AI.</span>
+            </div>
+
+
+            <div class="classroom-data-controls">
+
+              <label class="classroom-consent">
+                <input
+                  id="classroomAnalyticsConsent"
+                  type="checkbox"
+                />
+
+                <span>
+                  Include my device data in
+                  classroom commercial analysis
+                </span>
+              </label>
+
+              <button
+                id="openLiveDataBtn"
+                class="btn secondary"
+                type="button"
+              >
+                Open Live Data ↗
+              </button>
+
             </div>
           </section>
         </div>
@@ -300,7 +396,7 @@
               <strong id="myGestureAction">Waiting for Air Paste</strong>
               <div class="my-card-lines">
                 <small>Confidence <b id="myGestureConfidence">--</b></small>
-                <small>Action <b>✋ → ✊ Air Paste</b></small>
+                <small>Action <b>✊ → ✋ Air Paste</b></small>
                 <small>Processing <b>On-device Vision AI</b></small>
                 <small>Frames stored <b>NO</b></small>
               </div>

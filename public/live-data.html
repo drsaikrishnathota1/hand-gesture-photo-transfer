@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>AirGesture Live Data</title>
+
+  <link
+    rel="stylesheet"
+    href="styles.css"
+  />
+
+  <link
+    rel="stylesheet"
+    href="live-data.css"
+  />
+</head>
+
+<body class="live-data-page">
+
+  <main class="live-shell">
+
+    <header class="live-header">
+
+      <div>
+        <span class="section-kicker">
+          DBA 802 · LIVE DATA
+        </span>
+
+        <h1>
+          Data → Insight →
+          <span>Commercial Decision</span>
+        </h1>
+
+        <p>
+          Watch every successful SEND and RECEIVE
+          become a PostgreSQL row.
+        </p>
+      </div>
+
+
+      <div class="live-actions">
+
+        <span
+          id="liveStatus"
+          class="live-status"
+        >
+          Connecting…
+        </span>
+
+        <button
+          id="downloadCsvBtn"
+          class="btn primary"
+          type="button"
+        >
+          Download CSV
+        </button>
+
+        <a
+          href="/"
+          class="btn ghost"
+        >
+          AirGesture
+        </a>
+
+      </div>
+
+    </header>
+
+
+    <div class="room-strip">
+      ROOM
+      <strong id="liveRoom">—</strong>
+
+      <small id="lastUpdated">
+        Waiting for data…
+      </small>
+    </div>
+
+
+    <section class="live-kpis">
+
+      <article>
+        <span>STUDENTS</span>
+        <strong id="liveUsers">0</strong>
+      </article>
+
+      <article>
+        <span>SEND</span>
+        <strong id="liveSend">0</strong>
+      </article>
+
+      <article>
+        <span>RECEIVE</span>
+        <strong id="liveReceive">0</strong>
+      </article>
+
+      <article>
+        <span>DATABASE ROWS</span>
+        <strong id="liveEvents">0</strong>
+      </article>
+
+      <article>
+        <span>DATA VOLUME</span>
+        <strong id="liveBytes">0 B</strong>
+      </article>
+
+      <article>
+        <span>COMMERCIAL OPT-IN</span>
+        <strong id="liveCommercialAudience">0</strong>
+      </article>
+
+    </section>
+
+
+    <section class="live-panel">
+
+      <div class="live-panel-head">
+        <div>
+          <span class="section-kicker">
+            01 · LIVE DATABASE
+          </span>
+
+          <h2>
+            Classroom Records
+          </h2>
+        </div>
+
+        <small>
+          Auto-refreshes every second
+        </small>
+      </div>
+
+
+      <div class="live-table-wrap">
+
+        <table class="live-table">
+
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Student</th>
+              <th>Action</th>
+              <th>File Type</th>
+              <th>Size</th>
+              <th>Device</th>
+              <th>OS</th>
+              <th>Browser</th>
+              <th>Market</th>
+              <th>Commercial Segment</th>
+            </tr>
+          </thead>
+
+          <tbody id="liveRows">
+            <tr>
+              <td
+                colspan="10"
+                class="table-empty"
+              >
+                Waiting for the first SEND or RECEIVE…
+              </td>
+            </tr>
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <section class="live-panel">
+
+      <div class="live-panel-head">
+        <div>
+          <span class="section-kicker">
+            02 · COMMERCIAL INTELLIGENCE
+          </span>
+
+          <h2>
+            What Does the Data Tell Us?
+          </h2>
+        </div>
+      </div>
+
+
+      <div class="commercial-grid">
+
+        <article>
+          <span>APPLE</span>
+          <strong id="applePct">0%</strong>
+        </article>
+
+        <article>
+          <span>WINDOWS</span>
+          <strong id="windowsPct">0%</strong>
+        </article>
+
+        <article>
+          <span>MOBILE</span>
+          <strong id="mobilePct">0%</strong>
+        </article>
+
+        <article>
+          <span>IMAGES</span>
+          <strong id="imageMix">0</strong>
+        </article>
+
+        <article>
+          <span>PDF / DOCUMENT</span>
+          <strong id="documentMix">0</strong>
+        </article>
+
+        <article>
+          <span>VIDEO</span>
+          <strong id="videoMix">0</strong>
+        </article>
+
+      </div>
+
+    </section>
+
+
+    <section class="live-panel">
+
+      <div class="live-panel-head">
+        <div>
+          <span class="section-kicker">
+            03 · BUSINESS DECISION
+          </span>
+
+          <h2>
+            Commercial Opportunities
+          </h2>
+        </div>
+      </div>
+
+      <div
+        id="businessOpportunities"
+        class="business-opportunities"
+      ></div>
+
+    </section>
+
+
+    <p class="live-privacy">
+      Classroom-safe view: no email addresses,
+      Google subject IDs, passwords, tokens,
+      full IP addresses, camera frames,
+      or transferred file contents.
+    </p>
+
+  </main>
+
+  <script src="live-data.js"></script>
+
+</body>
+</html>

@@ -565,6 +565,70 @@ function createDatabase(options = {}) {
       DO NOTHING;
 
 
+      -- V5.4.2 Classroom Live Data
+      CREATE TABLE IF NOT EXISTS classroom_data_events (
+        id UUID PRIMARY KEY,
+
+        session_id UUID NOT NULL
+          REFERENCES class_sessions(id)
+          ON DELETE CASCADE,
+
+        user_id BIGINT NOT NULL
+          REFERENCES users(id)
+          ON DELETE CASCADE,
+
+        room_code VARCHAR(12) NOT NULL,
+
+        action VARCHAR(16) NOT NULL
+          CHECK (action IN ('SEND', 'RECEIVE')),
+
+        file_id UUID NOT NULL,
+
+        file_type VARCHAR(40)
+          NOT NULL DEFAULT 'OTHER',
+
+        file_size_bytes BIGINT
+          NOT NULL DEFAULT 0,
+
+        browser VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        os VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        device_type VARCHAR(40)
+          NOT NULL DEFAULT '',
+
+        timezone VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        country VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        region VARCHAR(120)
+          NOT NULL DEFAULT '',
+
+        commercial_segment VARCHAR(64)
+          NOT NULL DEFAULT 'NOT_OPTED_IN',
+
+        created_at TIMESTAMPTZ
+          NOT NULL DEFAULT NOW(),
+
+        UNIQUE (
+          session_id,
+          user_id,
+          file_id,
+          action
+        )
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_classroom_live_room
+        ON classroom_data_events (
+          room_code,
+          created_at DESC
+        );
+
+
       CREATE INDEX IF NOT EXISTS idx_class_sessions_room
         ON class_sessions (room_code, started_at DESC);
 
@@ -1293,6 +1357,465 @@ function createDatabase(options = {}) {
   }
 
 
+
+  function classroomFileType(file = {}) {
+    const mime =
+      String(file.mime || '')
+        .toLowerCase();
+
+    const name =
+      String(file.name || '')
+        .toLowerCase();
+
+    if (mime.startsWith('image/')) {
+      return 'IMAGE';
+    }
+
+    if (mime.startsWith('video/')) {
+      return 'VIDEO';
+    }
+
+    if (
+      mime === 'application/pdf' ||
+      name.endsWith('.pdf')
+    ) {
+      return 'PDF';
+    }
+
+    if (
+      mime.startsWith('text/') ||
+      /word|document|sheet|excel|presentation|powerpoint|csv/.test(mime) ||
+      /\.(doc|docx|xls|xlsx|ppt|pptx|txt|csv)$/i.test(name)
+    ) {
+      return 'DOCUMENT';
+    }
+
+    return 'OTHER';
+  }
+
+
+  function classroomSegment(client = {}) {
+    const os =
+      String(client.os || '');
+
+    const device =
+      String(client.deviceType || '');
+
+    if (
+      os === 'macOS' &&
+      device === 'Laptop/Desktop'
+    ) {
+      return 'APPLE_DESKTOP';
+    }
+
+    if (os === 'iOS/iPadOS') {
+      return 'APPLE_MOBILE';
+    }
+
+    if (
+      os === 'Windows' &&
+      device === 'Laptop/Desktop'
+    ) {
+      return 'WINDOWS_DESKTOP';
+    }
+
+    if (os === 'Android') {
+      return 'ANDROID_MOBILE';
+    }
+
+    if (
+      os === 'Linux' &&
+      device === 'Laptop/Desktop'
+    ) {
+      return 'LINUX_DESKTOP';
+    }
+
+    if (device === 'Mobile') {
+      return 'MOBILE_USER';
+    }
+
+    if (device === 'Tablet') {
+      return 'TABLET_USER';
+    }
+
+    return 'GENERAL_DESKTOP';
+  }
+
+
+  async function recordLiveDataEvent(input = {}) {
+    if (!enabled) return null;
+
+    if (
+      !input.sessionId ||
+      !input.userId ||
+      !input.file?.id
+    ) {
+      return null;
+    }
+
+    const action =
+      input.action === 'SEND'
+        ? 'SEND'
+        : 'RECEIVE';
+
+    const commercialAllowed =
+      input.commercialAllowed === true;
+
+    // Operational SEND/RECEIVE data can exist for the lab.
+    // Device/market/commercial attributes are retained only
+    // when the participant opted into analytics.
+    const client =
+      commercialAllowed
+        ? input.clientInfo || {}
+        : {};
+
+    const network =
+      commercialAllowed
+        ? input.network || {}
+        : {};
+
+    const file =
+      input.file || {};
+
+    const result =
+      await pool.query(
+        `INSERT INTO classroom_data_events (
+           id,
+           session_id,
+           user_id,
+           room_code,
+           action,
+           file_id,
+           file_type,
+           file_size_bytes,
+           browser,
+           os,
+           device_type,
+           timezone,
+           country,
+           region,
+           commercial_segment
+         )
+         VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,
+           $10,$11,$12,$13,$14,$15
+         )
+         ON CONFLICT (
+           session_id,
+           user_id,
+           file_id,
+           action
+         )
+         DO NOTHING
+         RETURNING *`,
+        [
+          crypto.randomUUID(),
+          input.sessionId,
+          input.userId,
+          clean(
+            input.roomCode,
+            12
+          ).toUpperCase(),
+          action,
+          clean(file.id, 36),
+          classroomFileType(file),
+          Math.round(
+            safeNumber(
+              file.size,
+              104857600
+            )
+          ),
+          clean(client.browser, 80),
+          clean(client.os, 80),
+          clean(client.deviceType, 40),
+          clean(client.timezone, 80),
+          clean(network.country, 80),
+          clean(network.region, 120),
+          commercialAllowed
+            ? classroomSegment(client)
+            : 'NOT_OPTED_IN'
+        ]
+      );
+
+    return result.rows[0] || null;
+  }
+
+
+  async function liveClassroomData(input = {}) {
+    if (!enabled) {
+      return {
+        summary: {},
+        insights: {},
+        rows: []
+      };
+    }
+
+    const roomCode =
+      clean(
+        input.roomCode,
+        12
+      ).toUpperCase();
+
+    if (!roomCode) {
+      return {
+        summary: {},
+        insights: {},
+        rows: []
+      };
+    }
+
+    const limit =
+      Math.max(
+        1,
+        Math.min(
+          500,
+          Number(input.limit) || 250
+        )
+      );
+
+    const result =
+      await pool.query(
+        `SELECT
+           e.user_id,
+           u.name,
+           e.room_code,
+           e.action,
+           e.file_type,
+           e.file_size_bytes,
+           e.browser,
+           e.os,
+           e.device_type,
+           e.timezone,
+           e.country,
+           e.region,
+           e.commercial_segment,
+           e.created_at
+         FROM classroom_data_events e
+         JOIN users u
+           ON u.id = e.user_id
+         WHERE e.room_code = $1
+         ORDER BY e.created_at DESC
+         LIMIT $2`,
+        [
+          roomCode,
+          limit
+        ]
+      );
+
+    const rows =
+      result.rows || [];
+
+    const audienceMap =
+      new Map();
+
+    for (const row of rows) {
+      const key =
+        String(row.user_id);
+
+      if (!audienceMap.has(key)) {
+        audienceMap.set(
+          key,
+          row
+        );
+      }
+    }
+
+    const audience =
+      [...audienceMap.values()];
+
+    const optedAudience =
+      audience.filter(
+        (row) =>
+          row.commercial_segment !==
+          'NOT_OPTED_IN'
+      );
+
+    const commercialRows =
+      rows.filter(
+        (row) =>
+          row.commercial_segment !==
+          'NOT_OPTED_IN'
+      );
+
+    const segmentCounts = {};
+
+    for (const row of optedAudience) {
+      const segment =
+        row.commercial_segment;
+
+      segmentCounts[segment] =
+        (segmentCounts[segment] || 0) + 1;
+    }
+
+    const percentage = (count) =>
+      optedAudience.length
+        ? Math.round(
+            (
+              count /
+              optedAudience.length
+            ) *
+            1000
+          ) / 10
+        : 0;
+
+    const appleUsers =
+      optedAudience.filter(
+        (row) =>
+          String(
+            row.commercial_segment
+          ).startsWith('APPLE_')
+      ).length;
+
+    const windowsUsers =
+      optedAudience.filter(
+        (row) =>
+          row.commercial_segment ===
+          'WINDOWS_DESKTOP'
+      ).length;
+
+    const mobileUsers =
+      optedAudience.filter(
+        (row) =>
+          [
+            'APPLE_MOBILE',
+            'ANDROID_MOBILE',
+            'MOBILE_USER',
+            'TABLET_USER'
+          ].includes(
+            row.commercial_segment
+          )
+      ).length;
+
+    const fileMix = {
+      IMAGE: 0,
+      PDF: 0,
+      VIDEO: 0,
+      DOCUMENT: 0,
+      OTHER: 0
+    };
+
+    for (const row of commercialRows) {
+      const type =
+        Object.prototype
+          .hasOwnProperty.call(
+            fileMix,
+            row.file_type
+          )
+          ? row.file_type
+          : 'OTHER';
+
+      fileMix[type] += 1;
+    }
+
+    return {
+      generatedAt:
+        new Date().toISOString(),
+
+      roomCode,
+
+      summary: {
+        totalUsers:
+          audience.length,
+
+        commercialAudience:
+          optedAudience.length,
+
+        totalEvents:
+          rows.length,
+
+        sendEvents:
+          rows.filter(
+            (row) =>
+              row.action === 'SEND'
+          ).length,
+
+        receiveEvents:
+          rows.filter(
+            (row) =>
+              row.action === 'RECEIVE'
+          ).length,
+
+        totalBytes:
+          rows.reduce(
+            (sum, row) =>
+              sum +
+              Number(
+                row.file_size_bytes ||
+                0
+              ),
+            0
+          )
+      },
+
+      insights: {
+        applePct:
+          percentage(
+            appleUsers
+          ),
+
+        windowsPct:
+          percentage(
+            windowsUsers
+          ),
+
+        mobilePct:
+          percentage(
+            mobileUsers
+          ),
+
+        segments:
+          segmentCounts,
+
+        fileMix
+      },
+
+      rows:
+        rows.map(
+          (row) => ({
+            time:
+              row.created_at,
+
+            student:
+              row.name,
+
+            room:
+              row.room_code,
+
+            action:
+              row.action,
+
+            fileType:
+              row.file_type,
+
+            fileSizeBytes:
+              Number(
+                row.file_size_bytes ||
+                0
+              ),
+
+            device:
+              row.device_type,
+
+            os:
+              row.os,
+
+            browser:
+              row.browser,
+
+            country:
+              row.country,
+
+            region:
+              row.region,
+
+            commercialSegment:
+              row.commercial_segment
+          })
+        )
+    };
+  }
+
+
   async function dashboardData(input = {}) {
     if (!enabled) {
       return {
@@ -1628,6 +2151,8 @@ function createDatabase(options = {}) {
     findLatestReceiverSession,
     endClassSession,
     summary,
+    recordLiveDataEvent,
+    liveClassroomData,
     dashboardData,
     close
   };

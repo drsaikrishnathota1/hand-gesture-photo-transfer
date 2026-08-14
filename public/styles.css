@@ -804,3 +804,478 @@ body:not(.auth-ready) .app-shell {
     flex-direction: column;
   }
 }
+
+
+/* ==========================================================
+   AIRGESTURE GRAB / RELEASE EXPERIENCE
+   ========================================================== */
+
+.gesture-experience {
+  --hand-x: 50%;
+  --hand-y: 50%;
+
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+
+  pointer-events: none;
+
+  display: grid;
+  place-items: center;
+}
+
+.gesture-experience-shell {
+  width: min(330px, 78%);
+  padding: 16px;
+
+  border: 1px solid
+    rgba(255,255,255,.16);
+
+  border-radius: 22px;
+
+  background:
+    rgba(5, 14, 27, .70);
+
+  backdrop-filter:
+    blur(12px);
+
+  box-shadow:
+    0 18px 50px
+    rgba(0,0,0,.32);
+
+  text-align: center;
+
+  transition:
+    transform .25s ease,
+    opacity .25s ease,
+    box-shadow .25s ease;
+}
+
+
+.air-file-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  padding: 11px 13px;
+
+  margin-bottom: 13px;
+
+  border-radius: 14px;
+
+  border:
+    1px solid var(--line);
+
+  background:
+    rgba(255,255,255,.06);
+
+  text-align: left;
+
+  transform-origin:
+    center center;
+}
+
+.air-file-card > div {
+  min-width: 0;
+}
+
+.air-file-card small {
+  display: block;
+
+  color:
+    var(--muted);
+
+  font-size: 9px;
+
+  letter-spacing:
+    .09em;
+}
+
+.air-file-card strong {
+  display: block;
+
+  margin-top: 3px;
+
+  max-width: 220px;
+
+  overflow: hidden;
+
+  white-space: nowrap;
+
+  text-overflow:
+    ellipsis;
+
+  font-size: 12px;
+}
+
+.air-file-icon {
+  font-size: 24px;
+}
+
+
+.gesture-experience-eyebrow {
+  display: block;
+
+  color:
+    var(--cyan);
+
+  font-size: 9px;
+
+  font-weight: 800;
+
+  letter-spacing:
+    .14em;
+
+  margin-bottom: 5px;
+}
+
+.gesture-experience-title {
+  display: block;
+
+  font-family:
+    "Space Grotesk",
+    sans-serif;
+
+  font-size:
+    clamp(
+      19px,
+      3vw,
+      28px
+    );
+
+  letter-spacing:
+    .03em;
+}
+
+.gesture-big-hand {
+  margin:
+    7px 0 4px;
+
+  font-size:
+    clamp(
+      38px,
+      6vw,
+      66px
+    );
+
+  line-height: 1;
+
+  filter:
+    drop-shadow(
+      0 0 15px
+      rgba(69,217,255,.24)
+    );
+
+  transition:
+    transform .22s ease;
+}
+
+.gesture-experience-hint {
+  margin:
+    5px auto 0;
+
+  max-width:
+    270px;
+
+  color:
+    var(--muted);
+
+  font-size:
+    11px;
+
+  line-height:
+    1.45;
+}
+
+
+.gesture-hand-anchor {
+  position: absolute;
+
+  left:
+    var(--hand-x);
+
+  top:
+    var(--hand-y);
+
+  width: 22px;
+  height: 22px;
+
+  transform:
+    translate(-50%, -50%);
+
+  border-radius:
+    50%;
+
+  border:
+    2px solid
+    rgba(69,217,255,.7);
+
+  box-shadow:
+    0 0 0 7px
+    rgba(69,217,255,.08),
+    0 0 22px
+    rgba(69,217,255,.35);
+
+  opacity: 0;
+
+  transition:
+    left .09s linear,
+    top .09s linear,
+    opacity .2s ease;
+}
+
+
+.gesture-experience.armed
+.gesture-hand-anchor,
+
+.gesture-experience.incoming
+.gesture-hand-anchor,
+
+.gesture-experience.caught
+.gesture-hand-anchor {
+  opacity: 1;
+}
+
+
+.gesture-experience.idle
+.gesture-experience-shell,
+
+.gesture-experience.waiting
+.gesture-experience-shell {
+  opacity: .78;
+
+  transform:
+    scale(.94);
+}
+
+
+.gesture-experience.ready
+.gesture-experience-shell,
+
+.gesture-experience.armed
+.gesture-experience-shell {
+  box-shadow:
+    0 0 0 1px
+    rgba(69,217,255,.18),
+    0 0 38px
+    rgba(69,217,255,.16),
+    0 18px 50px
+    rgba(0,0,0,.32);
+}
+
+
+.gesture-experience.armed
+.gesture-big-hand {
+  transform:
+    scale(1.08);
+}
+
+
+/* Receiver receives a soft visual pulse.
+   Deliberately not a harsh flashing animation. */
+
+.gesture-experience.incoming
+.gesture-experience-shell {
+  animation:
+    airIncomingPulse
+    1.05s
+    ease-in-out
+    infinite;
+}
+
+.gesture-experience.incoming
+.gesture-big-hand {
+  animation:
+    airHandPulse
+    1.05s
+    ease-in-out
+    infinite;
+}
+
+
+.gesture-experience.caught
+.gesture-experience-shell {
+  box-shadow:
+    0 0 0 2px
+    rgba(92,237,170,.30),
+    0 0 55px
+    rgba(92,237,170,.25),
+    0 18px 50px
+    rgba(0,0,0,.34);
+}
+
+.gesture-experience.caught
+.gesture-big-hand {
+  transform:
+    scale(1.15);
+}
+
+
+.gesture-experience.grabbed
+.gesture-experience-shell,
+
+.gesture-experience.released
+.gesture-experience-shell,
+
+.gesture-experience.sent
+.gesture-experience-shell,
+
+.gesture-experience.received
+.gesture-experience-shell {
+  box-shadow:
+    0 0 0 2px
+    rgba(92,237,170,.24),
+    0 0 60px
+    rgba(92,237,170,.18),
+    0 18px 50px
+    rgba(0,0,0,.34);
+}
+
+
+.gesture-experience.grabbed
+.air-file-card,
+
+.gesture-experience.caught
+.air-file-card {
+  opacity: .20;
+}
+
+
+.gesture-experience.sent
+.gesture-big-hand,
+
+.gesture-experience.received
+.gesture-big-hand {
+  color:
+    var(--green);
+}
+
+
+@keyframes airIncomingPulse {
+  0%,
+  100% {
+    transform:
+      scale(.985);
+
+    box-shadow:
+      0 0 0 1px
+      rgba(69,217,255,.18),
+      0 0 22px
+      rgba(69,217,255,.10),
+      0 18px 50px
+      rgba(0,0,0,.32);
+  }
+
+  50% {
+    transform:
+      scale(1.025);
+
+    box-shadow:
+      0 0 0 3px
+      rgba(69,217,255,.30),
+      0 0 58px
+      rgba(69,217,255,.29),
+      0 18px 50px
+      rgba(0,0,0,.32);
+  }
+}
+
+
+@keyframes airHandPulse {
+  0%,
+  100% {
+    transform:
+      scale(.96);
+  }
+
+  50% {
+    transform:
+      scale(1.12);
+  }
+}
+
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  .gesture-experience *,
+  .gesture-experience {
+    animation:
+      none !important;
+
+    transition:
+      none !important;
+  }
+}
+
+
+
+/* ==========================================================
+   V5.4.2 SIMPLE CLASSROOM UI
+   ========================================================== */
+
+.classroom-mode-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.classroom-simplified #themeBtn,
+.classroom-simplified #broadcastStatsPanel,
+.classroom-simplified .teaching-card,
+.classroom-simplified #myIntelligencePanel,
+.classroom-simplified #senderIntelligencePanel,
+.classroom-simplified #dataPreferencesPanel,
+.classroom-simplified #analyticsView,
+.classroom-simplified #databaseIntelligencePanel {
+  display: none !important;
+}
+
+.classroom-simplified .hero-grid {
+  grid-template-columns: 1fr;
+}
+
+.classroom-simplified .hero-metric {
+  display: none;
+}
+
+.classroom-simplified .lower-grid {
+  grid-template-columns: 1fr;
+}
+
+.classroom-data-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  margin-top: 15px;
+  padding: 13px;
+
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.classroom-consent {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.classroom-consent input {
+  width: 17px;
+  height: 17px;
+}
+
+@media (max-width: 800px) {
+  .classroom-data-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
