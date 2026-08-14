@@ -1066,12 +1066,12 @@ test(
 
     assert.match(
       html,
-      /Classroom Records/
+      /Full Classroom Database Records/
     );
 
     assert.match(
       html,
-      /Download CSV/
+      /Download Full CSV/
     );
 
     assert.match(
@@ -1165,6 +1165,139 @@ test(
     assert.match(
       source,
       /receiver\?\.user/
+    );
+  }
+);
+
+
+
+test(
+  'V5.4.2 exposes full classroom-safe commercial attribute dataset',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'db.js'
+        ),
+        'utf8'
+      );
+
+    const start =
+      source.indexOf(
+        'async function liveClassroomData'
+      );
+
+    const end =
+      source.indexOf(
+        'async function dashboardData',
+        start
+      );
+
+    const live =
+      source.slice(
+        start,
+        end
+      );
+
+    for (
+      const attribute
+      of [
+        'language',
+        'screen_category',
+        'touch_capable',
+        'memory_tier',
+        'cpu_tier',
+        'referrer_host',
+        'utm_source',
+        'total_transfers',
+        'image_transfers',
+        'device_segment',
+        'usage_segment',
+        'content_segment',
+        'latency_ms',
+        'speed_mbps',
+        'gesture_confidence',
+        'integrity_verified'
+      ]
+    ) {
+      assert.match(
+        live,
+        new RegExp(
+          attribute
+        )
+      );
+    }
+
+    assert.doesNotMatch(
+      live,
+      /u\.email/
+    );
+
+    assert.doesNotMatch(
+      live,
+      /google_sub/
+    );
+
+    assert.doesNotMatch(
+      live,
+      /masked_ip/
+    );
+
+    assert.doesNotMatch(
+      live,
+      /file_name/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 full CSV uses the same columns as the classroom database table',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'live-data.js'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /const columns =/
+    );
+
+    assert.match(
+      source,
+      /link\.download/
+    );
+
+    assert.match(
+      source,
+      /full-data/
+    );
+
+    assert.match(
+      source,
+      /columns\.map/
+    );
+
+    assert.match(
+      source,
+      /Analytics Opt-In/
+    );
+
+    assert.match(
+      source,
+      /Gesture Confidence/
+    );
+
+    assert.match(
+      source,
+      /Usage Segment/
     );
   }
 );

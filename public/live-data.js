@@ -67,6 +67,367 @@
   }
 
 
+  const columns = [
+    {
+      key: 'time',
+      label: 'Time',
+      format: time
+    },
+
+    {
+      key: 'student',
+      label: 'Student'
+    },
+
+    {
+      key: 'room',
+      label: 'Room'
+    },
+
+    {
+      key: 'action',
+      label: 'Action'
+    },
+
+    {
+      key: 'fileType',
+      label: 'File Type'
+    },
+
+    {
+      key: 'fileSizeBytes',
+      label: 'File Size',
+      format: bytes
+    },
+
+    {
+      key: 'result',
+      label: 'Result'
+    },
+
+    {
+      key: 'trigger',
+      label: 'Trigger'
+    },
+
+    {
+      key: 'latencyMs',
+      label: 'Latency ms'
+    },
+
+    {
+      key: 'speedMbps',
+      label: 'Speed Mbps'
+    },
+
+    {
+      key: 'durationSec',
+      label: 'Duration sec'
+    },
+
+    {
+      key: 'acceptanceLatencySec',
+      label: 'Acceptance sec'
+    },
+
+    {
+      key: 'gestureConfidence',
+      label: 'Gesture Confidence',
+      format:
+        (value) =>
+          Number(value)
+            ? `${(
+                Number(value) *
+                100
+              ).toFixed(1)}%`
+            : '—'
+    },
+
+    {
+      key: 'integrityVerified',
+      label: 'SHA-256 Verified',
+      format:
+        (value) =>
+          value === true
+            ? 'YES'
+            : '—'
+    },
+
+    {
+      key: 'retries',
+      label: 'Retries'
+    },
+
+    {
+      key: 'device',
+      label: 'Device'
+    },
+
+    {
+      key: 'os',
+      label: 'OS'
+    },
+
+    {
+      key: 'browser',
+      label: 'Browser'
+    },
+
+    {
+      key: 'timezone',
+      label: 'Timezone'
+    },
+
+    {
+      key: 'language',
+      label: 'Language'
+    },
+
+    {
+      key: 'country',
+      label: 'Country'
+    },
+
+    {
+      key: 'region',
+      label: 'Region'
+    },
+
+    {
+      key: 'screenCategory',
+      label: 'Screen Category'
+    },
+
+    {
+      key: 'touchCapable',
+      label: 'Touch Capable',
+      format:
+        (value) =>
+          value === true
+            ? 'YES'
+            : value === false
+              ? 'NO'
+              : '—'
+    },
+
+    {
+      key: 'memoryTier',
+      label: 'Memory Tier'
+    },
+
+    {
+      key: 'cpuTier',
+      label: 'CPU Tier'
+    },
+
+    {
+      key: 'referrerHost',
+      label: 'Referrer Host'
+    },
+
+    {
+      key: 'landingPath',
+      label: 'Landing Path'
+    },
+
+    {
+      key: 'utmSource',
+      label: 'UTM Source'
+    },
+
+    {
+      key: 'utmMedium',
+      label: 'UTM Medium'
+    },
+
+    {
+      key: 'utmCampaign',
+      label: 'UTM Campaign'
+    },
+
+    {
+      key: 'visitCount',
+      label: 'Visits'
+    },
+
+    {
+      key: 'totalTransfers',
+      label: 'Total Transfers'
+    },
+
+    {
+      key: 'totalBytes',
+      label: 'Total User Data',
+      format: bytes
+    },
+
+    {
+      key: 'imageTransfers',
+      label: 'Image Transfers'
+    },
+
+    {
+      key: 'videoTransfers',
+      label: 'Video Transfers'
+    },
+
+    {
+      key: 'pdfTransfers',
+      label: 'PDF Transfers'
+    },
+
+    {
+      key: 'documentTransfers',
+      label: 'Document Transfers'
+    },
+
+    {
+      key: 'otherTransfers',
+      label: 'Other Transfers'
+    },
+
+    {
+      key: 'deviceSegment',
+      label: 'Device Segment'
+    },
+
+    {
+      key: 'usageSegment',
+      label: 'Usage Segment'
+    },
+
+    {
+      key: 'contentSegment',
+      label: 'Content Segment'
+    },
+
+    {
+      key: 'commercialSegment',
+      label: 'Commercial Segment',
+      format:
+        (value) =>
+          value ===
+          'NOT_OPTED_IN'
+            ? 'Not opted in'
+            : value
+    },
+
+    {
+      key: 'analyticsConsent',
+      label: 'Analytics Opt-In',
+      format:
+        (value) =>
+          value === true
+            ? 'YES'
+            : 'NO'
+    },
+
+    {
+      key: 'firstSeenAt',
+      label: 'First Seen',
+      format:
+        (value) =>
+          value
+            ? new Date(
+                value
+              ).toLocaleString()
+            : '—'
+    },
+
+    {
+      key: 'lastSeenAt',
+      label: 'Last Seen',
+      format:
+        (value) =>
+          value
+            ? new Date(
+                value
+              ).toLocaleString()
+            : '—'
+    },
+
+    {
+      key: 'joinedAt',
+      label: 'Room Joined',
+      format:
+        (value) =>
+          value
+            ? new Date(
+                value
+              ).toLocaleString()
+            : '—'
+    },
+
+    {
+      key: 'leftAt',
+      label: 'Room Left',
+      format:
+        (value) =>
+          value
+            ? new Date(
+                value
+              ).toLocaleString()
+            : '—'
+    }
+  ];
+
+
+  function renderHeader() {
+    const head =
+      $('liveHead');
+
+    if (!head) return;
+
+    const tr =
+      document.createElement(
+        'tr'
+      );
+
+    for (
+      const column
+      of columns
+    ) {
+      const th =
+        document.createElement(
+          'th'
+        );
+
+      th.textContent =
+        column.label;
+
+      tr.appendChild(th);
+    }
+
+    head.replaceChildren(tr);
+  }
+
+
+  function displayValue(
+    row,
+    column
+  ) {
+    const raw =
+      row?.[column.key];
+
+    if (
+      typeof column.format ===
+      'function'
+    ) {
+      return column.format(raw);
+    }
+
+    if (
+      raw === null ||
+      raw === undefined ||
+      raw === ''
+    ) {
+      return '—';
+    }
+
+    return String(raw);
+  }
+
+
   function renderRows(rows) {
     const body =
       $('liveRows');
@@ -75,12 +436,18 @@
 
     if (!rows.length) {
       const tr =
-        document.createElement('tr');
+        document.createElement(
+          'tr'
+        );
 
       const td =
-        document.createElement('td');
+        document.createElement(
+          'td'
+        );
 
-      td.colSpan = 10;
+      td.colSpan =
+        columns.length;
+
       td.className =
         'table-empty';
 
@@ -93,52 +460,40 @@
       return;
     }
 
+
     for (const row of rows) {
       const tr =
-        document.createElement('tr');
+        document.createElement(
+          'tr'
+        );
 
-      const segment =
-        row.commercialSegment ===
-        'NOT_OPTED_IN'
-          ? 'Not opted in'
-          : row.commercialSegment;
+      for (
+        const column
+        of columns
+      ) {
+        const td =
+          document.createElement(
+            'td'
+          );
 
-      const values = [
-        time(row.time),
-        row.student || 'Student',
-        row.action,
-        row.fileType,
-        bytes(row.fileSizeBytes),
-        row.device || '—',
-        row.os || '—',
-        row.browser || '—',
-        [
-          row.country,
-          row.region
-        ]
-          .filter(Boolean)
-          .join(' · ') || '—',
-        segment || '—'
-      ];
+        td.textContent =
+          displayValue(
+            row,
+            column
+          );
 
-      values.forEach(
-        (value, index) => {
-          const td =
-            document.createElement('td');
-
-          td.textContent =
-            value;
-
-          if (index === 2) {
-            td.className =
-              row.action === 'SEND'
-                ? 'action-send'
-                : 'action-receive';
-          }
-
-          tr.appendChild(td);
+        if (
+          column.key ===
+          'action'
+        ) {
+          td.className =
+            row.action === 'SEND'
+              ? 'action-send'
+              : 'action-receive';
         }
-      );
+
+        tr.appendChild(td);
+      }
 
       body.appendChild(tr);
     }
@@ -453,36 +808,30 @@
     }
 
     const output = [
-      [
-        'Time',
-        'Student',
-        'Room',
-        'Action',
-        'File Type',
-        'File Size Bytes',
-        'Device',
-        'OS',
-        'Browser',
-        'Country',
-        'Region',
-        'Commercial Segment'
-      ],
+      columns.map(
+        (column) =>
+          column.label
+      ),
 
       ...currentRows.map(
-        (row) => [
-          row.time,
-          row.student,
-          row.room,
-          row.action,
-          row.fileType,
-          row.fileSizeBytes,
-          row.device,
-          row.os,
-          row.browser,
-          row.country,
-          row.region,
-          row.commercialSegment
-        ]
+        (row) =>
+          columns.map(
+            (column) => {
+              const value =
+                row?.[
+                  column.key
+                ];
+
+              if (
+                value === null ||
+                value === undefined
+              ) {
+                return '';
+              }
+
+              return value;
+            }
+          )
       )
     ]
       .map(
@@ -493,6 +842,7 @@
       )
       .join('\n');
 
+
     const blob =
       new Blob(
         [output],
@@ -502,26 +852,46 @@
         }
       );
 
+
     const url =
-      URL.createObjectURL(blob);
+      URL.createObjectURL(
+        blob
+      );
+
 
     const link =
-      document.createElement('a');
+      document.createElement(
+        'a'
+      );
 
-    link.href = url;
+    link.href =
+      url;
+
+    const stamp =
+      new Date()
+        .toISOString()
+        .slice(0, 10);
 
     link.download =
-      `airgesture-${room}-live-data.csv`;
+      `airgesture-${room}-full-data-${stamp}.csv`;
+
 
     document.body
-      .appendChild(link);
+      .appendChild(
+        link
+      );
 
     link.click();
     link.remove();
 
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(
+      url
+    );
   }
 
+
+
+  renderHeader();
 
   setText(
     'liveRoom',

@@ -58,7 +58,7 @@
           class="btn primary"
           type="button"
         >
-          Download CSV
+          Download Full CSV
         </button>
 
         <a
@@ -127,12 +127,12 @@
           </span>
 
           <h2>
-            Classroom Records
+            Full Classroom Database Records
           </h2>
         </div>
 
         <small>
-          Auto-refreshes every second
+          All collected classroom-safe attributes · auto-refreshes every second
         </small>
       </div>
 
@@ -141,20 +141,7 @@
 
         <table class="live-table">
 
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Student</th>
-              <th>Action</th>
-              <th>File Type</th>
-              <th>Size</th>
-              <th>Device</th>
-              <th>OS</th>
-              <th>Browser</th>
-              <th>Market</th>
-              <th>Commercial Segment</th>
-            </tr>
-          </thead>
+          <thead id="liveHead"></thead>
 
           <tbody id="liveRows">
             <tr>
@@ -249,9 +236,10 @@
 
 
     <p class="live-privacy">
-      Classroom-safe view: no email addresses,
-      Google subject IDs, passwords, tokens,
-      full IP addresses, camera frames,
+      Every signed-in participant in this room can view and download
+      this classroom dataset. Direct identifiers and secrets are excluded:
+      no peer email addresses, Google IDs, internal database IDs,
+      IP addresses, credentials, filenames, camera frames,
       or transferred file contents.
     </p>
 

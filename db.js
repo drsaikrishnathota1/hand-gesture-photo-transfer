@@ -1573,28 +1573,488 @@ function createDatabase(options = {}) {
         )
       );
 
+
     const result =
       await pool.query(
         `SELECT
            e.user_id,
            u.name,
+
+           e.session_id,
            e.room_code,
            e.action,
            e.file_type,
            e.file_size_bytes,
-           e.browser,
-           e.os,
-           e.device_type,
-           e.timezone,
-           e.country,
-           e.region,
-           e.commercial_segment,
-           e.created_at
+           e.created_at,
+
+           COALESCE(
+             c.analytics_consent,
+             FALSE
+           ) AS analytics_consent,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               NULLIF(e.browser, ''),
+               cp.browser,
+               ''
+             )
+             ELSE ''
+           END AS browser,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               NULLIF(e.os, ''),
+               cp.os,
+               ''
+             )
+             ELSE ''
+           END AS os,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               NULLIF(
+                 e.device_type,
+                 ''
+               ),
+               cp.device_type,
+               ''
+             )
+             ELSE ''
+           END AS device_type,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               NULLIF(
+                 e.timezone,
+                 ''
+               ),
+               cp.timezone,
+               ''
+             )
+             ELSE ''
+           END AS timezone,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.language,
+               ''
+             )
+             ELSE ''
+           END AS language,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               NULLIF(
+                 e.country,
+                 ''
+               ),
+               cp.country,
+               ''
+             )
+             ELSE ''
+           END AS country,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               NULLIF(
+                 e.region,
+                 ''
+               ),
+               cp.region,
+               ''
+             )
+             ELSE ''
+           END AS region,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.screen_category,
+               ''
+             )
+             ELSE ''
+           END AS screen_category,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN cp.touch_capable
+             ELSE NULL
+           END AS touch_capable,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.memory_tier,
+               ''
+             )
+             ELSE ''
+           END AS memory_tier,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.cpu_tier,
+               ''
+             )
+             ELSE ''
+           END AS cpu_tier,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.referrer_host,
+               ''
+             )
+             ELSE ''
+           END AS referrer_host,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.landing_path,
+               ''
+             )
+             ELSE ''
+           END AS landing_path,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.utm_source,
+               ''
+             )
+             ELSE ''
+           END AS utm_source,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.utm_medium,
+               ''
+             )
+             ELSE ''
+           END AS utm_medium,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.utm_campaign,
+               ''
+             )
+             ELSE ''
+           END AS utm_campaign,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.visit_count,
+               0
+             )
+             ELSE 0
+           END AS visit_count,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.total_transfers,
+               0
+             )
+             ELSE 0
+           END AS total_transfers,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.total_bytes,
+               0
+             )
+             ELSE 0
+           END AS total_bytes,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.image_transfers,
+               0
+             )
+             ELSE 0
+           END AS image_transfers,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.video_transfers,
+               0
+             )
+             ELSE 0
+           END AS video_transfers,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.pdf_transfers,
+               0
+             )
+             ELSE 0
+           END AS pdf_transfers,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.document_transfers,
+               0
+             )
+             ELSE 0
+           END AS document_transfers,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.other_transfers,
+               0
+             )
+             ELSE 0
+           END AS other_transfers,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.device_segment,
+               ''
+             )
+             ELSE ''
+           END AS device_segment,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.usage_segment,
+               ''
+             )
+             ELSE ''
+           END AS usage_segment,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               cp.content_segment,
+               ''
+             )
+             ELSE ''
+           END AS content_segment,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN COALESCE(
+               NULLIF(
+                 e.commercial_segment,
+                 'NOT_OPTED_IN'
+               ),
+               cp.device_segment,
+               ''
+             )
+             ELSE 'NOT_OPTED_IN'
+           END AS commercial_segment,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN cp.first_seen_at
+             ELSE NULL
+           END AS first_seen_at,
+
+           CASE
+             WHEN COALESCE(
+               c.analytics_consent,
+               FALSE
+             )
+             THEN cp.last_seen_at
+             ELSE NULL
+           END AS last_seen_at,
+
+           participant.joined_at,
+           participant.left_at,
+
+           transfer.result
+             AS transfer_result,
+
+           transfer.trigger
+             AS transfer_trigger,
+
+           transfer.latency_ms,
+           transfer.speed_mbps,
+           transfer.duration_sec,
+           transfer.acceptance_latency_sec,
+           transfer.gesture_confidence,
+           transfer.integrity_verified,
+           transfer.retries
+
          FROM classroom_data_events e
+
          JOIN users u
            ON u.id = e.user_id
-         WHERE e.room_code = $1
-         ORDER BY e.created_at DESC
+
+         LEFT JOIN consent_preferences c
+           ON c.user_id = e.user_id
+
+         LEFT JOIN commercial_profiles cp
+           ON cp.user_id = e.user_id
+          AND COALESCE(
+                c.analytics_consent,
+                FALSE
+              ) = TRUE
+
+         LEFT JOIN LATERAL (
+           SELECT
+             p.joined_at,
+             p.left_at
+
+           FROM session_participants p
+
+           WHERE
+             p.session_id =
+               e.session_id
+
+             AND p.user_id =
+               e.user_id
+
+           ORDER BY
+             p.updated_at DESC
+
+           LIMIT 1
+         ) participant
+           ON TRUE
+
+         LEFT JOIN LATERAL (
+           SELECT
+             t.result,
+             t.trigger,
+             t.latency_ms,
+             t.speed_mbps,
+             t.duration_sec,
+             t.acceptance_latency_sec,
+             t.gesture_confidence,
+             t.integrity_verified,
+             t.retries
+
+           FROM transfer_events t
+
+           WHERE
+             t.session_id =
+               e.session_id
+
+             AND t.user_id =
+               e.user_id
+
+             AND t.file_id =
+               e.file_id
+
+           ORDER BY
+             t.created_at DESC
+
+           LIMIT 1
+         ) transfer
+           ON TRUE
+
+         WHERE
+           e.room_code = $1
+
+         ORDER BY
+           e.created_at DESC
+
          LIMIT $2`,
         [
           roomCode,
@@ -1602,15 +2062,19 @@ function createDatabase(options = {}) {
         ]
       );
 
+
     const rows =
       result.rows || [];
+
 
     const audienceMap =
       new Map();
 
     for (const row of rows) {
       const key =
-        String(row.user_id);
+        String(
+          row.user_id
+        );
 
       if (!audienceMap.has(key)) {
         audienceMap.set(
@@ -1620,58 +2084,82 @@ function createDatabase(options = {}) {
       }
     }
 
+
     const audience =
       [...audienceMap.values()];
+
 
     const optedAudience =
       audience.filter(
         (row) =>
-          row.commercial_segment !==
-          'NOT_OPTED_IN'
+          row.analytics_consent ===
+          true
       );
+
 
     const commercialRows =
       rows.filter(
         (row) =>
-          row.commercial_segment !==
-          'NOT_OPTED_IN'
+          row.analytics_consent ===
+          true
       );
+
 
     const segmentCounts = {};
 
-    for (const row of optedAudience) {
+    for (
+      const row
+      of optedAudience
+    ) {
       const segment =
-        row.commercial_segment;
+        row.commercial_segment ||
+        row.device_segment ||
+        'GENERAL';
 
       segmentCounts[segment] =
-        (segmentCounts[segment] || 0) + 1;
+        (
+          segmentCounts[segment] ||
+          0
+        ) + 1;
     }
 
-    const percentage = (count) =>
-      optedAudience.length
-        ? Math.round(
-            (
-              count /
-              optedAudience.length
-            ) *
-            1000
-          ) / 10
-        : 0;
+
+    const percentage =
+      (count) =>
+        optedAudience.length
+          ? Math.round(
+              (
+                count /
+                optedAudience.length
+              ) *
+              1000
+            ) / 10
+          : 0;
+
 
     const appleUsers =
       optedAudience.filter(
         (row) =>
           String(
-            row.commercial_segment
-          ).startsWith('APPLE_')
+            row.device_segment ||
+            row.commercial_segment ||
+            ''
+          ).startsWith(
+            'APPLE_'
+          )
       ).length;
+
 
     const windowsUsers =
       optedAudience.filter(
         (row) =>
-          row.commercial_segment ===
+          (
+            row.device_segment ||
+            row.commercial_segment
+          ) ===
           'WINDOWS_DESKTOP'
       ).length;
+
 
     const mobileUsers =
       optedAudience.filter(
@@ -1682,9 +2170,11 @@ function createDatabase(options = {}) {
             'MOBILE_USER',
             'TABLET_USER'
           ].includes(
+            row.device_segment ||
             row.commercial_segment
           )
       ).length;
+
 
     const fileMix = {
       IMAGE: 0,
@@ -1694,7 +2184,11 @@ function createDatabase(options = {}) {
       OTHER: 0
     };
 
-    for (const row of commercialRows) {
+
+    for (
+      const row
+      of commercialRows
+    ) {
       const type =
         Object.prototype
           .hasOwnProperty.call(
@@ -1706,6 +2200,7 @@ function createDatabase(options = {}) {
 
       fileMix[type] += 1;
     }
+
 
     return {
       generatedAt:
@@ -1747,6 +2242,7 @@ function createDatabase(options = {}) {
           )
       },
 
+
       insights: {
         applePct:
           percentage(
@@ -1768,6 +2264,7 @@ function createDatabase(options = {}) {
 
         fileMix
       },
+
 
       rows:
         rows.map(
@@ -1793,6 +2290,58 @@ function createDatabase(options = {}) {
                 0
               ),
 
+            result:
+              row.action === 'SEND'
+                ? 'SENT'
+                : (
+                    row.transfer_result ||
+                    'SUCCESS'
+                  ),
+
+            trigger:
+              row.transfer_trigger ||
+              '',
+
+            latencyMs:
+              Number(
+                row.latency_ms ||
+                0
+              ),
+
+            speedMbps:
+              Number(
+                row.speed_mbps ||
+                0
+              ),
+
+            durationSec:
+              Number(
+                row.duration_sec ||
+                0
+              ),
+
+            acceptanceLatencySec:
+              Number(
+                row.acceptance_latency_sec ||
+                0
+              ),
+
+            gestureConfidence:
+              Number(
+                row.gesture_confidence ||
+                0
+              ),
+
+            integrityVerified:
+              row.integrity_verified ===
+              true,
+
+            retries:
+              Number(
+                row.retries ||
+                0
+              ),
+
             device:
               row.device_type,
 
@@ -1802,14 +2351,120 @@ function createDatabase(options = {}) {
             browser:
               row.browser,
 
+            timezone:
+              row.timezone,
+
+            language:
+              row.language,
+
             country:
               row.country,
 
             region:
               row.region,
 
+            screenCategory:
+              row.screen_category,
+
+            touchCapable:
+              row.touch_capable,
+
+            memoryTier:
+              row.memory_tier,
+
+            cpuTier:
+              row.cpu_tier,
+
+            referrerHost:
+              row.referrer_host,
+
+            landingPath:
+              row.landing_path,
+
+            utmSource:
+              row.utm_source,
+
+            utmMedium:
+              row.utm_medium,
+
+            utmCampaign:
+              row.utm_campaign,
+
+            visitCount:
+              Number(
+                row.visit_count ||
+                0
+              ),
+
+            totalTransfers:
+              Number(
+                row.total_transfers ||
+                0
+              ),
+
+            totalBytes:
+              Number(
+                row.total_bytes ||
+                0
+              ),
+
+            imageTransfers:
+              Number(
+                row.image_transfers ||
+                0
+              ),
+
+            videoTransfers:
+              Number(
+                row.video_transfers ||
+                0
+              ),
+
+            pdfTransfers:
+              Number(
+                row.pdf_transfers ||
+                0
+              ),
+
+            documentTransfers:
+              Number(
+                row.document_transfers ||
+                0
+              ),
+
+            otherTransfers:
+              Number(
+                row.other_transfers ||
+                0
+              ),
+
+            deviceSegment:
+              row.device_segment,
+
+            usageSegment:
+              row.usage_segment,
+
+            contentSegment:
+              row.content_segment,
+
             commercialSegment:
-              row.commercial_segment
+              row.commercial_segment,
+
+            analyticsConsent:
+              row.analytics_consent ===
+              true,
+
+            firstSeenAt:
+              row.first_seen_at,
+
+            lastSeenAt:
+              row.last_seen_at,
+
+            joinedAt:
+              row.joined_at,
+
+            leftAt:
+              row.left_at
           })
         )
     };

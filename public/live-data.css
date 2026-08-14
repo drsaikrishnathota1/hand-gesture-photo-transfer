@@ -221,3 +221,50 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+/* ==========================================================
+   FULL ATTRIBUTE DATABASE TABLE
+   ========================================================== */
+
+.live-table {
+  min-width: 5200px;
+}
+
+.live-table th,
+.live-table td {
+  min-width: 115px;
+}
+
+.live-table th:nth-child(1),
+.live-table td:nth-child(1) {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  min-width: 105px;
+  background: #0b1727;
+}
+
+.live-table th:nth-child(2),
+.live-table td:nth-child(2) {
+  position: sticky;
+  left: 105px;
+  z-index: 4;
+  min-width: 170px;
+  background: #0b1727;
+}
+
+.live-table tbody tr:hover td {
+  background-color:
+    rgba(
+      69,
+      217,
+      255,
+      .04
+    );
+}
+
+.live-table-wrap {
+  max-height: 600px;
+}
+
