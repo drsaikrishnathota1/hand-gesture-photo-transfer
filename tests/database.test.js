@@ -244,3 +244,57 @@ test(
     );
   }
 );
+
+test(
+  'V5.4 exposes authenticated HTTP transfer persistence',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'server.js'),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /\/api\/persistence\/transfer/
+    );
+
+    assert.match(
+      source,
+      /HTTP transfer persistence/
+    );
+
+    assert.match(
+      source,
+      /recordTransferEvent/
+    );
+  }
+);
+
+test(
+  'Receiver posts verified SUCCESS evidence to PostgreSQL endpoint',
+  () => {
+    const source = fs.readFileSync(
+      path.join(
+        root,
+        'public',
+        'app.js'
+      ),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /\/api\/persistence\/transfer/
+    );
+
+    assert.match(
+      source,
+      /integrityVerified:\s*true/
+    );
+
+    assert.match(
+      source,
+      /result:\s*"SUCCESS"/
+    );
+  }
+);

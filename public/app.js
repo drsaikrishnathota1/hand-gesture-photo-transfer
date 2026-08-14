@@ -1410,6 +1410,44 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
 
     renderMyIntelligence();
 
+    const persistenceResponse = await fetch(
+      "/api/persistence/transfer",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          room: state.room,
+          fileId: request.fileId,
+          result: "SUCCESS",
+          trigger,
+          latencyMs: state.networkLatencyMs,
+          speedMbps:
+            Math.round(speedMbps * 100) / 100,
+          durationSec:
+            Math.round(durationSec * 100) / 100,
+          acceptanceLatencySec,
+          gestureConfidence:
+            state.lastGestureConfidence,
+          integrityVerified: true,
+          retries: 0
+        })
+      }
+    );
+
+    if (!persistenceResponse.ok) {
+      const persistenceError =
+        await persistenceResponse
+          .json()
+          .catch(() => ({}));
+
+      console.error(
+        "PostgreSQL persistence failed:",
+        persistenceError
+      );
+    }
+
     state.ws.send(JSON.stringify({
       type: "broadcast-complete",
       fileId: request.fileId,

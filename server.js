@@ -513,6 +513,207 @@ function createServer() {
     }
   );
 
+
+  app.post(
+    '/api/persistence/transfer',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error: 'PostgreSQL is not configured.'
+          });
+        }
+
+        const roomCode = String(
+          req.body?.room || ''
+        ).trim().toUpperCase();
+
+        const fileId = String(
+          req.body?.fileId || ''
+        ).trim();
+
+        const room =
+          broadcastRooms.get(roomCode);
+
+        if (
+          !room ||
+          !room.sessionId ||
+          !room.file ||
+          room.file.id !== fileId
+        ) {
+          return res.status(409).json({
+            error:
+              'Active classroom transfer could not be resolved.'
+          });
+        }
+
+        const sessionUser =
+          req.session?.user || {};
+
+        if (!sessionUser.googleSub) {
+          return res.status(401).json({
+            error:
+              'Authenticated Google identity required.'
+          });
+        }
+
+        let userId =
+          sessionUser.dbUserId || null;
+
+        if (!userId) {
+          const dbUser =
+            await database.upsertUser({
+              googleSub:
+                sessionUser.googleSub,
+              name:
+                sessionUser.name,
+              email:
+                sessionUser.email,
+              picture:
+                sessionUser.picture
+            });
+
+          userId =
+            dbUser?.id || null;
+
+          req.session.user.dbUserId =
+            userId;
+        }
+
+        if (!userId) {
+          throw new Error(
+            'Could not resolve PostgreSQL user'
+          );
+        }
+
+        let receiverWs = null;
+
+        for (
+          const ws
+          of room.receivers.values()
+        ) {
+          if (
+            ws?.user?.googleSub ===
+            sessionUser.googleSub
+          ) {
+            receiverWs = ws;
+            break;
+          }
+        }
+
+        const receiverState =
+          receiverWs
+            ? room.receiverStates.get(
+                receiverWs.clientId
+              ) || {}
+            : {};
+
+        const result =
+          req.body?.result === 'FAILED'
+            ? 'FAILED'
+            : 'SUCCESS';
+
+        const record =
+          await database.recordTransferEvent({
+            sessionId:
+              room.sessionId,
+
+            userId,
+
+            receiverId:
+              receiverWs
+                ? participantId(
+                    receiverWs,
+                    'receiver'
+                  )
+                : '',
+
+            roomCode,
+
+            file: {
+              id: room.file.id,
+              name: room.file.name,
+              size: room.file.size,
+              mime: room.file.mime
+            },
+
+            result,
+
+            trigger:
+              req.body?.trigger === 'gesture'
+                ? 'gesture'
+                : 'manual',
+
+            latencyMs:
+              req.body?.latencyMs ??
+              receiverState.latencyMs,
+
+            speedMbps:
+              req.body?.speedMbps ??
+              receiverState.transferSpeedMbps,
+
+            durationSec:
+              req.body?.durationSec ??
+              receiverState.downloadTimeSec,
+
+            acceptanceLatencySec:
+              req.body?.acceptanceLatencySec ??
+              receiverState.acceptanceLatencySec,
+
+            gestureConfidence:
+              req.body?.gestureConfidence ??
+              receiverState.gestureConfidence,
+
+            integrityVerified:
+              Boolean(
+                req.body?.integrityVerified
+              ),
+
+            retries:
+              req.body?.retries || 0,
+
+            failureReason:
+              req.body?.failureReason || '',
+
+            clientInfo:
+              receiverState.clientInfo ||
+              receiverWs?.clientInfo ||
+              {},
+
+            network:
+              receiverState.network ||
+              receiverWs?.network ||
+              {}
+          });
+
+        console.log(
+          'PostgreSQL HTTP transfer persisted:',
+          result,
+          roomCode,
+          fileId
+        );
+
+        res.status(201).json({
+          ok: true,
+          persisted: true,
+          result,
+          id: record?.id || null
+        });
+      } catch (error) {
+        databaseError(
+          'HTTP transfer persistence',
+          error
+        );
+
+        res.status(500).json({
+          error:
+            'Transfer succeeded, but database persistence failed.'
+        });
+      }
+    }
+  );
+
   app.get('/api/analytics', (_req, res) => res.json(analyticsSummary(safeReadEvents())));
 
   app.post('/api/events', (req, res) => {
