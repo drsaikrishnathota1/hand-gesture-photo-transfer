@@ -634,3 +634,77 @@ body:not(.auth-ready) .app-shell {
     min-height: 0;
   }
 }
+
+
+/* V5.4.1 Commercial Governance */
+
+.data-preferences-panel {
+  margin-top: 22px;
+}
+
+.data-preferences-intro {
+  margin: 0 0 16px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.consent-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.consent-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.consent-option input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.consent-option span {
+  display: grid;
+  gap: 5px;
+}
+
+.consent-option strong {
+  font-size: 13px;
+}
+
+.consent-option small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.data-preferences-footer {
+  margin-top: 15px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.data-preferences-footer .privacy-note {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .consent-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .data-preferences-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

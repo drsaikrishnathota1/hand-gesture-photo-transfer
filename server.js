@@ -454,6 +454,49 @@ function createServer() {
     next();
   }
 
+  async function resolveRequestDatabaseUserId(req) {
+    if (!database.enabled) return null;
+
+    const sessionUser =
+      req.session?.user || {};
+
+    if (!sessionUser.googleSub) {
+      return null;
+    }
+
+    if (sessionUser.dbUserId) {
+      return sessionUser.dbUserId;
+    }
+
+    const dbUser =
+      await database.upsertUser({
+        googleSub:
+          sessionUser.googleSub,
+
+        name:
+          sessionUser.name,
+
+        email:
+          sessionUser.email,
+
+        picture:
+          sessionUser.picture
+      });
+
+    const userId =
+      dbUser?.id || null;
+
+    if (
+      userId &&
+      req.session?.user
+    ) {
+      req.session.user.dbUserId =
+        String(userId);
+    }
+
+    return userId;
+  }
+
   // Public: /api/auth/* and /api/health
   // Protected: classroom data, transfer files and telemetry.
   app.use('/api/network/ping', requireAuth);
@@ -775,6 +818,19 @@ function createServer() {
               participantNetwork
           });
 
+        try {
+          await database
+            .recordCommercialTransfer({
+              userId,
+              file
+            });
+        } catch (commercialError) {
+          databaseError(
+            'commercial transfer aggregation',
+            commercialError
+          );
+        }
+
         console.log(
           'PostgreSQL HTTP transfer persisted:',
           result,
@@ -802,6 +858,259 @@ function createServer() {
       }
     }
   );
+
+
+  app.get(
+    '/api/commercial/consent',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const userId =
+          await resolveRequestDatabaseUserId(
+            req
+          );
+
+        if (!userId) {
+          return res.status(401).json({
+            error:
+              'Authenticated database user could not be resolved.'
+          });
+        }
+
+        const consent =
+          await database
+            .getConsentPreferences(
+              userId
+            );
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        return res.json({
+          ok: true,
+          ...consent
+        });
+      } catch (error) {
+        databaseError(
+          'commercial consent read',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not read data preferences.'
+        });
+      }
+    }
+  );
+
+
+  app.post(
+    '/api/commercial/consent',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const userId =
+          await resolveRequestDatabaseUserId(
+            req
+          );
+
+        if (!userId) {
+          return res.status(401).json({
+            error:
+              'Authenticated database user could not be resolved.'
+          });
+        }
+
+        await database
+          .saveConsentPreferences({
+            userId,
+
+            analyticsConsent:
+              req.body
+                ?.analyticsConsent ===
+              true,
+
+            personalizationConsent:
+              req.body
+                ?.personalizationConsent ===
+              true,
+
+            marketingConsent:
+              req.body
+                ?.marketingConsent ===
+              true,
+
+            policyVersion:
+              '2026-08-v1',
+
+            source:
+              'airgesture-web'
+          });
+
+        const consent =
+          await database
+            .getConsentPreferences(
+              userId
+            );
+
+        return res.json({
+          ok: true,
+          ...consent
+        });
+      } catch (error) {
+        databaseError(
+          'commercial consent save',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not save data preferences.'
+        });
+      }
+    }
+  );
+
+
+  app.post(
+    '/api/commercial/profile',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const userId =
+          await resolveRequestDatabaseUserId(
+            req
+          );
+
+        if (!userId) {
+          return res.status(401).json({
+            error:
+              'Authenticated database user could not be resolved.'
+          });
+        }
+
+        const rawIp =
+          requestIp(req);
+
+        let network =
+          baseNetworkIdentity(
+            rawIp,
+            req.headers
+          );
+
+        network =
+          await enrichNetworkIdentity(
+            rawIp,
+            network
+          );
+
+        const profile =
+          await database
+            .upsertCommercialProfile({
+              userId,
+
+              clientInfo:
+                sanitizeClientInfo(
+                  req.body?.clientInfo ||
+                  {}
+                ),
+
+              network,
+
+              acquisition:
+                req.body?.acquisition ||
+                {},
+
+              screenCategory:
+                req.body
+                  ?.screenCategory,
+
+              touchCapable:
+                req.body
+                  ?.touchCapable === true,
+
+              memoryTier:
+                req.body
+                  ?.memoryTier,
+
+              cpuTier:
+                req.body
+                  ?.cpuTier,
+
+              deviceSegment:
+                req.body
+                  ?.deviceSegment
+            });
+
+        const consent =
+          await database
+            .getConsentPreferences(
+              userId
+            );
+
+        return res.json({
+          ok: true,
+
+          collected:
+            Boolean(profile),
+
+          reason:
+            profile
+              ? null
+              : 'analytics_consent_required',
+
+          consent: {
+            analyticsConsent:
+              consent
+                .analyticsConsent,
+
+            personalizationConsent:
+              consent
+                .personalizationConsent,
+
+            marketingConsent:
+              consent
+                .marketingConsent
+          }
+        });
+      } catch (error) {
+        databaseError(
+          'commercial profile save',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not save commercial analytics profile.'
+        });
+      }
+    }
+  );
+
 
 
   app.get('/api/analytics', (_req, res) => res.json(analyticsSummary(safeReadEvents())));

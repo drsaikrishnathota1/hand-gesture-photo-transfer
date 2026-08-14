@@ -57,6 +57,14 @@ const state = {
   authUser: null,
   myTransfer: null,
 
+  commercialConsent: {
+    analyticsConsent: false,
+    personalizationConsent: false,
+    marketingConsent: false
+  },
+
+  commercialProfileSynced: false,
+
   charts: { trend: null, type: null }
 };
 
@@ -139,6 +147,430 @@ function collectClientInfo() {
     memoryGB: Number(navigator.deviceMemory) || 0
   };
 }
+
+
+function commercialDeviceSegment(client) {
+  const os =
+    String(client.os || '');
+
+  const device =
+    String(client.deviceType || '');
+
+  if (
+    os === 'macOS' &&
+    device === 'Laptop/Desktop'
+  ) {
+    return 'APPLE_DESKTOP';
+  }
+
+  if (os === 'iOS/iPadOS') {
+    return 'APPLE_MOBILE';
+  }
+
+  if (
+    os === 'Windows' &&
+    device === 'Laptop/Desktop'
+  ) {
+    return 'WINDOWS_DESKTOP';
+  }
+
+  if (os === 'Android') {
+    return 'ANDROID_MOBILE';
+  }
+
+  if (
+    os === 'Linux' &&
+    device === 'Laptop/Desktop'
+  ) {
+    return 'LINUX_DESKTOP';
+  }
+
+  if (device === 'Mobile') {
+    return 'MOBILE_USER';
+  }
+
+  if (device === 'Tablet') {
+    return 'TABLET_USER';
+  }
+
+  return 'GENERAL_DESKTOP';
+}
+
+
+function commercialSignals() {
+  const client =
+    collectClientInfo();
+
+  const width =
+    Math.max(
+      Number(screen.width) || 0,
+      Number(screen.height) || 0
+    );
+
+  let screenCategory =
+    'UNKNOWN';
+
+  if (width > 0 && width < 768) {
+    screenCategory =
+      'SMALL';
+  } else if (width < 1200) {
+    screenCategory =
+      'MEDIUM';
+  } else if (width < 1800) {
+    screenCategory =
+      'LARGE';
+  } else if (width >= 1800) {
+    screenCategory =
+      'XLARGE';
+  }
+
+
+  const memory =
+    Number(client.memoryGB) || 0;
+
+  let memoryTier =
+    'UNKNOWN';
+
+  if (memory >= 16) {
+    memoryTier = 'HIGH';
+  } else if (memory >= 8) {
+    memoryTier = 'STANDARD';
+  } else if (memory > 0) {
+    memoryTier = 'BASIC';
+  }
+
+
+  const cores =
+    Number(client.cpuCores) || 0;
+
+  let cpuTier =
+    'UNKNOWN';
+
+  if (cores >= 12) {
+    cpuTier = 'HIGH';
+  } else if (cores >= 6) {
+    cpuTier = 'STANDARD';
+  } else if (cores > 0) {
+    cpuTier = 'BASIC';
+  }
+
+
+  let referrerHost = '';
+
+  if (document.referrer) {
+    try {
+      referrerHost =
+        new URL(
+          document.referrer
+        ).hostname;
+    } catch {}
+  }
+
+
+  const params =
+    new URLSearchParams(
+      window.location.search
+    );
+
+
+  return {
+    clientInfo: client,
+
+    screenCategory,
+
+    touchCapable:
+      Number(
+        navigator.maxTouchPoints
+      ) > 0,
+
+    memoryTier,
+
+    cpuTier,
+
+    deviceSegment:
+      commercialDeviceSegment(
+        client
+      ),
+
+    acquisition: {
+      referrerHost,
+
+      landingPath:
+        window.location.pathname,
+
+      utmSource:
+        params.get(
+          'utm_source'
+        ) || '',
+
+      utmMedium:
+        params.get(
+          'utm_medium'
+        ) || '',
+
+      utmCampaign:
+        params.get(
+          'utm_campaign'
+        ) || ''
+    }
+  };
+}
+
+
+function renderCommercialConsent() {
+  const consent =
+    state.commercialConsent || {};
+
+  if ($('analyticsConsent')) {
+    $('analyticsConsent').checked =
+      Boolean(
+        consent.analyticsConsent
+      );
+  }
+
+  if ($('personalizationConsent')) {
+    $('personalizationConsent').checked =
+      Boolean(
+        consent.personalizationConsent
+      );
+  }
+
+  if ($('marketingConsent')) {
+    $('marketingConsent').checked =
+      Boolean(
+        consent.marketingConsent
+      );
+  }
+
+  if ($('consentStatus')) {
+    $('consentStatus').textContent =
+      consent.analyticsConsent
+        ? 'Commercial analytics collection enabled'
+        : 'Commercial analytics collection disabled';
+  }
+}
+
+
+async function syncCommercialProfile() {
+  if (
+    !state.commercialConsent
+      ?.analyticsConsent ||
+    state.commercialProfileSynced
+  ) {
+    return;
+  }
+
+  try {
+    const response =
+      await fetch(
+        '/api/commercial/profile',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body:
+            JSON.stringify(
+              commercialSignals()
+            )
+        }
+      );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data =
+      await response.json();
+
+    if (data.collected) {
+      state.commercialProfileSynced =
+        true;
+
+      if ($('consentStatus')) {
+        $('consentStatus').textContent =
+          'Commercial analytics profile active';
+      }
+    }
+  } catch (error) {
+    console.error(
+      'Commercial profile sync failed:',
+      error
+    );
+  }
+}
+
+
+async function loadCommercialConsent() {
+  if (
+    !state.authUser &&
+    !window.AirGestureAuthUser
+  ) {
+    return;
+  }
+
+  try {
+    const response =
+      await fetch(
+        '/api/commercial/consent',
+        {
+          cache: 'no-store'
+        }
+      );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data =
+      await response.json();
+
+    state.commercialConsent = {
+      analyticsConsent:
+        Boolean(
+          data.analyticsConsent
+        ),
+
+      personalizationConsent:
+        Boolean(
+          data.personalizationConsent
+        ),
+
+      marketingConsent:
+        Boolean(
+          data.marketingConsent
+        )
+    };
+
+    renderCommercialConsent();
+
+    if (
+      state.commercialConsent
+        .analyticsConsent
+    ) {
+      await syncCommercialProfile();
+    }
+  } catch (error) {
+    console.error(
+      'Could not load data preferences:',
+      error
+    );
+  }
+}
+
+
+async function saveCommercialConsent() {
+  const button =
+    $('saveConsentBtn');
+
+  if (button) {
+    button.disabled = true;
+  }
+
+  try {
+    const preferences = {
+      analyticsConsent:
+        Boolean(
+          $('analyticsConsent')
+            ?.checked
+        ),
+
+      personalizationConsent:
+        Boolean(
+          $('personalizationConsent')
+            ?.checked
+        ),
+
+      marketingConsent:
+        Boolean(
+          $('marketingConsent')
+            ?.checked
+        )
+    };
+
+    const response =
+      await fetch(
+        '/api/commercial/consent',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body:
+            JSON.stringify(
+              preferences
+            )
+        }
+      );
+
+    const data =
+      await response
+        .json()
+        .catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        'Could not save preferences.'
+      );
+    }
+
+    state.commercialConsent = {
+      analyticsConsent:
+        Boolean(
+          data.analyticsConsent
+        ),
+
+      personalizationConsent:
+        Boolean(
+          data.personalizationConsent
+        ),
+
+      marketingConsent:
+        Boolean(
+          data.marketingConsent
+        )
+    };
+
+    renderCommercialConsent();
+
+    if (
+      state.commercialConsent
+        .analyticsConsent
+    ) {
+      await syncCommercialProfile();
+    }
+
+    toast(
+      'Data preferences saved'
+    );
+  } catch (error) {
+    console.error(
+      'Consent save failed:',
+      error
+    );
+
+    if ($('consentStatus')) {
+      $('consentStatus').textContent =
+        'Could not save preferences';
+    }
+
+    toast(
+      'Could not save data preferences'
+    );
+  } finally {
+    if (button) {
+      button.disabled = false;
+    }
+  }
+}
+
 
 async function measureServerLatency(samples = 3) {
   const values = [];
@@ -2238,8 +2670,18 @@ function bindEvents() {
   $("themeBtn").addEventListener("click", () => { document.body.classList.toggle("light"); if ($("analyticsView").classList.contains("active")) refreshAnalytics(); });
   window.addEventListener('airgesture-auth-user', (event) => {
     state.authUser = event.detail || null;
-    if (state.role === 'receiver') renderMyIntelligence();
+
+    if (state.role === 'receiver') {
+      renderMyIntelligence();
+    }
+
+    loadCommercialConsent();
   });
+
+  $('saveConsentBtn')?.addEventListener(
+    'click',
+    saveCommercialConsent
+  );
 
   window.addEventListener("resize", () => state.cameraRunning && resizeOverlay());
   window.addEventListener("beforeunload", () => { state.ws?.close(); stopCamera(); });
@@ -2253,6 +2695,17 @@ function init() {
   setProgress(0);
   renderBroadcastStats({});
   refreshAnalytics();
+
+  setTimeout(() => {
+    if (
+      window.AirGestureAuthUser
+    ) {
+      state.authUser =
+        window.AirGestureAuthUser;
+
+      loadCommercialConsent();
+    }
+  }, 100);
 }
 
 init();

@@ -344,6 +344,122 @@
           </p>
         </section>
 
+
+        <section
+          id="dataPreferencesPanel"
+          class="panel glass data-preferences-panel"
+        >
+          <div class="panel-head compact">
+            <div>
+              <span class="section-kicker">
+                DATA GOVERNANCE
+              </span>
+
+              <h2>
+                My Data Preferences
+              </h2>
+            </div>
+
+            <span
+              id="consentStatus"
+              class="status-badge neutral"
+            >
+              Commercial analytics collection disabled
+            </span>
+          </div>
+
+          <p class="data-preferences-intro">
+            Choose how your first-party AirGesture data may be used.
+            All commercial options are off by default.
+          </p>
+
+          <div class="consent-grid">
+
+            <label class="consent-option">
+              <input
+                id="analyticsConsent"
+                type="checkbox"
+              />
+
+              <span>
+                <strong>
+                  Commercial Analytics
+                </strong>
+
+                <small>
+                  Allow device, coarse market,
+                  acquisition and usage-category
+                  data to support aggregate
+                  business analysis.
+                </small>
+              </span>
+            </label>
+
+
+            <label class="consent-option">
+              <input
+                id="personalizationConsent"
+                type="checkbox"
+              />
+
+              <span>
+                <strong>
+                  Personalization
+                </strong>
+
+                <small>
+                  Allow approved commercial
+                  segments to be used later for
+                  product or service
+                  recommendations.
+                </small>
+              </span>
+            </label>
+
+
+            <label class="consent-option">
+              <input
+                id="marketingConsent"
+                type="checkbox"
+              />
+
+              <span>
+                <strong>
+                  Marketing Activity
+                </strong>
+
+                <small>
+                  Allow campaign and offer
+                  interactions to be measured
+                  for commercial analysis.
+                </small>
+              </span>
+            </label>
+
+          </div>
+
+
+          <div class="data-preferences-footer">
+
+            <p class="privacy-note">
+              Commercial profile excludes full IP,
+              camera frames, Google credentials,
+              precise location and transferred
+              file contents.
+            </p>
+
+            <button
+              id="saveConsentBtn"
+              class="btn secondary"
+              type="button"
+            >
+              Save Data Preferences
+            </button>
+
+          </div>
+        </section>
+
+
         <section id="senderIntelligencePanel" class="panel glass network-intelligence-panel">
           <div class="panel-head compact">
             <div>
@@ -447,7 +563,7 @@
     </main>
 
     <footer>
-      <span>AirGesture Transfer Intelligence V5.4.0 · DBA 802 Residency</span>
+      <span>AirGesture Transfer Intelligence V5.4.1 · DBA 802 Residency</span>
       <span>Universal Air Copy/Paste · Network Intelligence · MediaPipe · Decision Intelligence</span>
     </footer>
   </div>

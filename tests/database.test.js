@@ -458,3 +458,151 @@ test(
     assert.match(source, /COMMIT/);
   }
 );
+
+
+test(
+  'V5.4.1 exposes authenticated commercial governance APIs',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'server.js'),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /\/api\/commercial\/consent/
+    );
+
+    assert.match(
+      source,
+      /\/api\/commercial\/profile/
+    );
+
+    assert.match(
+      source,
+      /saveConsentPreferences/
+    );
+
+    assert.match(
+      source,
+      /upsertCommercialProfile/
+    );
+  }
+);
+
+
+test(
+  'V5.4.1 commercial transfer aggregation cannot break verified persistence',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'server.js'),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /recordCommercialTransfer/
+    );
+
+    assert.match(
+      source,
+      /commercial transfer aggregation/
+    );
+
+    assert.match(
+      source,
+      /PostgreSQL HTTP transfer persisted/
+    );
+  }
+);
+
+
+test(
+  'V5.4.1 browser collects practical commercial segmentation signals',
+  () => {
+    const source = fs.readFileSync(
+      path.join(
+        root,
+        'public',
+        'app.js'
+      ),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /commercialSignals/
+    );
+
+    assert.match(
+      source,
+      /utm_source/
+    );
+
+    assert.match(
+      source,
+      /utm_medium/
+    );
+
+    assert.match(
+      source,
+      /utm_campaign/
+    );
+
+    assert.match(
+      source,
+      /memoryTier/
+    );
+
+    assert.match(
+      source,
+      /cpuTier/
+    );
+
+    assert.match(
+      source,
+      /deviceSegment/
+    );
+
+    assert.match(
+      source,
+      /referrerHost/
+    );
+  }
+);
+
+
+test(
+  'V5.4.1 UI provides explicit commercial consent controls',
+  () => {
+    const source = fs.readFileSync(
+      path.join(
+        root,
+        'public',
+        'index.html'
+      ),
+      'utf8'
+    );
+
+    for (const id of [
+      'analyticsConsent',
+      'personalizationConsent',
+      'marketingConsent',
+      'saveConsentBtn',
+      'consentStatus'
+    ]) {
+      assert.match(
+        source,
+        new RegExp(
+          `id="${id}"`
+        )
+      );
+    }
+
+    assert.match(
+      source,
+      /off by default/i
+    );
+  }
+);
+
