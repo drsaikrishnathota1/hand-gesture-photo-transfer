@@ -521,7 +521,8 @@ function createServer() {
       try {
         if (!database.enabled) {
           return res.status(503).json({
-            error: 'PostgreSQL is not configured.'
+            error:
+              'PostgreSQL is not configured.'
           });
         }
 
@@ -533,30 +534,18 @@ function createServer() {
           req.body?.fileId || ''
         ).trim();
 
-        const room =
-          broadcastRooms.get(roomCode);
-
         if (
-          !room ||
-          !room.sessionId ||
-          !room.file ||
-          room.file.id !== fileId
+          !isValidRoomCode(roomCode) ||
+          !fileId
         ) {
-          return res.status(409).json({
+          return res.status(400).json({
             error:
-              'Active classroom transfer could not be resolved.'
+              'Room code and file ID are required.'
           });
         }
 
         const sessionUser =
           req.session?.user || {};
-
-        if (!sessionUser.googleSub) {
-          return res.status(401).json({
-            error:
-              'Authenticated Google identity required.'
-          });
-        }
 
         let userId =
           sessionUser.dbUserId || null;
@@ -577,8 +566,10 @@ function createServer() {
           userId =
             dbUser?.id || null;
 
-          req.session.user.dbUserId =
-            userId;
+          if (req.session?.user) {
+            req.session.user.dbUserId =
+              userId;
+          }
         }
 
         if (!userId) {
@@ -587,27 +578,124 @@ function createServer() {
           );
         }
 
+        const activeRoom =
+          broadcastRooms.get(roomCode);
+
+        let sessionId =
+          activeRoom?.sessionId || null;
+
+        let persistedParticipant = null;
+
+        if (!sessionId) {
+          persistedParticipant =
+            await database
+              .findLatestReceiverSession({
+                roomCode,
+                userId
+              });
+
+          sessionId =
+            persistedParticipant
+              ?.session_id || null;
+        }
+
+        if (!sessionId) {
+          return res.status(409).json({
+            error:
+              'No persisted Receiver classroom session was found.'
+          });
+        }
+
         let receiverWs = null;
 
-        for (
-          const ws
-          of room.receivers.values()
-        ) {
-          if (
-            ws?.user?.googleSub ===
-            sessionUser.googleSub
+        if (activeRoom) {
+          for (
+            const ws
+            of activeRoom.receivers.values()
           ) {
-            receiverWs = ws;
-            break;
+            if (
+              ws?.user?.googleSub ===
+              sessionUser.googleSub
+            ) {
+              receiverWs = ws;
+              break;
+            }
           }
         }
 
         const receiverState =
-          receiverWs
-            ? room.receiverStates.get(
+          receiverWs && activeRoom
+            ? activeRoom.receiverStates.get(
                 receiverWs.clientId
               ) || {}
             : {};
+
+        if (
+          !persistedParticipant &&
+          !receiverWs
+        ) {
+          persistedParticipant =
+            await database
+              .findLatestReceiverSession({
+                roomCode,
+                userId
+              });
+        }
+
+        const activeFile =
+          activeRoom?.file?.id === fileId
+            ? activeRoom.file
+            : null;
+
+        const file = {
+          id: fileId,
+
+          name:
+            activeFile?.name ||
+            String(
+              req.body?.fileName || ''
+            ).slice(0, 180),
+
+          size:
+            activeFile?.size ??
+            Number(
+              req.body?.fileSize || 0
+            ),
+
+          mime:
+            activeFile?.mime ||
+            String(
+              req.body?.fileType ||
+              'application/octet-stream'
+            ).slice(0, 120)
+        };
+
+        const participantClient = {
+          browser:
+            persistedParticipant?.browser ||
+            '',
+          os:
+            persistedParticipant?.os ||
+            '',
+          deviceType:
+            persistedParticipant
+              ?.device_type || '',
+          timezone:
+            persistedParticipant
+              ?.timezone || ''
+        };
+
+        const participantNetwork = {
+          maskedIp:
+            persistedParticipant
+              ?.masked_ip || '',
+          location:
+            persistedParticipant
+              ?.location || '',
+          provider:
+            persistedParticipant
+              ?.provider || ''
+        };
 
         const result =
           req.body?.result === 'FAILED'
@@ -616,9 +704,7 @@ function createServer() {
 
         const record =
           await database.recordTransferEvent({
-            sessionId:
-              room.sessionId,
-
+            sessionId,
             userId,
 
             receiverId:
@@ -627,17 +713,11 @@ function createServer() {
                     receiverWs,
                     'receiver'
                   )
-                : '',
+                : persistedParticipant
+                    ?.receiver_id || '',
 
             roomCode,
-
-            file: {
-              id: room.file.id,
-              name: room.file.name,
-              size: room.file.size,
-              mime: room.file.mime
-            },
-
+            file,
             result,
 
             trigger:
@@ -651,40 +731,48 @@ function createServer() {
 
             speedMbps:
               req.body?.speedMbps ??
-              receiverState.transferSpeedMbps,
+              receiverState
+                .transferSpeedMbps,
 
             durationSec:
               req.body?.durationSec ??
-              receiverState.downloadTimeSec,
+              receiverState
+                .downloadTimeSec,
 
             acceptanceLatencySec:
-              req.body?.acceptanceLatencySec ??
-              receiverState.acceptanceLatencySec,
+              req.body
+                ?.acceptanceLatencySec ??
+              receiverState
+                .acceptanceLatencySec,
 
             gestureConfidence:
-              req.body?.gestureConfidence ??
-              receiverState.gestureConfidence,
+              req.body
+                ?.gestureConfidence ??
+              receiverState
+                .gestureConfidence,
 
             integrityVerified:
               Boolean(
-                req.body?.integrityVerified
+                req.body
+                  ?.integrityVerified
               ),
 
             retries:
               req.body?.retries || 0,
 
             failureReason:
-              req.body?.failureReason || '',
+              req.body
+                ?.failureReason || '',
 
             clientInfo:
               receiverState.clientInfo ||
               receiverWs?.clientInfo ||
-              {},
+              participantClient,
 
             network:
               receiverState.network ||
               receiverWs?.network ||
-              {}
+              participantNetwork
           });
 
         console.log(
@@ -694,11 +782,12 @@ function createServer() {
           fileId
         );
 
-        res.status(201).json({
+        return res.status(201).json({
           ok: true,
           persisted: true,
           result,
-          id: record?.id || null
+          id: record?.id || null,
+          sessionId
         });
       } catch (error) {
         databaseError(
@@ -706,13 +795,14 @@ function createServer() {
           error
         );
 
-        res.status(500).json({
+        return res.status(500).json({
           error:
             'Transfer succeeded, but database persistence failed.'
         });
       }
     }
   );
+
 
   app.get('/api/analytics', (_req, res) => res.json(analyticsSummary(safeReadEvents())));
 

@@ -1420,6 +1420,11 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
         body: JSON.stringify({
           room: state.room,
           fileId: request.fileId,
+          fileName: request.name,
+          fileSize: request.size,
+          fileType:
+            request.mime ||
+            "application/octet-stream",
           result: "SUCCESS",
           trigger,
           latencyMs: state.networkLatencyMs,

@@ -466,6 +466,44 @@ function createDatabase(options = {}) {
     return resultRow.rows[0] || null;
   }
 
+  async function findLatestReceiverSession(input = {}) {
+    if (!enabled) return null;
+
+    const roomCode =
+      clean(input.roomCode, 12).toUpperCase();
+
+    if (!roomCode || !input.userId) {
+      return null;
+    }
+
+    const result = await pool.query(
+      `SELECT
+         cs.id AS session_id,
+         sp.receiver_id,
+         sp.browser,
+         sp.os,
+         sp.device_type,
+         sp.timezone,
+         sp.masked_ip,
+         sp.location,
+         sp.provider
+       FROM class_sessions cs
+       JOIN session_participants sp
+         ON sp.session_id = cs.id
+       WHERE cs.room_code = $1
+         AND sp.user_id = $2
+         AND sp.role = 'receiver'
+       ORDER BY cs.started_at DESC
+       LIMIT 1`,
+      [
+        roomCode,
+        input.userId
+      ]
+    );
+
+    return result.rows[0] || null;
+  }
+
   async function endClassSession(sessionId) {
     if (!enabled || !sessionId) return;
 
@@ -532,6 +570,7 @@ function createDatabase(options = {}) {
     upsertParticipant,
     markParticipantLeft,
     recordTransferEvent,
+    findLatestReceiverSession,
     endClassSession,
     summary,
     close
