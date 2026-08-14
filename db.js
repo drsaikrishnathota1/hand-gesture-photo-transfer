@@ -175,6 +175,396 @@ function createDatabase(options = {}) {
         )
       );
 
+
+      -- ---------------------------------
+      -- V5.4.1 Commercial Intelligence
+      -- ---------------------------------
+
+      CREATE TABLE IF NOT EXISTS commercial_profiles (
+        user_id BIGINT PRIMARY KEY
+          REFERENCES users(id)
+          ON DELETE CASCADE,
+
+        first_seen_at TIMESTAMPTZ
+          NOT NULL DEFAULT NOW(),
+
+        last_seen_at TIMESTAMPTZ
+          NOT NULL DEFAULT NOW(),
+
+        visit_count INTEGER
+          NOT NULL DEFAULT 0,
+
+        country VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        region VARCHAR(120)
+          NOT NULL DEFAULT '',
+
+        timezone VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        language VARCHAR(24)
+          NOT NULL DEFAULT '',
+
+        browser VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        os VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        device_type VARCHAR(40)
+          NOT NULL DEFAULT '',
+
+        screen_category VARCHAR(32)
+          NOT NULL DEFAULT '',
+
+        touch_capable BOOLEAN
+          NOT NULL DEFAULT FALSE,
+
+        memory_tier VARCHAR(24)
+          NOT NULL DEFAULT '',
+
+        cpu_tier VARCHAR(24)
+          NOT NULL DEFAULT '',
+
+        referrer_host VARCHAR(160)
+          NOT NULL DEFAULT '',
+
+        landing_path VARCHAR(240)
+          NOT NULL DEFAULT '',
+
+        utm_source VARCHAR(120)
+          NOT NULL DEFAULT '',
+
+        utm_medium VARCHAR(120)
+          NOT NULL DEFAULT '',
+
+        utm_campaign VARCHAR(160)
+          NOT NULL DEFAULT '',
+
+        total_transfers INTEGER
+          NOT NULL DEFAULT 0,
+
+        total_bytes BIGINT
+          NOT NULL DEFAULT 0,
+
+        image_transfers INTEGER
+          NOT NULL DEFAULT 0,
+
+        video_transfers INTEGER
+          NOT NULL DEFAULT 0,
+
+        pdf_transfers INTEGER
+          NOT NULL DEFAULT 0,
+
+        document_transfers INTEGER
+          NOT NULL DEFAULT 0,
+
+        other_transfers INTEGER
+          NOT NULL DEFAULT 0,
+
+        device_segment VARCHAR(64)
+          NOT NULL DEFAULT '',
+
+        usage_segment VARCHAR(64)
+          NOT NULL DEFAULT '',
+
+        content_segment VARCHAR(64)
+          NOT NULL DEFAULT '',
+
+        updated_at TIMESTAMPTZ
+          NOT NULL DEFAULT NOW()
+      );
+
+
+      CREATE TABLE IF NOT EXISTS consent_preferences (
+        user_id BIGINT PRIMARY KEY
+          REFERENCES users(id)
+          ON DELETE CASCADE,
+
+        analytics_consent BOOLEAN
+          NOT NULL DEFAULT FALSE,
+
+        personalization_consent BOOLEAN
+          NOT NULL DEFAULT FALSE,
+
+        marketing_consent BOOLEAN
+          NOT NULL DEFAULT FALSE,
+
+        policy_version VARCHAR(32)
+          NOT NULL DEFAULT '2026-08-v1',
+
+        updated_at TIMESTAMPTZ
+          NOT NULL DEFAULT NOW()
+      );
+
+
+      CREATE TABLE IF NOT EXISTS consent_events (
+        id UUID PRIMARY KEY,
+
+        user_id BIGINT NOT NULL
+          REFERENCES users(id)
+          ON DELETE CASCADE,
+
+        analytics_consent BOOLEAN
+          NOT NULL DEFAULT FALSE,
+
+        personalization_consent BOOLEAN
+          NOT NULL DEFAULT FALSE,
+
+        marketing_consent BOOLEAN
+          NOT NULL DEFAULT FALSE,
+
+        source VARCHAR(40)
+          NOT NULL DEFAULT 'app',
+
+        policy_version VARCHAR(32)
+          NOT NULL DEFAULT '2026-08-v1',
+
+        created_at TIMESTAMPTZ
+          NOT NULL DEFAULT NOW()
+      );
+
+
+      CREATE TABLE IF NOT EXISTS data_governance_registry (
+        data_field VARCHAR(120) PRIMARY KEY,
+
+        purpose VARCHAR(240)
+          NOT NULL,
+
+        source VARCHAR(80)
+          NOT NULL,
+
+        data_owner VARCHAR(120)
+          NOT NULL DEFAULT 'AirGesture',
+
+        sensitivity VARCHAR(32)
+          NOT NULL DEFAULT 'PERSONAL',
+
+        retention_days INTEGER
+          NOT NULL DEFAULT 365,
+
+        commercial_allowed BOOLEAN
+          NOT NULL DEFAULT FALSE,
+
+        notes TEXT
+          NOT NULL DEFAULT '',
+
+        updated_at TIMESTAMPTZ
+          NOT NULL DEFAULT NOW()
+      );
+
+
+      CREATE TABLE IF NOT EXISTS recommendation_events (
+        id UUID PRIMARY KEY,
+
+        user_id BIGINT NOT NULL
+          REFERENCES users(id)
+          ON DELETE CASCADE,
+
+        session_id UUID
+          REFERENCES class_sessions(id)
+          ON DELETE SET NULL,
+
+        commercial_segment VARCHAR(64)
+          NOT NULL DEFAULT '',
+
+        recommendation_category VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        campaign_id VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        action VARCHAR(16)
+          NOT NULL
+          CHECK (
+            action IN (
+              'SHOWN',
+              'CLICKED',
+              'DISMISSED'
+            )
+          ),
+
+        created_at TIMESTAMPTZ
+          NOT NULL DEFAULT NOW()
+      );
+
+
+      CREATE TABLE IF NOT EXISTS conversion_events (
+        id UUID PRIMARY KEY,
+
+        user_id BIGINT NOT NULL
+          REFERENCES users(id)
+          ON DELETE CASCADE,
+
+        recommendation_id UUID
+          REFERENCES recommendation_events(id)
+          ON DELETE SET NULL,
+
+        conversion_type VARCHAR(80)
+          NOT NULL DEFAULT '',
+
+        value_amount NUMERIC(12,2)
+          NOT NULL DEFAULT 0,
+
+        currency CHAR(3)
+          NOT NULL DEFAULT 'USD',
+
+        created_at TIMESTAMPTZ
+          NOT NULL DEFAULT NOW()
+      );
+
+
+      CREATE INDEX IF NOT EXISTS idx_commercial_profile_device
+        ON commercial_profiles (
+          os,
+          browser,
+          device_type
+        );
+
+      CREATE INDEX IF NOT EXISTS idx_commercial_profile_market
+        ON commercial_profiles (
+          country,
+          region
+        );
+
+      CREATE INDEX IF NOT EXISTS idx_commercial_profile_segment
+        ON commercial_profiles (
+          device_segment,
+          usage_segment,
+          content_segment
+        );
+
+      CREATE INDEX IF NOT EXISTS idx_consent_events_user
+        ON consent_events (
+          user_id,
+          created_at DESC
+        );
+
+      CREATE INDEX IF NOT EXISTS idx_recommendations_user
+        ON recommendation_events (
+          user_id,
+          created_at DESC
+        );
+
+      CREATE INDEX IF NOT EXISTS idx_recommendations_campaign
+        ON recommendation_events (
+          campaign_id,
+          action
+        );
+
+      CREATE INDEX IF NOT EXISTS idx_conversions_user
+        ON conversion_events (
+          user_id,
+          created_at DESC
+        );
+
+
+      INSERT INTO data_governance_registry (
+        data_field,
+        purpose,
+        source,
+        sensitivity,
+        retention_days,
+        commercial_allowed,
+        notes
+      )
+      VALUES
+
+      (
+        'browser',
+        'Device ecosystem segmentation',
+        'browser',
+        'PERSONAL',
+        365,
+        TRUE,
+        'Used for aggregate commercial segmentation'
+      ),
+
+      (
+        'os',
+        'Device ecosystem segmentation',
+        'browser',
+        'PERSONAL',
+        365,
+        TRUE,
+        'Used to identify broad technology cohorts'
+      ),
+
+      (
+        'device_type',
+        'Device category segmentation',
+        'browser',
+        'PERSONAL',
+        365,
+        TRUE,
+        'Laptop desktop mobile or tablet category'
+      ),
+
+      (
+        'country_region',
+        'Geographic market analysis',
+        'network_coarse',
+        'PERSONAL',
+        365,
+        TRUE,
+        'Coarse geography only; precise location excluded'
+      ),
+
+      (
+        'acquisition_source',
+        'Campaign attribution',
+        'url_referrer',
+        'PERSONAL',
+        365,
+        TRUE,
+        'UTM and referring-domain attribution'
+      ),
+
+      (
+        'usage_volume',
+        'Customer usage segmentation',
+        'application',
+        'PERSONAL',
+        365,
+        TRUE,
+        'Aggregate usage volume only'
+      ),
+
+      (
+        'content_category',
+        'Product-need segmentation',
+        'file_metadata',
+        'PERSONAL',
+        365,
+        TRUE,
+        'File category only; file contents are excluded'
+      ),
+
+      (
+        'commercial_segment',
+        'Commercial recommendation eligibility',
+        'derived',
+        'PERSONAL',
+        365,
+        TRUE,
+        'Derived from approved commercial attributes'
+      ),
+
+      (
+        'consent_preferences',
+        'Governance and commercial eligibility',
+        'user_choice',
+        'PERSONAL',
+        730,
+        FALSE,
+        'Consent history is governance evidence, not targeting data'
+      )
+
+      ON CONFLICT (data_field)
+      DO NOTHING;
+
+
       CREATE INDEX IF NOT EXISTS idx_class_sessions_room
         ON class_sessions (room_code, started_at DESC);
 

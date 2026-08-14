@@ -298,3 +298,116 @@ test(
     );
   }
 );
+
+test(
+  'V5.4.1 creates commercial intelligence tables',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'db.js'),
+      'utf8'
+    );
+
+    for (const table of [
+      'commercial_profiles',
+      'recommendation_events',
+      'conversion_events'
+    ]) {
+      assert.match(
+        source,
+        new RegExp(
+          `CREATE TABLE IF NOT EXISTS ${table}`
+        )
+      );
+    }
+  }
+);
+
+test(
+  'V5.4.1 creates explicit consent governance tables',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'db.js'),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /CREATE TABLE IF NOT EXISTS consent_preferences/
+    );
+
+    assert.match(
+      source,
+      /CREATE TABLE IF NOT EXISTS consent_events/
+    );
+
+    assert.match(
+      source,
+      /analytics_consent BOOLEAN[\s\S]*DEFAULT FALSE/
+    );
+
+    assert.match(
+      source,
+      /personalization_consent BOOLEAN[\s\S]*DEFAULT FALSE/
+    );
+
+    assert.match(
+      source,
+      /marketing_consent BOOLEAN[\s\S]*DEFAULT FALSE/
+    );
+  }
+);
+
+test(
+  'V5.4.1 has field-level governance registry',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'db.js'),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /data_governance_registry/
+    );
+
+    assert.match(
+      source,
+      /retention_days/
+    );
+
+    assert.match(
+      source,
+      /commercial_allowed/
+    );
+
+    assert.match(
+      source,
+      /data_owner/
+    );
+  }
+);
+
+test(
+  'commercial profile excludes prohibited high-risk collection',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'db.js'),
+      'utf8'
+    );
+
+    assert.doesNotMatch(
+      source,
+      /full_ip/i
+    );
+
+    assert.doesNotMatch(
+      source,
+      /precise_geolocation/i
+    );
+
+    assert.doesNotMatch(
+      source,
+      /camera_frame/i
+    );
+  }
+);
