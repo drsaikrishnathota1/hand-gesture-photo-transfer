@@ -1292,6 +1292,318 @@ function createDatabase(options = {}) {
     };
   }
 
+
+  async function dashboardData(input = {}) {
+    if (!enabled) {
+      return {
+        summary: {},
+        users: [],
+        commercialProfiles: [],
+        consentPreferences: [],
+        consentEvents: [],
+        transferEvents: [],
+        governanceRegistry: [],
+        recommendationEvents: [],
+        conversionEvents: []
+      };
+    }
+
+    const requestedLimit =
+      Number(input.limit) || 250;
+
+    const limit =
+      Math.max(
+        1,
+        Math.min(1000, requestedLimit)
+      );
+
+    const [
+      summaryResult,
+      usersResult,
+      profilesResult,
+      consentResult,
+      consentEventsResult,
+      transfersResult,
+      governanceResult,
+      recommendationsResult,
+      conversionsResult
+    ] = await Promise.all([
+
+      pool.query(`
+        SELECT
+          (SELECT COUNT(*)::int FROM users)
+            AS users,
+
+          (SELECT COUNT(*)::int FROM class_sessions)
+            AS class_sessions,
+
+          (SELECT COUNT(*)::int FROM session_participants)
+            AS participants,
+
+          (SELECT COUNT(*)::int FROM transfer_events)
+            AS transfer_events,
+
+          (SELECT COUNT(*)::int FROM commercial_profiles)
+            AS commercial_profiles,
+
+          (SELECT COUNT(*)::int FROM consent_preferences)
+            AS consent_preferences,
+
+          (SELECT COUNT(*)::int FROM consent_events)
+            AS consent_events,
+
+          (SELECT COUNT(*)::int FROM recommendation_events)
+            AS recommendation_events,
+
+          (SELECT COUNT(*)::int FROM conversion_events)
+            AS conversion_events
+      `),
+
+      pool.query(
+        `SELECT
+           id,
+           name,
+           email,
+           created_at,
+           last_login_at,
+           updated_at
+         FROM users
+         ORDER BY last_login_at DESC
+         LIMIT $1`,
+        [limit]
+      ),
+
+      pool.query(
+        `SELECT
+           u.name,
+           u.email,
+           cp.first_seen_at,
+           cp.last_seen_at,
+           cp.visit_count,
+           cp.country,
+           cp.region,
+           cp.timezone,
+           cp.language,
+           cp.browser,
+           cp.os,
+           cp.device_type,
+           cp.screen_category,
+           cp.touch_capable,
+           cp.memory_tier,
+           cp.cpu_tier,
+           cp.referrer_host,
+           cp.landing_path,
+           cp.utm_source,
+           cp.utm_medium,
+           cp.utm_campaign,
+           cp.total_transfers,
+           cp.total_bytes,
+           cp.image_transfers,
+           cp.video_transfers,
+           cp.pdf_transfers,
+           cp.document_transfers,
+           cp.other_transfers,
+           cp.device_segment,
+           cp.usage_segment,
+           cp.content_segment,
+           cp.updated_at
+         FROM commercial_profiles cp
+         JOIN users u
+           ON u.id = cp.user_id
+         ORDER BY cp.updated_at DESC
+         LIMIT $1`,
+        [limit]
+      ),
+
+      pool.query(
+        `SELECT
+           u.name,
+           u.email,
+           c.analytics_consent,
+           c.personalization_consent,
+           c.marketing_consent,
+           c.policy_version,
+           c.updated_at
+         FROM consent_preferences c
+         JOIN users u
+           ON u.id = c.user_id
+         ORDER BY c.updated_at DESC
+         LIMIT $1`,
+        [limit]
+      ),
+
+      pool.query(
+        `SELECT
+           ce.id,
+           u.name,
+           u.email,
+           ce.analytics_consent,
+           ce.personalization_consent,
+           ce.marketing_consent,
+           ce.source,
+           ce.policy_version,
+           ce.created_at
+         FROM consent_events ce
+         JOIN users u
+           ON u.id = ce.user_id
+         ORDER BY ce.created_at DESC
+         LIMIT $1`,
+        [limit]
+      ),
+
+      pool.query(
+        `SELECT
+           te.id,
+           u.name,
+           u.email,
+           te.receiver_id,
+           te.room_code,
+           te.result,
+           te.trigger,
+           te.file_name,
+           te.file_type,
+           te.file_size_bytes,
+           te.latency_ms,
+           te.speed_mbps,
+           te.duration_sec,
+           te.acceptance_latency_sec,
+           te.integrity_verified,
+           te.retries,
+           te.browser,
+           te.os,
+           te.device_type,
+           te.timezone,
+           te.masked_ip,
+           te.location,
+           te.provider,
+           te.created_at
+         FROM transfer_events te
+         JOIN users u
+           ON u.id = te.user_id
+         ORDER BY te.created_at DESC
+         LIMIT $1`,
+        [limit]
+      ),
+
+      pool.query(
+        `SELECT
+           data_field,
+           purpose,
+           source,
+           data_owner,
+           sensitivity,
+           retention_days,
+           commercial_allowed,
+           notes,
+           updated_at
+         FROM data_governance_registry
+         ORDER BY data_field ASC
+         LIMIT $1`,
+        [limit]
+      ),
+
+      pool.query(
+        `SELECT
+           re.id,
+           u.name,
+           u.email,
+           re.commercial_segment,
+           re.recommendation_category,
+           re.campaign_id,
+           re.action,
+           re.created_at
+         FROM recommendation_events re
+         JOIN users u
+           ON u.id = re.user_id
+         ORDER BY re.created_at DESC
+         LIMIT $1`,
+        [limit]
+      ),
+
+      pool.query(
+        `SELECT
+           ce.id,
+           u.name,
+           u.email,
+           ce.recommendation_id,
+           ce.conversion_type,
+           ce.value_amount,
+           ce.currency,
+           ce.created_at
+         FROM conversion_events ce
+         JOIN users u
+           ON u.id = ce.user_id
+         ORDER BY ce.created_at DESC
+         LIMIT $1`,
+        [limit]
+      )
+    ]);
+
+    const row =
+      summaryResult.rows[0] || {};
+
+    return {
+      generatedAt:
+        new Date().toISOString(),
+
+      limit,
+
+      summary: {
+        users:
+          Number(row.users || 0),
+
+        classSessions:
+          Number(row.class_sessions || 0),
+
+        participants:
+          Number(row.participants || 0),
+
+        transferEvents:
+          Number(row.transfer_events || 0),
+
+        commercialProfiles:
+          Number(row.commercial_profiles || 0),
+
+        consentPreferences:
+          Number(row.consent_preferences || 0),
+
+        consentEvents:
+          Number(row.consent_events || 0),
+
+        recommendationEvents:
+          Number(row.recommendation_events || 0),
+
+        conversionEvents:
+          Number(row.conversion_events || 0)
+      },
+
+      users:
+        usersResult.rows,
+
+      commercialProfiles:
+        profilesResult.rows,
+
+      consentPreferences:
+        consentResult.rows,
+
+      consentEvents:
+        consentEventsResult.rows,
+
+      transferEvents:
+        transfersResult.rows,
+
+      governanceRegistry:
+        governanceResult.rows,
+
+      recommendationEvents:
+        recommendationsResult.rows,
+
+      conversionEvents:
+        conversionsResult.rows
+    };
+  }
+
+
   async function close() {
     if (!pool) return;
 
@@ -1316,6 +1628,7 @@ function createDatabase(options = {}) {
     findLatestReceiverSession,
     endClassSession,
     summary,
+    dashboardData,
     close
   };
 }

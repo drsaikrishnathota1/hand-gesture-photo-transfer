@@ -606,3 +606,107 @@ test(
   }
 );
 
+
+
+test(
+  'V5.4.2 exposes read-only database dashboard data',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(root, 'db.js'),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /dashboardData/
+    );
+
+    assert.match(
+      source,
+      /commercialProfiles/
+    );
+
+    assert.match(
+      source,
+      /consentPreferences/
+    );
+
+    assert.match(
+      source,
+      /transferEvents/
+    );
+
+    assert.match(
+      source,
+      /governanceRegistry/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 protects database dashboard with server-side admin email allowlist',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(root, 'server.js'),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /AIRGESTURE_ADMIN_EMAILS/
+    );
+
+    assert.match(
+      source,
+      /requireAdmin/
+    );
+
+    assert.match(
+      source,
+      /\/api\/admin\/database/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 database dashboard does not expose Google subject identifiers',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(root, 'db.js'),
+        'utf8'
+      );
+
+    const start =
+      source.indexOf(
+        'async function dashboardData'
+      );
+
+    const end =
+      source.indexOf(
+        'async function close',
+        start
+      );
+
+    assert.ok(start >= 0);
+    assert.ok(end > start);
+
+    const dashboardSource =
+      source.slice(start, end);
+
+    assert.doesNotMatch(
+      dashboardSource,
+      /google_sub/i
+    );
+
+    assert.doesNotMatch(
+      dashboardSource,
+      /picture_url/i
+    );
+  }
+);
+

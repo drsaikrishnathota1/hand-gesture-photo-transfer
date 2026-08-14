@@ -23,6 +23,18 @@ const BROADCAST_DIR = path.join(DATA_DIR, 'broadcasts');
 const TRUST_PROXY = String(process.env.AIRGESTURE_TRUST_PROXY || '').trim() === '1';
 const IP_ENRICH_URL_TEMPLATE = String(process.env.AIRGESTURE_IP_ENRICH_URL_TEMPLATE || '').trim();
 
+const ADMIN_EMAILS = new Set(
+  String(
+    process.env.AIRGESTURE_ADMIN_EMAILS || ''
+  )
+    .split(',')
+    .map((value) =>
+      value.trim().toLowerCase()
+    )
+    .filter(Boolean)
+);
+
+
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(BROADCAST_DIR, { recursive: true });
 
@@ -495,6 +507,28 @@ function createServer() {
     }
 
     return userId;
+  }
+
+
+  function requireAdmin(req, res, next) {
+    const email =
+      String(
+        req.session?.user?.email || ''
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      !email ||
+      !ADMIN_EMAILS.has(email)
+    ) {
+      return res.status(403).json({
+        error:
+          'AirGesture administrator access required.'
+      });
+    }
+
+    next();
   }
 
   // Public: /api/auth/* and /api/health
@@ -1106,6 +1140,62 @@ function createServer() {
         return res.status(500).json({
           error:
             'Could not save commercial analytics profile.'
+        });
+      }
+    }
+  );
+
+
+
+
+  app.get(
+    '/api/admin/database',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const limit =
+          Math.max(
+            1,
+            Math.min(
+              1000,
+              Number.parseInt(
+                req.query?.limit || '250',
+                10
+              ) || 250
+            )
+          );
+
+        const data =
+          await database.dashboardData({
+            limit
+          });
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        return res.json({
+          ok: true,
+          ...data
+        });
+      } catch (error) {
+        databaseError(
+          'admin database dashboard',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not load database intelligence.'
         });
       }
     }
