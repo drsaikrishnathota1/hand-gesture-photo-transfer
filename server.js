@@ -558,13 +558,49 @@ function createServer() {
       .toUpperCase()}`;
   }
 
+  async function resolveDatabaseUserId(ws) {
+    if (
+      !database.enabled ||
+      !ws?.user?.googleSub
+    ) {
+      return null;
+    }
+
+    if (ws.user.dbUserId) {
+      return ws.user.dbUserId;
+    }
+
+    const dbUser = await database.upsertUser({
+      googleSub: ws.user.googleSub,
+      name: ws.user.name,
+      email: ws.user.email,
+      picture: ''
+    });
+
+    ws.user.dbUserId =
+      dbUser?.id
+        ? String(dbUser.id)
+        : null;
+
+    return ws.user.dbUserId;
+  }
+
   async function persistParticipant(room, ws, role) {
     if (
       !database.enabled ||
       !room?.sessionId ||
-      !ws?.user?.dbUserId
+      !ws?.user?.googleSub
     ) {
       return null;
+    }
+
+    const userId =
+      await resolveDatabaseUserId(ws);
+
+    if (!userId) {
+      throw new Error(
+        'Could not resolve participant database user'
+      );
     }
 
     const state =
@@ -574,7 +610,7 @@ function createServer() {
 
     return database.upsertParticipant({
       sessionId: room.sessionId,
-      userId: ws.user.dbUserId,
+      userId,
       receiverId: participantId(ws, role),
       role,
       clientInfo:
@@ -591,7 +627,7 @@ function createServer() {
   function ensureClassSession(room) {
     if (
       !database.enabled ||
-      !room?.host?.user?.dbUserId
+      !room?.host?.user?.googleSub
     ) {
       return Promise.resolve(null);
     }
@@ -607,14 +643,25 @@ function createServer() {
     const sessionId = room.sessionId;
 
     room.sessionReady =
-      database.createClassSession({
-        id: sessionId,
-        roomCode: room.code,
-        course: 'DBA 802',
-        hostUserId:
-          room.host.user.dbUserId
-      })
-      .then(async () => {
+      (async () => {
+        const hostUserId =
+          await resolveDatabaseUserId(
+            room.host
+          );
+
+        if (!hostUserId) {
+          throw new Error(
+            'Could not resolve Sender database user'
+          );
+        }
+
+        await database.createClassSession({
+          id: sessionId,
+          roomCode: room.code,
+          course: 'DBA 802',
+          hostUserId
+        });
+
         if (room.host) {
           await persistParticipant(
             room,
@@ -640,7 +687,7 @@ function createServer() {
         }
 
         return sessionId;
-      })
+      })()
       .catch((error) => {
         databaseError(
           'class session persistence',
@@ -658,19 +705,43 @@ function createServer() {
     return room.sessionReady;
   }
 
-  function persistTransferEvent(
+  async function persistTransferEvent(
     room,
     ws,
     state,
     result
   ) {
+    if (!database.enabled) {
+      return null;
+    }
+
     if (
-      !database.enabled ||
       !room?.sessionId ||
-      !ws?.user?.dbUserId ||
+      !ws?.user?.googleSub ||
       !room.file
     ) {
-      return;
+      console.warn(
+        'PostgreSQL transfer event skipped:',
+        {
+          hasSession:
+            Boolean(room?.sessionId),
+          hasGoogleIdentity:
+            Boolean(ws?.user?.googleSub),
+          hasFile:
+            Boolean(room?.file)
+        }
+      );
+
+      return null;
+    }
+
+    const userId =
+      await resolveDatabaseUserId(ws);
+
+    if (!userId) {
+      throw new Error(
+        'Could not resolve Receiver database user'
+      );
     }
 
     const file = {
@@ -680,60 +751,70 @@ function createServer() {
       mime: room.file.mime
     };
 
-    const waiting =
-      room.sessionReady ||
-      Promise.resolve(room.sessionId);
+    const sessionId =
+      await (
+        room.sessionReady ||
+        Promise.resolve(room.sessionId)
+      );
 
-    void waiting
-      .then((sessionId) => {
-        if (!sessionId) return null;
+    if (!sessionId) {
+      throw new Error(
+        'Class session was not persisted'
+      );
+    }
 
-        return database.recordTransferEvent({
-          sessionId,
-          userId: ws.user.dbUserId,
-          receiverId:
-            participantId(
-              ws,
-              'receiver'
-            ),
-          roomCode: room.code,
-          file,
-          result,
-          trigger:
-            state.trigger ||
-            'manual',
-          latencyMs:
-            state.latencyMs,
-          speedMbps:
-            state.transferSpeedMbps,
-          durationSec:
-            state.downloadTimeSec,
-          acceptanceLatencySec:
-            state.acceptanceLatencySec,
-          gestureConfidence:
-            state.gestureConfidence,
-          integrityVerified:
-            state.integrityVerified,
-          retries:
-            state.retries,
-          failureReason:
-            state.failureReason,
-          clientInfo:
-            state.clientInfo ||
-            ws.clientInfo ||
-            {},
-          network:
-            state.network ||
-            ws.network ||
-            {}
-        });
-      })
-      .catch((error) => {
-        databaseError(
-          'transfer event persistence',
-          error
-        );
+    const record =
+      await database.recordTransferEvent({
+        sessionId,
+        userId,
+        receiverId:
+          participantId(
+            ws,
+            'receiver'
+          ),
+        roomCode: room.code,
+        file,
+        result,
+        trigger:
+          state.trigger ||
+          'manual',
+        latencyMs:
+          state.latencyMs,
+        speedMbps:
+          state.transferSpeedMbps,
+        durationSec:
+          state.downloadTimeSec,
+        acceptanceLatencySec:
+          state.acceptanceLatencySec,
+        gestureConfidence:
+          state.gestureConfidence,
+        integrityVerified:
+          state.integrityVerified,
+        retries:
+          state.retries,
+        failureReason:
+          state.failureReason,
+        clientInfo:
+          state.clientInfo ||
+          ws.clientInfo ||
+          {},
+        network:
+          state.network ||
+          ws.network ||
+          {}
       });
+
+    console.log(
+      'PostgreSQL transfer event persisted:',
+      result,
+      room.code,
+      participantId(
+        ws,
+        'receiver'
+      )
+    );
+
+    return record;
   }
 
   function persistParticipantLeave(room, ws) {
@@ -1316,12 +1397,17 @@ function createServer() {
           room.receiverStates.set(ws.clientId, item);
           room.updatedAt = Date.now();
 
-          persistTransferEvent(
+          void persistTransferEvent(
             room,
             ws,
             item,
             'SUCCESS'
-          );
+          ).catch((error) => {
+            databaseError(
+              'transfer event persistence',
+              error
+            );
+          });
 
           emitBroadcastStats(room);
           emitReceiverIntelligence(room);
@@ -1342,12 +1428,17 @@ function createServer() {
           room.receiverStates.set(ws.clientId, item);
           room.updatedAt = Date.now();
 
-          persistTransferEvent(
+          void persistTransferEvent(
             room,
             ws,
             item,
             'FAILED'
-          );
+          ).catch((error) => {
+            databaseError(
+              'transfer event persistence',
+              error
+            );
+          });
 
           emitBroadcastStats(room);
           emitReceiverIntelligence(room);
