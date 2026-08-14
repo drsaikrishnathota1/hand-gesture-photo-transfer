@@ -411,3 +411,50 @@ test(
     );
   }
 );
+
+test(
+  'V5.4.1 exposes commercial profile persistence',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'db.js'),
+      'utf8'
+    );
+
+    assert.match(source, /upsertCommercialProfile/);
+    assert.match(source, /recordCommercialTransfer/);
+    assert.match(source, /total_transfers/);
+    assert.match(source, /total_bytes/);
+  }
+);
+
+test(
+  'V5.4.1 requires analytics consent before commercial collection',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'db.js'),
+      'utf8'
+    );
+
+    assert.match(source, /getConsentPreferences/);
+    assert.match(
+      source,
+      /if \(!consent\.analyticsConsent\)/
+    );
+    assert.match(source, /return null/);
+  }
+);
+
+test(
+  'V5.4.1 stores consent changes as audit events',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'db.js'),
+      'utf8'
+    );
+
+    assert.match(source, /saveConsentPreferences/);
+    assert.match(source, /INSERT INTO consent_events/);
+    assert.match(source, /BEGIN/);
+    assert.match(source, /COMMIT/);
+  }
+);

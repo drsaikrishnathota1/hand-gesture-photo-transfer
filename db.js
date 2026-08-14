@@ -856,6 +856,355 @@ function createDatabase(options = {}) {
     return resultRow.rows[0] || null;
   }
 
+
+  async function getConsentPreferences(userId) {
+    if (!enabled || !userId) {
+      return {
+        analyticsConsent: false,
+        personalizationConsent: false,
+        marketingConsent: false,
+        policyVersion: '2026-08-v1'
+      };
+    }
+
+    const result = await pool.query(
+      `SELECT
+         analytics_consent,
+         personalization_consent,
+         marketing_consent,
+         policy_version,
+         updated_at
+       FROM consent_preferences
+       WHERE user_id = $1`,
+      [userId]
+    );
+
+    const row = result.rows[0];
+
+    if (!row) {
+      return {
+        analyticsConsent: false,
+        personalizationConsent: false,
+        marketingConsent: false,
+        policyVersion: '2026-08-v1'
+      };
+    }
+
+    return {
+      analyticsConsent: Boolean(row.analytics_consent),
+      personalizationConsent: Boolean(row.personalization_consent),
+      marketingConsent: Boolean(row.marketing_consent),
+      policyVersion: row.policy_version,
+      updatedAt: row.updated_at
+    };
+  }
+
+  async function saveConsentPreferences(input = {}) {
+    if (!enabled) return null;
+
+    if (!input.userId) {
+      throw new Error('User ID is required for consent');
+    }
+
+    const analyticsConsent =
+      input.analyticsConsent === true;
+
+    const personalizationConsent =
+      input.personalizationConsent === true;
+
+    const marketingConsent =
+      input.marketingConsent === true;
+
+    const policyVersion =
+      clean(input.policyVersion || '2026-08-v1', 32);
+
+    const source =
+      clean(input.source || 'app', 40);
+
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const preferenceResult =
+        await client.query(
+          `INSERT INTO consent_preferences (
+             user_id,
+             analytics_consent,
+             personalization_consent,
+             marketing_consent,
+             policy_version,
+             updated_at
+           )
+           VALUES ($1,$2,$3,$4,$5,NOW())
+           ON CONFLICT (user_id)
+           DO UPDATE SET
+             analytics_consent =
+               EXCLUDED.analytics_consent,
+             personalization_consent =
+               EXCLUDED.personalization_consent,
+             marketing_consent =
+               EXCLUDED.marketing_consent,
+             policy_version =
+               EXCLUDED.policy_version,
+             updated_at = NOW()
+           RETURNING *`,
+          [
+            input.userId,
+            analyticsConsent,
+            personalizationConsent,
+            marketingConsent,
+            policyVersion
+          ]
+        );
+
+      await client.query(
+        `INSERT INTO consent_events (
+           id,
+           user_id,
+           analytics_consent,
+           personalization_consent,
+           marketing_consent,
+           source,
+           policy_version
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [
+          crypto.randomUUID(),
+          input.userId,
+          analyticsConsent,
+          personalizationConsent,
+          marketingConsent,
+          source,
+          policyVersion
+        ]
+      );
+
+      await client.query('COMMIT');
+
+      return preferenceResult.rows[0] || null;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function upsertCommercialProfile(input = {}) {
+    if (!enabled) return null;
+
+    if (!input.userId) {
+      throw new Error(
+        'User ID is required for commercial profile'
+      );
+    }
+
+    const consent =
+      await getConsentPreferences(input.userId);
+
+    if (!consent.analyticsConsent) {
+      return null;
+    }
+
+    const client = input.clientInfo || {};
+    const network = input.network || {};
+    const acquisition = input.acquisition || {};
+
+    const result = await pool.query(
+      `INSERT INTO commercial_profiles (
+         user_id,
+         first_seen_at,
+         last_seen_at,
+         visit_count,
+         country,
+         region,
+         timezone,
+         language,
+         browser,
+         os,
+         device_type,
+         screen_category,
+         touch_capable,
+         memory_tier,
+         cpu_tier,
+         referrer_host,
+         landing_path,
+         utm_source,
+         utm_medium,
+         utm_campaign,
+         device_segment,
+         updated_at
+       )
+       VALUES (
+         $1,
+         NOW(),
+         NOW(),
+         1,
+         $2,$3,$4,$5,$6,$7,$8,$9,$10,
+         $11,$12,$13,$14,$15,$16,$17,$18,
+         NOW()
+       )
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+         last_seen_at = NOW(),
+         visit_count =
+           commercial_profiles.visit_count + 1,
+         country = CASE
+           WHEN EXCLUDED.country <> ''
+           THEN EXCLUDED.country
+           ELSE commercial_profiles.country
+         END,
+         region = CASE
+           WHEN EXCLUDED.region <> ''
+           THEN EXCLUDED.region
+           ELSE commercial_profiles.region
+         END,
+         timezone = EXCLUDED.timezone,
+         language = EXCLUDED.language,
+         browser = EXCLUDED.browser,
+         os = EXCLUDED.os,
+         device_type = EXCLUDED.device_type,
+         screen_category = EXCLUDED.screen_category,
+         touch_capable = EXCLUDED.touch_capable,
+         memory_tier = EXCLUDED.memory_tier,
+         cpu_tier = EXCLUDED.cpu_tier,
+         referrer_host = CASE
+           WHEN EXCLUDED.referrer_host <> ''
+           THEN EXCLUDED.referrer_host
+           ELSE commercial_profiles.referrer_host
+         END,
+         landing_path = CASE
+           WHEN EXCLUDED.landing_path <> ''
+           THEN EXCLUDED.landing_path
+           ELSE commercial_profiles.landing_path
+         END,
+         utm_source = CASE
+           WHEN EXCLUDED.utm_source <> ''
+           THEN EXCLUDED.utm_source
+           ELSE commercial_profiles.utm_source
+         END,
+         utm_medium = CASE
+           WHEN EXCLUDED.utm_medium <> ''
+           THEN EXCLUDED.utm_medium
+           ELSE commercial_profiles.utm_medium
+         END,
+         utm_campaign = CASE
+           WHEN EXCLUDED.utm_campaign <> ''
+           THEN EXCLUDED.utm_campaign
+           ELSE commercial_profiles.utm_campaign
+         END,
+         device_segment = EXCLUDED.device_segment,
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        input.userId,
+        clean(network.country, 80),
+        clean(network.region, 120),
+        clean(client.timezone, 80),
+        clean(client.language, 24),
+        clean(client.browser, 80),
+        clean(client.os, 80),
+        clean(client.deviceType, 40),
+        clean(input.screenCategory, 32),
+        Boolean(input.touchCapable),
+        clean(input.memoryTier, 24),
+        clean(input.cpuTier, 24),
+        clean(acquisition.referrerHost, 160),
+        clean(acquisition.landingPath, 240),
+        clean(acquisition.utmSource, 120),
+        clean(acquisition.utmMedium, 120),
+        clean(acquisition.utmCampaign, 160),
+        clean(input.deviceSegment, 64)
+      ]
+    );
+
+    return result.rows[0] || null;
+  }
+
+  async function recordCommercialTransfer(input = {}) {
+    if (!enabled || !input.userId) return null;
+
+    const consent =
+      await getConsentPreferences(input.userId);
+
+    if (!consent.analyticsConsent) {
+      return null;
+    }
+
+    const file = input.file || {};
+    const mime = String(file.mime || '').toLowerCase();
+    const name = String(file.name || '').toLowerCase();
+
+    let category = 'other';
+
+    if (mime.startsWith('image/')) {
+      category = 'image';
+    } else if (mime.startsWith('video/')) {
+      category = 'video';
+    } else if (
+      mime === 'application/pdf' ||
+      name.endsWith('.pdf')
+    ) {
+      category = 'pdf';
+    } else if (
+      mime.startsWith('text/') ||
+      /word|document|sheet|excel|presentation|powerpoint|csv/.test(mime) ||
+      /\.(doc|docx|xls|xlsx|ppt|pptx|txt|csv)$/i.test(name)
+    ) {
+      category = 'document';
+    }
+
+    const size =
+      Math.round(
+        safeNumber(file.size, 104857600)
+      );
+
+    const column = {
+      image: 'image_transfers',
+      video: 'video_transfers',
+      pdf: 'pdf_transfers',
+      document: 'document_transfers',
+      other: 'other_transfers'
+    }[category];
+
+    const query = `
+      UPDATE commercial_profiles
+      SET
+        total_transfers =
+          total_transfers + 1,
+        total_bytes =
+          total_bytes + $2,
+        ${column} =
+          ${column} + 1,
+        usage_segment =
+          CASE
+            WHEN
+              total_bytes + $2 >= 1073741824
+              OR total_transfers + 1 >= 25
+              THEN 'HEAVY_USAGE'
+            WHEN
+              total_transfers + 1 >= 8
+              THEN 'ACTIVE_USAGE'
+            ELSE 'LIGHT_USAGE'
+          END,
+        updated_at = NOW()
+      WHERE user_id = $1
+      RETURNING *
+    `;
+
+    const result =
+      await pool.query(
+        query,
+        [
+          input.userId,
+          size
+        ]
+      );
+
+    return result.rows[0] || null;
+  }
+
   async function findLatestReceiverSession(input = {}) {
     if (!enabled) return null;
 
@@ -960,6 +1309,10 @@ function createDatabase(options = {}) {
     upsertParticipant,
     markParticipantLeft,
     recordTransferEvent,
+    getConsentPreferences,
+    saveConsentPreferences,
+    upsertCommercialProfile,
+    recordCommercialTransfer,
     findLatestReceiverSession,
     endClassSession,
     summary,
