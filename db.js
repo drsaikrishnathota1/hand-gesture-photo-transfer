@@ -642,6 +642,328 @@ function createDatabase(options = {}) {
         ON transfer_events (session_id, created_at DESC);
     `);
 
+
+    // ---------------------------------------------------------
+    // V5.4.2 HISTORICAL CLASSROOM DATA BACKFILL
+    // ---------------------------------------------------------
+    // Older AirGesture releases stored successful transfers in
+    // transfer_events. Reconstruct those records for the new
+    // classroom_data_events teaching table.
+    //
+    // Existing V5.4.2 rows are protected by ON CONFLICT.
+
+    await pool.query(`
+      INSERT INTO classroom_data_events (
+        id,
+        session_id,
+        user_id,
+        room_code,
+        action,
+        file_id,
+        file_type,
+        file_size_bytes,
+        browser,
+        os,
+        device_type,
+        timezone,
+        country,
+        region,
+        commercial_segment,
+        created_at
+      )
+
+      SELECT
+        gen_random_uuid(),
+        t.session_id,
+        t.user_id,
+        t.room_code,
+        'RECEIVE',
+        t.file_id,
+
+        CASE
+          WHEN LOWER(t.file_type)
+               LIKE 'image/%'
+            THEN 'IMAGE'
+
+          WHEN LOWER(t.file_type)
+               LIKE 'video/%'
+            THEN 'VIDEO'
+
+          WHEN LOWER(t.file_type)
+               LIKE '%pdf%'
+            THEN 'PDF'
+
+          WHEN LOWER(t.file_type)
+               LIKE '%word%'
+            OR LOWER(t.file_type)
+               LIKE '%document%'
+            OR LOWER(t.file_type)
+               LIKE '%text%'
+            OR LOWER(t.file_type)
+               LIKE '%sheet%'
+            OR LOWER(t.file_type)
+               LIKE '%excel%'
+            OR LOWER(t.file_type)
+               LIKE '%presentation%'
+            THEN 'DOCUMENT'
+
+          ELSE 'OTHER'
+        END,
+
+        t.file_size_bytes,
+
+        CASE
+          WHEN COALESCE(
+            cp.analytics_consent,
+            FALSE
+          )
+          THEN t.browser
+          ELSE ''
+        END,
+
+        CASE
+          WHEN COALESCE(
+            cp.analytics_consent,
+            FALSE
+          )
+          THEN t.os
+          ELSE ''
+        END,
+
+        CASE
+          WHEN COALESCE(
+            cp.analytics_consent,
+            FALSE
+          )
+          THEN t.device_type
+          ELSE ''
+        END,
+
+        CASE
+          WHEN COALESCE(
+            cp.analytics_consent,
+            FALSE
+          )
+          THEN t.timezone
+          ELSE ''
+        END,
+
+        '',
+
+        '',
+
+        CASE
+          WHEN COALESCE(
+            cp.analytics_consent,
+            FALSE
+          )
+          THEN COALESCE(
+            profile.device_segment,
+            'GENERAL_DESKTOP'
+          )
+          ELSE 'NOT_OPTED_IN'
+        END,
+
+        t.created_at
+
+      FROM transfer_events t
+
+      LEFT JOIN consent_preferences cp
+        ON cp.user_id =
+           t.user_id
+
+      LEFT JOIN commercial_profiles profile
+        ON profile.user_id =
+           t.user_id
+
+      WHERE
+        t.result = 'SUCCESS'
+
+      ON CONFLICT (
+        session_id,
+        user_id,
+        file_id,
+        action
+      )
+      DO NOTHING;
+    `);
+
+
+    // Reconstruct one historical SEND row for each distinct
+    // session/file using the recorded class-session host.
+    await pool.query(`
+      INSERT INTO classroom_data_events (
+        id,
+        session_id,
+        user_id,
+        room_code,
+        action,
+        file_id,
+        file_type,
+        file_size_bytes,
+        browser,
+        os,
+        device_type,
+        timezone,
+        country,
+        region,
+        commercial_segment,
+        created_at
+      )
+
+      SELECT DISTINCT ON (
+        t.session_id,
+        t.file_id
+      )
+
+        gen_random_uuid(),
+        t.session_id,
+        cs.host_user_id,
+        t.room_code,
+        'SEND',
+        t.file_id,
+
+        CASE
+          WHEN LOWER(t.file_type)
+               LIKE 'image/%'
+            THEN 'IMAGE'
+
+          WHEN LOWER(t.file_type)
+               LIKE 'video/%'
+            THEN 'VIDEO'
+
+          WHEN LOWER(t.file_type)
+               LIKE '%pdf%'
+            THEN 'PDF'
+
+          WHEN LOWER(t.file_type)
+               LIKE '%word%'
+            OR LOWER(t.file_type)
+               LIKE '%document%'
+            OR LOWER(t.file_type)
+               LIKE '%text%'
+            OR LOWER(t.file_type)
+               LIKE '%sheet%'
+            OR LOWER(t.file_type)
+               LIKE '%excel%'
+            OR LOWER(t.file_type)
+               LIKE '%presentation%'
+            THEN 'DOCUMENT'
+
+          ELSE 'OTHER'
+        END,
+
+        t.file_size_bytes,
+
+        CASE
+          WHEN COALESCE(
+            consent.analytics_consent,
+            FALSE
+          )
+          THEN COALESCE(
+            sender.browser,
+            ''
+          )
+          ELSE ''
+        END,
+
+        CASE
+          WHEN COALESCE(
+            consent.analytics_consent,
+            FALSE
+          )
+          THEN COALESCE(
+            sender.os,
+            ''
+          )
+          ELSE ''
+        END,
+
+        CASE
+          WHEN COALESCE(
+            consent.analytics_consent,
+            FALSE
+          )
+          THEN COALESCE(
+            sender.device_type,
+            ''
+          )
+          ELSE ''
+        END,
+
+        CASE
+          WHEN COALESCE(
+            consent.analytics_consent,
+            FALSE
+          )
+          THEN COALESCE(
+            sender.timezone,
+            ''
+          )
+          ELSE ''
+        END,
+
+        '',
+
+        '',
+
+        CASE
+          WHEN COALESCE(
+            consent.analytics_consent,
+            FALSE
+          )
+          THEN COALESCE(
+            profile.device_segment,
+            'GENERAL_DESKTOP'
+          )
+          ELSE 'NOT_OPTED_IN'
+        END,
+
+        t.created_at
+
+      FROM transfer_events t
+
+      JOIN class_sessions cs
+        ON cs.id =
+           t.session_id
+
+      LEFT JOIN session_participants sender
+        ON sender.session_id =
+           t.session_id
+       AND sender.user_id =
+           cs.host_user_id
+       AND sender.role =
+           'sender'
+
+      LEFT JOIN consent_preferences consent
+        ON consent.user_id =
+           cs.host_user_id
+
+      LEFT JOIN commercial_profiles profile
+        ON profile.user_id =
+           cs.host_user_id
+
+      WHERE
+        t.result = 'SUCCESS'
+
+        AND cs.host_user_id
+            IS NOT NULL
+
+      ORDER BY
+        t.session_id,
+        t.file_id,
+        t.created_at ASC
+
+      ON CONFLICT (
+        session_id,
+        user_id,
+        file_id,
+        action
+      )
+      DO NOTHING;
+    `);
+
+
     ready = true;
     return status();
   }
