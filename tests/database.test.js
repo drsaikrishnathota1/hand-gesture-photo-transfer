@@ -164,3 +164,83 @@ test(
     );
   }
 );
+
+test(
+  'V5.4 database persists classroom sessions and participants',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'db.js'),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /createClassSession/
+    );
+
+    assert.match(
+      source,
+      /upsertParticipant/
+    );
+
+    assert.match(
+      source,
+      /markParticipantLeft/
+    );
+
+    assert.match(
+      source,
+      /endClassSession/
+    );
+  }
+);
+
+test(
+  'V5.4 persists successful and failed receiver transfer evidence',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'server.js'),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /persistTransferEvent/
+    );
+
+    assert.match(
+      source,
+      /'SUCCESS'/
+    );
+
+    assert.match(
+      source,
+      /'FAILED'/
+    );
+
+    assert.match(
+      source,
+      /recordTransferEvent/
+    );
+  }
+);
+
+test(
+  'V5.4 provides protected non-PII persistence counts',
+  () => {
+    const source = fs.readFileSync(
+      path.join(root, 'server.js'),
+      'utf8'
+    );
+
+    assert.match(
+      source,
+      /\/api\/persistence\/summary/
+    );
+
+    assert.match(
+      source,
+      /database\.summary/
+    );
+  }
+);

@@ -478,6 +478,41 @@ function createServer() {
     res.json({ ok: true, serverTime: Date.now() });
   });
 
+  app.get(
+    '/api/persistence/summary',
+    requireAuth,
+    async (_req, res) => {
+      if (!database.enabled) {
+        return res.status(503).json({
+          error:
+            'PostgreSQL is not configured.'
+        });
+      }
+
+      try {
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        res.json({
+          ok: true,
+          ...(await database.summary())
+        });
+      } catch (error) {
+        databaseError(
+          'summary query',
+          error
+        );
+
+        res.status(500).json({
+          error:
+            'Could not read persistence summary.'
+        });
+      }
+    }
+  );
+
   app.get('/api/analytics', (_req, res) => res.json(analyticsSummary(safeReadEvents())));
 
   app.post('/api/events', (req, res) => {
@@ -504,6 +539,253 @@ function createServer() {
 
   function sendJson(ws, payload) {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+  }
+
+  function databaseError(context, error) {
+    console.error(
+      `PostgreSQL ${context} failed:`,
+      error?.message || error
+    );
+  }
+
+  function participantId(ws, role) {
+    const prefix =
+      role === 'receiver' ? 'RCV' : 'SND';
+
+    return `${prefix}-${String(ws?.clientId || '')
+      .replace(/-/g, '')
+      .slice(0, 6)
+      .toUpperCase()}`;
+  }
+
+  async function persistParticipant(room, ws, role) {
+    if (
+      !database.enabled ||
+      !room?.sessionId ||
+      !ws?.user?.dbUserId
+    ) {
+      return null;
+    }
+
+    const state =
+      role === 'receiver'
+        ? room.receiverStates.get(ws.clientId) || {}
+        : {};
+
+    return database.upsertParticipant({
+      sessionId: room.sessionId,
+      userId: ws.user.dbUserId,
+      receiverId: participantId(ws, role),
+      role,
+      clientInfo:
+        state.clientInfo ||
+        ws.clientInfo ||
+        {},
+      network:
+        state.network ||
+        ws.network ||
+        {}
+    });
+  }
+
+  function ensureClassSession(room) {
+    if (
+      !database.enabled ||
+      !room?.host?.user?.dbUserId
+    ) {
+      return Promise.resolve(null);
+    }
+
+    if (room.sessionReady) {
+      return room.sessionReady;
+    }
+
+    if (!room.sessionId) {
+      room.sessionId = crypto.randomUUID();
+    }
+
+    const sessionId = room.sessionId;
+
+    room.sessionReady =
+      database.createClassSession({
+        id: sessionId,
+        roomCode: room.code,
+        course: 'DBA 802',
+        hostUserId:
+          room.host.user.dbUserId
+      })
+      .then(async () => {
+        if (room.host) {
+          await persistParticipant(
+            room,
+            room.host,
+            'sender'
+          );
+        }
+
+        for (
+          const receiver
+          of room.receivers.values()
+        ) {
+          if (
+            receiver.room === room.code &&
+            receiver.mode === 'broadcast'
+          ) {
+            await persistParticipant(
+              room,
+              receiver,
+              'receiver'
+            );
+          }
+        }
+
+        return sessionId;
+      })
+      .catch((error) => {
+        databaseError(
+          'class session persistence',
+          error
+        );
+
+        if (room.sessionId === sessionId) {
+          room.sessionId = null;
+        }
+
+        room.sessionReady = null;
+        return null;
+      });
+
+    return room.sessionReady;
+  }
+
+  function persistTransferEvent(
+    room,
+    ws,
+    state,
+    result
+  ) {
+    if (
+      !database.enabled ||
+      !room?.sessionId ||
+      !ws?.user?.dbUserId ||
+      !room.file
+    ) {
+      return;
+    }
+
+    const file = {
+      id: room.file.id,
+      name: room.file.name,
+      size: room.file.size,
+      mime: room.file.mime
+    };
+
+    const waiting =
+      room.sessionReady ||
+      Promise.resolve(room.sessionId);
+
+    void waiting
+      .then((sessionId) => {
+        if (!sessionId) return null;
+
+        return database.recordTransferEvent({
+          sessionId,
+          userId: ws.user.dbUserId,
+          receiverId:
+            participantId(
+              ws,
+              'receiver'
+            ),
+          roomCode: room.code,
+          file,
+          result,
+          trigger:
+            state.trigger ||
+            'manual',
+          latencyMs:
+            state.latencyMs,
+          speedMbps:
+            state.transferSpeedMbps,
+          durationSec:
+            state.downloadTimeSec,
+          acceptanceLatencySec:
+            state.acceptanceLatencySec,
+          gestureConfidence:
+            state.gestureConfidence,
+          integrityVerified:
+            state.integrityVerified,
+          retries:
+            state.retries,
+          failureReason:
+            state.failureReason,
+          clientInfo:
+            state.clientInfo ||
+            ws.clientInfo ||
+            {},
+          network:
+            state.network ||
+            ws.network ||
+            {}
+        });
+      })
+      .catch((error) => {
+        databaseError(
+          'transfer event persistence',
+          error
+        );
+      });
+  }
+
+  function persistParticipantLeave(room, ws) {
+    if (
+      !database.enabled ||
+      !room?.sessionId ||
+      !ws?.user?.dbUserId
+    ) {
+      return;
+    }
+
+    const waiting =
+      room.sessionReady ||
+      Promise.resolve(room.sessionId);
+
+    void waiting
+      .then((sessionId) => {
+        if (!sessionId) return null;
+
+        return database.markParticipantLeft({
+          sessionId,
+          userId: ws.user.dbUserId,
+          role:
+            ws.role === 'receiver'
+              ? 'receiver'
+              : 'sender'
+        });
+      })
+      .catch((error) => {
+        databaseError(
+          'participant leave persistence',
+          error
+        );
+      });
+  }
+
+  function endRoomSession(room) {
+    if (
+      !database.enabled ||
+      !room?.sessionId
+    ) {
+      return;
+    }
+
+    void database
+      .endClassSession(room.sessionId)
+      .catch((error) => {
+        databaseError(
+          'class session close',
+          error
+        );
+      });
   }
 
   // -----------------------------
@@ -570,6 +852,8 @@ function createServer() {
         receivers: new Map(),
         receiverStates: new Map(),
         file: null,
+        sessionId: null,
+        sessionReady: null,
         createdAt: Date.now(),
         updatedAt: Date.now()
       };
@@ -651,6 +935,8 @@ function createServer() {
       return;
     }
 
+    persistParticipantLeave(room, ws);
+
     if (ws.role === 'sender' && room.host === ws) {
       room.host = null;
       emitBroadcastRoom(room, { type: 'broadcast-host-left', room: room.code });
@@ -701,6 +987,39 @@ function createServer() {
     ws.mode = 'broadcast';
     ws.role = role;
     room.updatedAt = Date.now();
+
+    if (role === 'sender') {
+      void ensureClassSession(room);
+    } else if (
+      database.enabled &&
+      room.sessionId
+    ) {
+      const waiting =
+        room.sessionReady ||
+        Promise.resolve(room.sessionId);
+
+      void waiting
+        .then(() => {
+          if (
+            ws.room === room.code &&
+            ws.mode === 'broadcast'
+          ) {
+            return persistParticipant(
+              room,
+              ws,
+              'receiver'
+            );
+          }
+
+          return null;
+        })
+        .catch((error) => {
+          databaseError(
+            'participant join persistence',
+            error
+          );
+        });
+    }
 
     sendJson(ws, {
       type: 'broadcast-joined',
@@ -876,9 +1195,18 @@ function createServer() {
     );
 
     ws.user = {
-      googleSub: String(sessionUser.googleSub || ''),
-      name: String(sessionUser.name || '').slice(0, 120),
-      email: String(sessionUser.email || '').slice(0, 180)
+      googleSub:
+        String(sessionUser.googleSub || ''),
+      dbUserId:
+        sessionUser.dbUserId
+          ? String(sessionUser.dbUserId)
+          : null,
+      name:
+        String(sessionUser.name || '')
+          .slice(0, 120),
+      email:
+        String(sessionUser.email || '')
+          .slice(0, 180)
     };
 
     if (!ws.user.googleSub) {
@@ -946,7 +1274,23 @@ function createServer() {
           item.latencyMs = safeMetric(data.latencyMs, 120000);
           item.acceptanceLatencySec = safeMetric(data.acceptanceLatencySec, 86400);
           item.gestureConfidence = safeMetric(data.gestureConfidence, 1);
+          item.trigger =
+            data.trigger === 'gesture'
+              ? 'gesture'
+              : 'manual';
+
           room.receiverStates.set(ws.clientId, item);
+
+          void persistParticipant(
+            room,
+            ws,
+            'receiver'
+          ).catch((error) => {
+            databaseError(
+              'participant telemetry persistence',
+              error
+            );
+          });
           room.updatedAt = Date.now();
           sendJson(ws, { type: 'broadcast-accept-confirmed', file: publicBroadcastFile(room.file) });
           emitBroadcastStats(room);
@@ -971,6 +1315,14 @@ function createServer() {
           item.network = ws.network || item.network || {};
           room.receiverStates.set(ws.clientId, item);
           room.updatedAt = Date.now();
+
+          persistTransferEvent(
+            room,
+            ws,
+            item,
+            'SUCCESS'
+          );
+
           emitBroadcastStats(room);
           emitReceiverIntelligence(room);
           return;
@@ -989,6 +1341,14 @@ function createServer() {
           item.network = ws.network || item.network || {};
           room.receiverStates.set(ws.clientId, item);
           room.updatedAt = Date.now();
+
+          persistTransferEvent(
+            room,
+            ws,
+            item,
+            'FAILED'
+          );
+
           emitBroadcastStats(room);
           emitReceiverIntelligence(room);
           return;
@@ -1030,6 +1390,7 @@ function createServer() {
       }
       const hostActive = Boolean(room.host && room.host.readyState === WebSocket.OPEN);
       if (!hostActive && room.receivers.size === 0 && now - room.updatedAt > 10 * 60 * 1000) {
+        endRoomSession(room);
         deleteBroadcastFile(room);
         broadcastRooms.delete(code);
       }
@@ -1041,16 +1402,35 @@ function createServer() {
     clearInterval(heartbeat);
     clearInterval(cleanup);
 
+    const sessionIds = [
+      ...broadcastRooms.values()
+    ]
+      .map((room) => room.sessionId)
+      .filter(Boolean);
+
     for (const room of broadcastRooms.values()) {
       deleteBroadcastFile(room);
     }
 
-    void database.close().catch((error) => {
-      console.error(
-        'Database shutdown error:',
-        error.message
+    void Promise.all(
+      sessionIds.map((sessionId) =>
+        database.endClassSession(sessionId)
+      )
+    )
+      .catch((error) => {
+        databaseError(
+          'shutdown session close',
+          error
+        );
+      })
+      .finally(() =>
+        database.close().catch((error) => {
+          console.error(
+            'Database shutdown error:',
+            error.message
+          );
+        })
       );
-    });
   });
 
   return {
