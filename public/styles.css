@@ -1279,3 +1279,109 @@ body:not(.auth-ready) .app-shell {
     align-items: stretch;
   }
 }
+
+
+/* ==========================================================
+   TOP DATABASE TAB
+   ========================================================== */
+
+.classroom-top-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 5px;
+
+  border: 1px solid
+    rgba(255,255,255,.10);
+
+  border-radius: 14px;
+
+  background:
+    rgba(6,18,32,.65);
+
+  backdrop-filter:
+    blur(14px);
+}
+
+
+.classroom-main-tab {
+  appearance: none;
+  border: 0;
+
+  padding:
+    9px 16px;
+
+  border-radius:
+    10px;
+
+  font-family:
+    inherit;
+
+  font-size:
+    13px;
+
+  font-weight:
+    700;
+
+  letter-spacing:
+    .03em;
+
+  color:
+    rgba(255,255,255,.72);
+
+  background:
+    transparent;
+
+  cursor:
+    pointer;
+}
+
+
+.classroom-main-tab.active {
+  color:
+    #ffffff;
+
+  background:
+    rgba(255,255,255,.08);
+}
+
+
+.classroom-main-tab.database {
+  color:
+    #7de7ff;
+
+  border:
+    1px solid
+    rgba(74,218,255,.28);
+
+  background:
+    rgba(44,198,255,.08);
+
+  transition:
+    transform .18s ease,
+    background .18s ease;
+}
+
+
+.classroom-main-tab.database:hover {
+  transform:
+    translateY(-1px);
+
+  background:
+    rgba(44,198,255,.16);
+}
+
+
+@media (max-width: 760px) {
+  .classroom-top-tabs {
+    order: 3;
+    width: 100%;
+  }
+
+  .classroom-main-tab {
+    flex: 1;
+    text-align: center;
+  }
+}
+

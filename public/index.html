@@ -70,9 +70,24 @@
         </span>
       </a>
 
-      <div class="classroom-mode-label">
-        LIVE CLASSROOM LAB
-      </div>
+      <nav
+        class="classroom-top-tabs"
+        aria-label="AirGesture classroom views"
+      >
+        <span
+          class="classroom-main-tab active"
+        >
+          Transfer
+        </span>
+
+        <button
+          id="openLiveDataBtn"
+          class="classroom-main-tab database"
+          type="button"
+        >
+          Database ↗
+        </button>
+      </nav>
 
       <div class="top-actions">
         <span class="system-pill"><i class="pulse-dot"></i><span id="systemStatus">System Ready</span></span>
@@ -290,13 +305,6 @@
                 </span>
               </label>
 
-              <button
-                id="openLiveDataBtn"
-                class="btn secondary"
-                type="button"
-              >
-                Open Live Data ↗
-              </button>
 
             </div>
           </section>
