@@ -710,3 +710,112 @@ test(
   }
 );
 
+
+
+test(
+  'V5.4.2 UI contains admin PostgreSQL database intelligence dashboard',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'index.html'
+        ),
+        'utf8'
+      );
+
+    for (const id of [
+      'databaseIntelligencePanel',
+      'dbProfilesBody',
+      'dbUsersBody',
+      'dbConsentBody',
+      'dbConsentEventsBody',
+      'dbTransfersBody',
+      'dbGovernanceBody',
+      'dbRecommendationsBody',
+      'dbConversionsBody',
+      'refreshDatabaseBtn'
+    ]) {
+      assert.match(
+        source,
+        new RegExp(
+          `id="${id}"`
+        )
+      );
+    }
+
+    assert.match(
+      source,
+      /Admin-only read access/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 browser loads database records only through protected admin API',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'app.js'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /\/api\/admin\/database/
+    );
+
+    assert.match(
+      source,
+      /response\.status === 403/
+    );
+
+    assert.match(
+      source,
+      /databaseIntelligencePanel/
+    );
+
+    assert.match(
+      source,
+      /panel\.hidden = true/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 dashboard renders commercial consent transfer governance recommendation and conversion records',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'app.js'
+        ),
+        'utf8'
+      );
+
+    for (const name of [
+      'commercialProfiles',
+      'consentPreferences',
+      'consentEvents',
+      'transferEvents',
+      'governanceRegistry',
+      'recommendationEvents',
+      'conversionEvents'
+    ]) {
+      assert.match(
+        source,
+        new RegExp(name)
+      );
+    }
+  }
+);
+

@@ -65,6 +65,10 @@ const state = {
 
   commercialProfileSynced: false,
 
+  adminDatabaseLoaded: false,
+  adminDatabaseDenied: false,
+  adminDatabase: null,
+
   charts: { trend: null, type: null }
 };
 
@@ -2642,10 +2646,474 @@ async function clearAnalytics() {
   toast("Evidence cleared");
 }
 
+
+function formatDatabaseDate(value) {
+  if (!value) return '—';
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '—';
+  }
+
+  return date.toLocaleString();
+}
+
+
+function yesNo(value) {
+  return value ? 'YES' : 'NO';
+}
+
+
+function renderDatabaseTable(
+  bodyId,
+  rows,
+  columns,
+  emptyText = 'No records yet.'
+) {
+  const body =
+    $(bodyId);
+
+  if (!body) return;
+
+  body.innerHTML = '';
+
+  if (!Array.isArray(rows) || !rows.length) {
+    const tr =
+      document.createElement('tr');
+
+    const td =
+      document.createElement('td');
+
+    td.colSpan =
+      columns.length;
+
+    td.className =
+      'table-empty';
+
+    td.textContent =
+      emptyText;
+
+    tr.appendChild(td);
+    body.appendChild(tr);
+    return;
+  }
+
+  for (const row of rows) {
+    const tr =
+      document.createElement('tr');
+
+    for (const column of columns) {
+      const td =
+        document.createElement('td');
+
+      const value =
+        typeof column === 'function'
+          ? column(row)
+          : row?.[column];
+
+      td.textContent =
+        value === null ||
+        value === undefined ||
+        value === ''
+          ? '—'
+          : String(value);
+
+      tr.appendChild(td);
+    }
+
+    body.appendChild(tr);
+  }
+}
+
+
+function renderAdminDatabase(data = {}) {
+  const summary =
+    data.summary || {};
+
+  setText(
+    'dbUsers',
+    summary.users ?? 0
+  );
+
+  setText(
+    'dbClassSessions',
+    summary.classSessions ?? 0
+  );
+
+  setText(
+    'dbParticipants',
+    summary.participants ?? 0
+  );
+
+  setText(
+    'dbTransferEvents',
+    summary.transferEvents ?? 0
+  );
+
+  setText(
+    'dbCommercialProfiles',
+    summary.commercialProfiles ?? 0
+  );
+
+  setText(
+    'dbConsentEvents',
+    summary.consentEvents ?? 0
+  );
+
+  setText(
+    'dbRecommendations',
+    summary.recommendationEvents ?? 0
+  );
+
+  setText(
+    'dbConversions',
+    summary.conversionEvents ?? 0
+  );
+
+
+  setText(
+    'dbGeneratedAt',
+    data.generatedAt
+      ? `Updated ${formatDatabaseDate(data.generatedAt)}`
+      : 'Database connected'
+  );
+
+
+  renderDatabaseTable(
+    'dbUsersBody',
+    data.users,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        ),
+      (r) =>
+        formatDatabaseDate(
+          r.last_login_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbProfilesBody',
+    data.commercialProfiles,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) => r.browser,
+      (r) => r.os,
+      (r) => r.device_type,
+      (r) => r.device_segment,
+      (r) =>
+        [r.country, r.region]
+          .filter(Boolean)
+          .join(' · ') || '—',
+      (r) => r.visit_count,
+      (r) => r.total_transfers,
+      (r) =>
+        formatBytes(
+          Number(r.total_bytes) || 0
+        ),
+      (r) => r.image_transfers,
+      (r) => r.pdf_transfers,
+      (r) => r.video_transfers,
+      (r) => r.document_transfers,
+      (r) => r.usage_segment,
+      (r) =>
+        formatDatabaseDate(
+          r.updated_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbConsentBody',
+    data.consentPreferences,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        yesNo(
+          r.analytics_consent
+        ),
+      (r) =>
+        yesNo(
+          r.personalization_consent
+        ),
+      (r) =>
+        yesNo(
+          r.marketing_consent
+        ),
+      (r) => r.policy_version,
+      (r) =>
+        formatDatabaseDate(
+          r.updated_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbConsentEventsBody',
+    data.consentEvents,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        yesNo(
+          r.analytics_consent
+        ),
+      (r) =>
+        yesNo(
+          r.personalization_consent
+        ),
+      (r) =>
+        yesNo(
+          r.marketing_consent
+        ),
+      (r) => r.source,
+      (r) => r.policy_version,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbTransfersBody',
+    data.transferEvents,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) => r.room_code,
+      (r) => r.result,
+      (r) => r.file_name,
+      (r) => r.file_type,
+      (r) =>
+        formatBytes(
+          Number(
+            r.file_size_bytes
+          ) || 0
+        ),
+      (r) =>
+        `${Number(r.speed_mbps || 0).toFixed(2)} Mbps`,
+      (r) =>
+        `${Number(r.duration_sec || 0).toFixed(2)} sec`,
+      (r) =>
+        yesNo(
+          r.integrity_verified
+        ),
+      (r) =>
+        [
+          r.browser,
+          r.os,
+          r.device_type
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      (r) => r.location,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbGovernanceBody',
+    data.governanceRegistry,
+    [
+      (r) => r.data_field,
+      (r) => r.purpose,
+      (r) => r.source,
+      (r) => r.data_owner,
+      (r) => r.sensitivity,
+      (r) =>
+        `${r.retention_days} days`,
+      (r) =>
+        yesNo(
+          r.commercial_allowed
+        ),
+      (r) => r.notes
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbRecommendationsBody',
+    data.recommendationEvents,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        r.commercial_segment,
+      (r) =>
+        r.recommendation_category,
+      (r) => r.campaign_id,
+      (r) => r.action,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        )
+    ],
+    'No recommendation records yet.'
+  );
+
+
+  renderDatabaseTable(
+    'dbConversionsBody',
+    data.conversionEvents,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        r.conversion_type,
+      (r) =>
+        `${r.currency || 'USD'} ${Number(
+          r.value_amount || 0
+        ).toFixed(2)}`,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        )
+    ],
+    'No conversion records yet.'
+  );
+}
+
+
+async function loadAdminDatabase(
+  force = false
+) {
+  if (
+    state.adminDatabaseDenied &&
+    !force
+  ) {
+    return;
+  }
+
+  if (
+    state.adminDatabaseLoaded &&
+    !force
+  ) {
+    return;
+  }
+
+  const panel =
+    $('databaseIntelligencePanel');
+
+  const statusBadge =
+    $('dbDashboardStatus');
+
+  try {
+    if (statusBadge) {
+      statusBadge.textContent =
+        'Loading PostgreSQL…';
+    }
+
+    const response =
+      await fetch(
+        '/api/admin/database?limit=250',
+        {
+          cache: 'no-store'
+        }
+      );
+
+    if (
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      state.adminDatabaseDenied =
+        response.status === 403;
+
+      if (panel) {
+        panel.hidden = true;
+      }
+
+      return;
+    }
+
+    const data =
+      await response
+        .json()
+        .catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        'Database dashboard unavailable.'
+      );
+    }
+
+    state.adminDatabase =
+      data;
+
+    state.adminDatabaseLoaded =
+      true;
+
+    if (panel) {
+      panel.hidden = false;
+    }
+
+    if (statusBadge) {
+      statusBadge.textContent =
+        'PostgreSQL Live';
+
+      statusBadge.className =
+        'status-badge good';
+    }
+
+    renderAdminDatabase(data);
+  } catch (error) {
+    console.error(
+      'Database dashboard load failed:',
+      error
+    );
+
+    if (panel) {
+      panel.hidden = false;
+    }
+
+    if (statusBadge) {
+      statusBadge.textContent =
+        'Database unavailable';
+
+      statusBadge.className =
+        'status-badge warn';
+    }
+
+    setText(
+      'dbGeneratedAt',
+      error.message ||
+      'Could not load database intelligence.'
+    );
+  }
+}
+
+
 function switchView(id) {
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === id));
   document.querySelectorAll(".nav-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === id));
-  if (id === "analyticsView") setTimeout(refreshAnalytics, 50);
+
+  if (id === "analyticsView") {
+    setTimeout(() => {
+      refreshAnalytics();
+      loadAdminDatabase();
+    }, 50);
+  }
 }
 
 function bindEvents() {
@@ -2667,6 +3135,13 @@ function bindEvents() {
   $("refreshAnalyticsBtn").addEventListener("click", refreshAnalytics);
   $("demoDataBtn").addEventListener("click", loadDemoData);
   $("clearDataBtn").addEventListener("click", clearAnalytics);
+  $('refreshDatabaseBtn')?.addEventListener(
+    'click',
+    () => {
+      state.adminDatabaseLoaded = false;
+      loadAdminDatabase(true);
+    }
+  );
   $("themeBtn").addEventListener("click", () => { document.body.classList.toggle("light"); if ($("analyticsView").classList.contains("active")) refreshAnalytics(); });
   window.addEventListener('airgesture-auth-user', (event) => {
     state.authUser = event.detail || null;

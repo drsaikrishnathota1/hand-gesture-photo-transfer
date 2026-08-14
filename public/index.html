@@ -559,11 +559,343 @@
             </table>
           </div>
         </section>
+
+        <section
+          id="databaseIntelligencePanel"
+          class="panel glass database-intelligence-panel"
+          hidden
+        >
+          <div class="panel-head compact">
+            <div>
+              <span class="section-kicker">
+                ADMIN · POSTGRESQL
+              </span>
+
+              <h2>
+                Database Intelligence
+              </h2>
+            </div>
+
+            <span
+              id="dbDashboardStatus"
+              class="status-badge neutral"
+            >
+              Loading PostgreSQL…
+            </span>
+          </div>
+
+
+          <div class="database-toolbar">
+            <div>
+              <strong>
+                Read-only commercial data view
+              </strong>
+
+              <small id="dbGeneratedAt">
+                Waiting for database…
+              </small>
+            </div>
+
+            <button
+              id="refreshDatabaseBtn"
+              class="btn secondary small"
+              type="button"
+            >
+              Refresh Database
+            </button>
+          </div>
+
+
+          <div class="database-kpi-grid">
+
+            <article>
+              <span>USERS</span>
+              <strong id="dbUsers">0</strong>
+            </article>
+
+            <article>
+              <span>CLASS SESSIONS</span>
+              <strong id="dbClassSessions">0</strong>
+            </article>
+
+            <article>
+              <span>PARTICIPANTS</span>
+              <strong id="dbParticipants">0</strong>
+            </article>
+
+            <article>
+              <span>TRANSFERS</span>
+              <strong id="dbTransferEvents">0</strong>
+            </article>
+
+            <article>
+              <span>COMMERCIAL PROFILES</span>
+              <strong id="dbCommercialProfiles">0</strong>
+            </article>
+
+            <article>
+              <span>CONSENT EVENTS</span>
+              <strong id="dbConsentEvents">0</strong>
+            </article>
+
+            <article>
+              <span>RECOMMENDATIONS</span>
+              <strong id="dbRecommendations">0</strong>
+            </article>
+
+            <article>
+              <span>CONVERSIONS</span>
+              <strong id="dbConversions">0</strong>
+            </article>
+
+          </div>
+
+
+          <details
+            class="database-record-group"
+            open
+          >
+            <summary>
+              Commercial Profiles
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Browser</th>
+                    <th>OS</th>
+                    <th>Device</th>
+                    <th>Device Segment</th>
+                    <th>Market</th>
+                    <th>Visits</th>
+                    <th>Transfers</th>
+                    <th>Total Data</th>
+                    <th>Images</th>
+                    <th>PDF</th>
+                    <th>Video</th>
+                    <th>Documents</th>
+                    <th>Usage Segment</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbProfilesBody">
+                  <tr>
+                    <td
+                      colspan="16"
+                      class="table-empty"
+                    >
+                      Loading…
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Users
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Created</th>
+                    <th>Last Login</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbUsersBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details
+            class="database-record-group"
+            open
+          >
+            <summary>
+              Consent Preferences
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Analytics</th>
+                    <th>Personalization</th>
+                    <th>Marketing</th>
+                    <th>Policy</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbConsentBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Consent Audit Events
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Analytics</th>
+                    <th>Personalization</th>
+                    <th>Marketing</th>
+                    <th>Source</th>
+                    <th>Policy</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbConsentEventsBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details
+            class="database-record-group"
+            open
+          >
+            <summary>
+              Transfer Records
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Room</th>
+                    <th>Result</th>
+                    <th>File</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Speed</th>
+                    <th>Duration</th>
+                    <th>Integrity</th>
+                    <th>Device</th>
+                    <th>Location</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbTransfersBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Data Governance Registry
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>Purpose</th>
+                    <th>Source</th>
+                    <th>Owner</th>
+                    <th>Sensitivity</th>
+                    <th>Retention</th>
+                    <th>Commercial Allowed</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbGovernanceBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Recommendation Events
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Segment</th>
+                    <th>Category</th>
+                    <th>Campaign</th>
+                    <th>Action</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbRecommendationsBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Conversion Events
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Conversion</th>
+                    <th>Value</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbConversionsBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <p class="privacy-note database-privacy-note">
+            Admin-only read access. Full IP addresses,
+            Google subject identifiers, credentials,
+            camera frames and transferred file contents
+            are not exposed by this dashboard.
+          </p>
+
+        </section>
+
+
       </section>
     </main>
 
     <footer>
-      <span>AirGesture Transfer Intelligence V5.4.1 · DBA 802 Residency</span>
+      <span>AirGesture Transfer Intelligence V5.4.2 · DBA 802 Residency</span>
       <span>Universal Air Copy/Paste · Network Intelligence · MediaPipe · Decision Intelligence</span>
     </footer>
   </div>

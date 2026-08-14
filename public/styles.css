@@ -708,3 +708,99 @@ body:not(.auth-ready) .app-shell {
     flex-direction: column;
   }
 }
+
+
+/* V5.4.2 PostgreSQL Database Intelligence */
+
+.database-intelligence-panel {
+  margin-top: 22px;
+}
+
+.database-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.database-toolbar > div {
+  display: grid;
+  gap: 4px;
+}
+
+.database-toolbar small {
+  color: var(--muted);
+}
+
+.database-kpi-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.database-kpi-grid article {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.database-kpi-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .08em;
+  margin-bottom: 5px;
+}
+
+.database-kpi-grid strong {
+  font-size: 24px;
+}
+
+.database-record-group {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.database-record-group summary {
+  padding: 13px 15px;
+  cursor: pointer;
+  font-weight: 700;
+  user-select: none;
+}
+
+.database-table-wrap {
+  border-top: 1px solid var(--line);
+  max-height: 460px;
+  overflow: auto;
+}
+
+.database-table-wrap table {
+  min-width: 1000px;
+}
+
+.database-table-wrap th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.database-privacy-note {
+  margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+  .database-kpi-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .database-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
