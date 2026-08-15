@@ -97,36 +97,15 @@
       label: 'Result'
     },
 
-    {
-      key: 'trigger',
-      label: 'Trigger'
-    },
+    
 
-    {
-      key: 'latencyMs',
-      label: 'Latency ms'
-    },
+    
 
-    {
-      key: 'speedMbps',
-      label: 'Speed Mbps'
-    },
+    
 
-    {
-      key: 'durationSec',
-      label: 'Duration sec'
-    },
+    
 
-    {
-      key: 'gestureConfidence',
-      label: 'Gesture Confidence',
-      format:
-        (value) =>
-          Number(value)
-            ? `${(
-                Number(value) *
-                100
-              ).toFixed(1)}%`
+    %`
             : '—'
     },
 
@@ -155,19 +134,7 @@
       label: 'Commercial Segment',
       format:
         (value) =>
-          value === 'NOT_OPTED_IN'
-            ? 'Not opted in'
-            : value
-    },
-
-    {
-      key: 'analyticsConsent',
-      label: 'Analytics Opt-In',
-      format:
-        (value) =>
-          value === true
-            ? 'YES'
-            : 'NO'
+          value || '—'
     }
   ];
 
@@ -480,11 +447,6 @@
       bytes(
         summary.totalBytes || 0
       )
-    );
-
-    setText(
-      'liveCommercialAudience',
-      summary.commercialAudience || 0
     );
 
     setText(

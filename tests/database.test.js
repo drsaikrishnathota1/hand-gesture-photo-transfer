@@ -1033,9 +1033,14 @@ test(
       /id="openLiveDataBtn"/
     );
 
-    assert.match(
+    assert.doesNotMatch(
       source,
       /id="classroomAnalyticsConsent"/
+    );
+
+    assert.match(
+      source,
+      /classroom transfer and device analytics are recorded/i
     );
   }
 );
@@ -1357,19 +1362,117 @@ test(
       /columns\.map/
     );
 
-    assert.match(
+    assert.doesNotMatch(
       source,
       /Analytics Opt-In/
     );
 
-    assert.match(
+    assert.doesNotMatch(
       source,
       /Gesture Confidence/
+    );
+
+    assert.doesNotMatch(
+      source,
+      /Latency ms/
+    );
+
+    assert.doesNotMatch(
+      source,
+      /Speed Mbps/
+    );
+
+    assert.doesNotMatch(
+      source,
+      /Duration sec/
+    );
+
+    assert.doesNotMatch(
+      source,
+      /label: 'Trigger'/
     );
 
     assert.match(
       source,
       /Commercial Segment/
+    );
+  }
+);
+
+
+
+test(
+  'V5.4.2 uses required classroom telemetry without an opt-in checkbox',
+  () => {
+    const db =
+      fs.readFileSync(
+        path.join(
+          root,
+          'db.js'
+        ),
+        'utf8'
+      );
+
+    const html =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'index.html'
+        ),
+        'utf8'
+      );
+
+    const live =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'live-data.js'
+        ),
+        'utf8'
+      );
+
+    assert.doesNotMatch(
+      html,
+      /classroomAnalyticsConsent/
+    );
+
+    assert.doesNotMatch(
+      live,
+      /Analytics Opt-In/
+    );
+
+    assert.match(
+      html,
+      /aggregate product analysis/i
+    );
+
+    const start =
+      db.indexOf(
+        'async function recordLiveDataEvent'
+      );
+
+    const end =
+      db.indexOf(
+        'async function liveClassroomData',
+        start
+      );
+
+    const record =
+      db.slice(
+        start,
+        end
+      );
+
+    assert.doesNotMatch(
+      record,
+      /commercialAllowed\\s*\\?/
+    );
+
+    assert.match(
+      record,
+      /classroomSegment\(client\)/
     );
   }
 );

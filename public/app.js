@@ -330,13 +330,6 @@ function renderCommercialConsent() {
   const consent =
     state.commercialConsent || {};
 
-  if ($('classroomAnalyticsConsent')) {
-    $('classroomAnalyticsConsent').checked =
-      Boolean(
-        consent.analyticsConsent
-      );
-  }
-
   if ($('analyticsConsent')) {
     $('analyticsConsent').checked =
       Boolean(
@@ -3879,105 +3872,7 @@ async function loadAdminDatabase(
 
 
 
-async function saveSimpleClassroomConsent() {
-  const checkbox =
-    $('classroomAnalyticsConsent');
 
-  if (!checkbox) return;
-
-  checkbox.disabled = true;
-
-  try {
-    const enabled =
-      Boolean(
-        checkbox.checked
-      );
-
-    const response =
-      await fetch(
-        '/api/commercial/consent',
-        {
-          method: 'POST',
-
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
-
-          body:
-            JSON.stringify({
-              analyticsConsent:
-                enabled,
-
-              personalizationConsent:
-                false,
-
-              marketingConsent:
-                false
-            })
-        }
-      );
-
-    const data =
-      await response
-        .json()
-        .catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ||
-        'Could not save preference.'
-      );
-    }
-
-    state.commercialConsent = {
-      analyticsConsent:
-        Boolean(
-          data.analyticsConsent
-        ),
-
-      personalizationConsent:
-        false,
-
-      marketingConsent:
-        false
-    };
-
-    state.commercialProfileSynced =
-      false;
-
-    renderCommercialConsent();
-
-    if (
-      state.commercialConsent
-        .analyticsConsent
-    ) {
-      await syncCommercialProfile();
-
-      toast(
-        'Commercial classroom analysis enabled'
-      );
-    } else {
-      toast(
-        'Commercial classroom analysis disabled'
-      );
-    }
-  } catch (error) {
-    checkbox.checked =
-      !checkbox.checked;
-
-    console.error(
-      'Classroom consent failed:',
-      error
-    );
-
-    toast(
-      'Could not save preference'
-    );
-  } finally {
-    checkbox.disabled = false;
-  }
-}
 
 
 function openLiveDataWindow() {
@@ -4028,12 +3923,6 @@ function bindEvents() {
     }
   );
   $("themeBtn").addEventListener("click", () => { document.body.classList.toggle("light"); if ($("analyticsView").classList.contains("active")) refreshAnalytics(); });
-
-  $('classroomAnalyticsConsent')
-    ?.addEventListener(
-      'change',
-      saveSimpleClassroomConsent
-    );
 
   $('openLiveDataBtn')
     ?.addEventListener(

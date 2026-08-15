@@ -1723,6 +1723,10 @@ function createDatabase(options = {}) {
     const device =
       String(client.deviceType || '');
 
+    if (!os && !device) {
+      return '';
+    }
+
     if (
       os === 'macOS' &&
       device === 'Laptop/Desktop'
@@ -1780,21 +1784,15 @@ function createDatabase(options = {}) {
         ? 'SEND'
         : 'RECEIVE';
 
-    const commercialAllowed =
-      input.commercialAllowed === true;
-
-    // Operational SEND/RECEIVE data can exist for the lab.
-    // Device/market/commercial attributes are retained only
-    // when the participant opted into analytics.
+    // Required DBA 802 classroom telemetry.
+    // These limited operational/device attributes are recorded
+    // for teaching and aggregate product analysis.
+    // Personalization and marketing consent remain separate.
     const client =
-      commercialAllowed
-        ? input.clientInfo || {}
-        : {};
+      input.clientInfo || {};
 
     const network =
-      commercialAllowed
-        ? input.network || {}
-        : {};
+      input.network || {};
 
     const file =
       input.file || {};
@@ -1853,9 +1851,7 @@ function createDatabase(options = {}) {
           clean(client.timezone, 80),
           clean(network.country, 80),
           clean(network.region, 120),
-          commercialAllowed
-            ? classroomSegment(client)
-            : 'NOT_OPTED_IN'
+          classroomSegment(client)
         ]
       );
 
@@ -1918,47 +1914,26 @@ function createDatabase(options = {}) {
              FALSE
            ) AS analytics_consent,
 
-           CASE
-             WHEN COALESCE(
-               c.analytics_consent,
-               FALSE
-             )
-             THEN COALESCE(
-               NULLIF(e.browser, ''),
-               cp.browser,
-               ''
-             )
-             ELSE ''
-           END AS browser,
+           COALESCE(
+             NULLIF(e.browser, ''),
+             cp.browser,
+             ''
+           ) AS browser,
 
-           CASE
-             WHEN COALESCE(
-               c.analytics_consent,
-               FALSE
-             )
-             THEN COALESCE(
-               NULLIF(e.os, ''),
-               cp.os,
-               ''
-             )
-             ELSE ''
-           END AS os,
+           COALESCE(
+             NULLIF(e.os, ''),
+             cp.os,
+             ''
+           ) AS os,
 
-           CASE
-             WHEN COALESCE(
-               c.analytics_consent,
-               FALSE
-             )
-             THEN COALESCE(
-               NULLIF(
-                 e.device_type,
-                 ''
-               ),
-               cp.device_type,
+           COALESCE(
+             NULLIF(
+               e.device_type,
                ''
-             )
-             ELSE ''
-           END AS device_type,
+             ),
+             cp.device_type,
+             ''
+           ) AS device_type,
 
            CASE
              WHEN COALESCE(
@@ -1988,21 +1963,14 @@ function createDatabase(options = {}) {
              ELSE ''
            END AS language,
 
-           CASE
-             WHEN COALESCE(
-               c.analytics_consent,
-               FALSE
-             )
-             THEN COALESCE(
-               NULLIF(
-                 e.country,
-                 ''
-               ),
-               cp.country,
+           COALESCE(
+             NULLIF(
+               e.country,
                ''
-             )
-             ELSE ''
-           END AS country,
+             ),
+             cp.country,
+             ''
+           ) AS country,
 
            CASE
              WHEN COALESCE(
@@ -2257,21 +2225,17 @@ function createDatabase(options = {}) {
              ELSE ''
            END AS content_segment,
 
-           CASE
-             WHEN COALESCE(
-               c.analytics_consent,
-               FALSE
-             )
-             THEN COALESCE(
-               NULLIF(
-                 e.commercial_segment,
-                 'NOT_OPTED_IN'
-               ),
+           COALESCE(
+             NULLIF(
+               e.commercial_segment,
+               'NOT_OPTED_IN'
+             ),
+             NULLIF(
                cp.device_segment,
                ''
-             )
-             ELSE 'NOT_OPTED_IN'
-           END AS commercial_segment,
+             ),
+             ''
+           ) AS commercial_segment,
 
            CASE
              WHEN COALESCE(
@@ -2419,19 +2383,11 @@ function createDatabase(options = {}) {
 
 
     const optedAudience =
-      audience.filter(
-        (row) =>
-          row.analytics_consent ===
-          true
-      );
+      audience;
 
 
     const commercialRows =
-      rows.filter(
-        (row) =>
-          row.analytics_consent ===
-          true
-      );
+      rows;
 
 
     const segmentCounts = {};
