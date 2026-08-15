@@ -1141,9 +1141,9 @@ test(
 
 
 test(
-  'V5.4.2 Live Data requires membership in the requested room',
+  'V5.4.2 Live Data shows all history to any authenticated user',
   () => {
-    const source =
+    const server =
       fs.readFileSync(
         path.join(
           root,
@@ -1152,23 +1152,95 @@ test(
         'utf8'
       );
 
+    const app =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'app.js'
+        ),
+        'utf8'
+      );
+
+    const live =
+      fs.readFileSync(
+        path.join(
+          root,
+          'public',
+          'live-data.js'
+        ),
+        'utf8'
+      );
+
+    const db =
+      fs.readFileSync(
+        path.join(
+          root,
+          'db.js'
+        ),
+        'utf8'
+      );
+
+    const routeStart =
+      server.indexOf(
+        "'/api/live-data'"
+      );
+
+    const routeEnd =
+      server.indexOf(
+        'app.get(',
+        routeStart + 20
+      );
+
+    const route =
+      server.slice(
+        routeStart,
+        routeEnd > routeStart
+          ? routeEnd
+          : undefined
+      );
+
     assert.match(
-      source,
+      route,
+      /requireAuth/
+    );
+
+    assert.match(
+      route,
+      /allHistory:\s*true/
+    );
+
+    assert.doesNotMatch(
+      route,
       /isRoomParticipant/
     );
 
-    assert.match(
-      source,
-      /Join this AirGesture room before viewing its live data/
+    assert.doesNotMatch(
+      route,
+      /Join this AirGesture room/
     );
 
     assert.match(
-      source,
-      /receiver\?\.user/
+      app,
+      /['"]\/live-data\.html['"]/
+    );
+
+    assert.match(
+      live,
+      /fetch\(\s*['"]\/api\/live-data['"]/
+    );
+
+    assert.match(
+      live,
+      /ALL STORED RECORDS/
+    );
+
+    assert.match(
+      db,
+      /input\.allHistory === true/
     );
   }
 );
-
 
 
 test(

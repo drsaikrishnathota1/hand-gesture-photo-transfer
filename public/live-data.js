@@ -3,17 +3,9 @@
     (id) =>
       document.getElementById(id);
 
-  const params =
-    new URLSearchParams(
-      window.location.search
-    );
+  const databaseScope =
+    'ALL STORED RECORDS';
 
-  const room =
-    String(
-      params.get('room') || ''
-    )
-      .trim()
-      .toUpperCase();
 
   let currentRows = [];
 
@@ -744,22 +736,18 @@
 
 
   async function refresh() {
-    if (!room) {
+    try {
       setText(
         'liveStatus',
-        'Open this window from an AirGesture room'
+        'Loading PostgreSQL…'
       );
 
-      return;
-    }
-
-    try {
       const response =
         await fetch(
-          `/api/live-data?room=${encodeURIComponent(room)}`,
+          '/api/live-data',
           {
-            cache:
-              'no-store'
+            cache: 'no-store',
+            credentials: 'same-origin'
           }
         );
 
@@ -771,17 +759,27 @@
       if (!response.ok) {
         throw new Error(
           data.error ||
-          'Live data unavailable'
+          'Database unavailable'
         );
       }
 
       render(data);
+
     } catch (error) {
-      console.error(error);
+      console.error(
+        'Live database load failed:',
+        error
+      );
 
       setText(
         'liveStatus',
-        'Reconnecting…'
+        'DATABASE ERROR'
+      );
+
+      setText(
+        'lastUpdated',
+        error.message ||
+        'Could not load PostgreSQL data'
       );
     }
   }
@@ -873,7 +871,7 @@
         .slice(0, 10);
 
     link.download =
-      `airgesture-${room}-full-data-${stamp}.csv`;
+      `airgesture-all-history-full-data-${stamp}.csv`;
 
 
     document.body
@@ -895,7 +893,7 @@
 
   setText(
     'liveRoom',
-    room || '—'
+    databaseScope
   );
 
   $('downloadCsvBtn')

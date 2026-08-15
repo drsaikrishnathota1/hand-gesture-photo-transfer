@@ -1864,6 +1864,9 @@ function createDatabase(options = {}) {
 
 
   async function liveClassroomData(input = {}) {
+    const allHistory =
+      input.allHistory === true;
+
     if (!enabled) {
       return {
         summary: {},
@@ -1878,7 +1881,7 @@ function createDatabase(options = {}) {
         12
       ).toUpperCase();
 
-    if (!roomCode) {
+    if (!allHistory && !roomCode) {
       return {
         summary: {},
         insights: {},
@@ -1887,14 +1890,15 @@ function createDatabase(options = {}) {
     }
 
     const limit =
-      Math.max(
-        1,
-        Math.min(
-          500,
-          Number(input.limit) || 250
-        )
-      );
-
+      allHistory
+        ? null
+        : Math.max(
+            1,
+            Math.min(
+              500,
+              Number(input.limit) || 250
+            )
+          );
 
     const result =
       await pool.query(
@@ -2372,7 +2376,10 @@ function createDatabase(options = {}) {
            ON TRUE
 
          WHERE
-           e.room_code = $1
+           (
+             $1 = ''
+             OR e.room_code = $1
+           )
 
          ORDER BY
            e.created_at DESC
@@ -2528,7 +2535,10 @@ function createDatabase(options = {}) {
       generatedAt:
         new Date().toISOString(),
 
-      roomCode,
+      roomCode:
+        allHistory
+          ? 'ALL_HISTORY'
+          : roomCode,
 
       summary: {
         totalUsers:

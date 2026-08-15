@@ -1195,75 +1195,15 @@ function createServer() {
         if (!database.enabled) {
           return res.status(503).json({
             error:
-              'PostgreSQL is not configured.'
-          });
-        }
-
-        const roomCode =
-          String(
-            req.query?.room || ''
-          )
-            .trim()
-            .toUpperCase();
-
-        if (!isValidRoomCode(roomCode)) {
-          return res.status(400).json({
-            error:
-              'Open Live Data from an AirGesture room.'
-          });
-        }
-
-        const activeRoom =
-          broadcastRooms.get(
-            roomCode
-          );
-
-        const googleSub =
-          String(
-            req.session?.user
-              ?.googleSub || ''
-          );
-
-        let isRoomParticipant =
-          Boolean(
-            activeRoom?.host?.user
-              ?.googleSub ===
-            googleSub
-          );
-
-        if (
-          !isRoomParticipant &&
-          activeRoom
-        ) {
-          for (
-            const receiver
-            of activeRoom
-              .receivers.values()
-          ) {
-            if (
-              receiver?.user
-                ?.googleSub ===
-              googleSub
-            ) {
-              isRoomParticipant =
-                true;
-              break;
-            }
-          }
-        }
-
-        if (!isRoomParticipant) {
-          return res.status(403).json({
-            error:
-              'Join this AirGesture room before viewing its live data.'
+              'PostgreSQL database is not configured.'
           });
         }
 
         const data =
           await database
             .liveClassroomData({
-              roomCode,
-              limit: 250
+              allHistory: true,
+              limit: null
             });
 
         res.setHeader(
@@ -1271,25 +1211,21 @@ function createServer() {
           'no-store'
         );
 
-        return res.json({
-          ok: true,
-          ...data
-        });
+        return res.json(data);
+
       } catch (error) {
-        databaseError(
-          'live classroom data',
+        console.error(
+          'Live classroom database failed:',
           error
         );
 
         return res.status(500).json({
           error:
-            'Could not load live classroom data.'
+            'Could not load classroom database.'
         });
       }
     }
   );
-
-
 
   app.get(
     '/api/admin/database',

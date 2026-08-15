@@ -3981,25 +3981,8 @@ async function saveSimpleClassroomConsent() {
 
 
 function openLiveDataWindow() {
-  const room =
-    String(
-      state.room ||
-      $('roomInput')?.value ||
-      ''
-    )
-      .trim()
-      .toUpperCase();
-
-  if (!room) {
-    toast(
-      'Enter or join a room first'
-    );
-
-    return;
-  }
-
   window.open(
-    `/live-data.html?room=${encodeURIComponent(room)}`,
+    '/live-data.html',
     '_blank',
     'noopener'
   );
