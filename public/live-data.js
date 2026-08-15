@@ -65,76 +65,51 @@
       label: 'Date / Time',
       format: time
     },
-
     {
       key: 'student',
       label: 'Student'
     },
-
     {
       key: 'room',
       label: 'Room'
     },
-
     {
       key: 'action',
       label: 'Action'
     },
-
     {
       key: 'fileType',
       label: 'File Type'
     },
-
     {
       key: 'fileSizeBytes',
       label: 'File Size',
       format: bytes
     },
-
     {
       key: 'result',
       label: 'Result'
     },
-
-    
-
-    
-
-    
-
-    
-
-    %`
-            : '—'
-    },
-
     {
       key: 'device',
       label: 'Device'
     },
-
     {
       key: 'os',
       label: 'OS'
     },
-
     {
       key: 'browser',
       label: 'Browser'
     },
-
     {
       key: 'country',
       label: 'Country'
     },
-
     {
       key: 'commercialSegment',
       label: 'Commercial Segment',
-      format:
-        (value) =>
-          value || '—'
+      format: (value) => value || '—'
     }
   ];
 
@@ -345,7 +320,7 @@
         'business-empty';
 
       empty.textContent =
-        'Commercial opportunities will appear after opted-in classroom data is collected.';
+        'Commercial opportunities will appear as classroom data is collected.';
 
       root.appendChild(empty);
 
