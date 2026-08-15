@@ -1066,12 +1066,12 @@ test(
 
     assert.match(
       html,
-      /Full Classroom Database Records/
+      /Live Classroom Data Records/
     );
 
     assert.match(
       html,
-      /Download Full CSV/
+      /Download CSV/
     );
 
     assert.match(
@@ -1349,7 +1349,7 @@ test(
 
     assert.match(
       source,
-      /full-data/
+      /commercial-data/
     );
 
     assert.match(
@@ -1369,7 +1369,7 @@ test(
 
     assert.match(
       source,
-      /Usage Segment/
+      /Commercial Segment/
     );
   }
 );

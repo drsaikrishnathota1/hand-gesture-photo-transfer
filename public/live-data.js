@@ -48,7 +48,7 @@
       d.getTime()
     )
       ? '—'
-      : d.toLocaleTimeString(
+      : d.toLocaleString(
           [],
           {
             hour: '2-digit',
@@ -62,7 +62,7 @@
   const columns = [
     {
       key: 'time',
-      label: 'Time',
+      label: 'Date / Time',
       format: time
     },
 
@@ -118,11 +118,6 @@
     },
 
     {
-      key: 'acceptanceLatencySec',
-      label: 'Acceptance sec'
-    },
-
-    {
       key: 'gestureConfidence',
       label: 'Gesture Confidence',
       format:
@@ -133,21 +128,6 @@
                 100
               ).toFixed(1)}%`
             : '—'
-    },
-
-    {
-      key: 'integrityVerified',
-      label: 'SHA-256 Verified',
-      format:
-        (value) =>
-          value === true
-            ? 'YES'
-            : '—'
-    },
-
-    {
-      key: 'retries',
-      label: 'Retries'
     },
 
     {
@@ -166,131 +146,8 @@
     },
 
     {
-      key: 'timezone',
-      label: 'Timezone'
-    },
-
-    {
-      key: 'language',
-      label: 'Language'
-    },
-
-    {
       key: 'country',
       label: 'Country'
-    },
-
-    {
-      key: 'region',
-      label: 'Region'
-    },
-
-    {
-      key: 'screenCategory',
-      label: 'Screen Category'
-    },
-
-    {
-      key: 'touchCapable',
-      label: 'Touch Capable',
-      format:
-        (value) =>
-          value === true
-            ? 'YES'
-            : value === false
-              ? 'NO'
-              : '—'
-    },
-
-    {
-      key: 'memoryTier',
-      label: 'Memory Tier'
-    },
-
-    {
-      key: 'cpuTier',
-      label: 'CPU Tier'
-    },
-
-    {
-      key: 'referrerHost',
-      label: 'Referrer Host'
-    },
-
-    {
-      key: 'landingPath',
-      label: 'Landing Path'
-    },
-
-    {
-      key: 'utmSource',
-      label: 'UTM Source'
-    },
-
-    {
-      key: 'utmMedium',
-      label: 'UTM Medium'
-    },
-
-    {
-      key: 'utmCampaign',
-      label: 'UTM Campaign'
-    },
-
-    {
-      key: 'visitCount',
-      label: 'Visits'
-    },
-
-    {
-      key: 'totalTransfers',
-      label: 'Total Transfers'
-    },
-
-    {
-      key: 'totalBytes',
-      label: 'Total User Data',
-      format: bytes
-    },
-
-    {
-      key: 'imageTransfers',
-      label: 'Image Transfers'
-    },
-
-    {
-      key: 'videoTransfers',
-      label: 'Video Transfers'
-    },
-
-    {
-      key: 'pdfTransfers',
-      label: 'PDF Transfers'
-    },
-
-    {
-      key: 'documentTransfers',
-      label: 'Document Transfers'
-    },
-
-    {
-      key: 'otherTransfers',
-      label: 'Other Transfers'
-    },
-
-    {
-      key: 'deviceSegment',
-      label: 'Device Segment'
-    },
-
-    {
-      key: 'usageSegment',
-      label: 'Usage Segment'
-    },
-
-    {
-      key: 'contentSegment',
-      label: 'Content Segment'
     },
 
     {
@@ -298,8 +155,7 @@
       label: 'Commercial Segment',
       format:
         (value) =>
-          value ===
-          'NOT_OPTED_IN'
+          value === 'NOT_OPTED_IN'
             ? 'Not opted in'
             : value
     },
@@ -312,57 +168,8 @@
           value === true
             ? 'YES'
             : 'NO'
-    },
-
-    {
-      key: 'firstSeenAt',
-      label: 'First Seen',
-      format:
-        (value) =>
-          value
-            ? new Date(
-                value
-              ).toLocaleString()
-            : '—'
-    },
-
-    {
-      key: 'lastSeenAt',
-      label: 'Last Seen',
-      format:
-        (value) =>
-          value
-            ? new Date(
-                value
-              ).toLocaleString()
-            : '—'
-    },
-
-    {
-      key: 'joinedAt',
-      label: 'Room Joined',
-      format:
-        (value) =>
-          value
-            ? new Date(
-                value
-              ).toLocaleString()
-            : '—'
-    },
-
-    {
-      key: 'leftAt',
-      label: 'Room Left',
-      format:
-        (value) =>
-          value
-            ? new Date(
-                value
-              ).toLocaleString()
-            : '—'
     }
   ];
-
 
   function renderHeader() {
     const head =
@@ -871,7 +678,7 @@
         .slice(0, 10);
 
     link.download =
-      `airgesture-all-history-full-data-${stamp}.csv`;
+      `airgesture-commercial-data-${stamp}.csv`;
 
 
     document.body
