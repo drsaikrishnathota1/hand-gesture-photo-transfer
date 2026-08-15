@@ -362,8 +362,6 @@ function renderCommercialConsent() {
 
 async function syncCommercialProfile() {
   if (
-    !state.commercialConsent
-      ?.analyticsConsent ||
     state.commercialProfileSynced
   ) {
     return;
@@ -431,6 +429,7 @@ async function loadCommercialConsent() {
       );
 
     if (!response.ok) {
+      await syncCommercialProfile();
       return;
     }
 
@@ -456,12 +455,7 @@ async function loadCommercialConsent() {
 
     renderCommercialConsent();
 
-    if (
-      state.commercialConsent
-        .analyticsConsent
-    ) {
-      await syncCommercialProfile();
-    }
+    await syncCommercialProfile();
   } catch (error) {
     console.error(
       'Could not load data preferences:',

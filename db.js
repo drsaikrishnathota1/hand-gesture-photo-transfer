@@ -1386,13 +1386,8 @@ function createDatabase(options = {}) {
       );
     }
 
-    const consent =
-      await getConsentPreferences(input.userId);
-
-    if (!consent.analyticsConsent) {
-      return null;
-    }
-
+    // Required classroom/product analytics profile.
+    // Personalization and marketing preferences remain separate.
     const client = input.clientInfo || {};
     const network = input.network || {};
     const acquisition = input.acquisition || {};
@@ -1511,13 +1506,6 @@ function createDatabase(options = {}) {
   async function recordCommercialTransfer(input = {}) {
     if (!enabled || !input.userId) return null;
 
-    const consent =
-      await getConsentPreferences(input.userId);
-
-    if (!consent.analyticsConsent) {
-      return null;
-    }
-
     const file = input.file || {};
     const mime = String(file.mime || '').toLowerCase();
     const name = String(file.name || '').toLowerCase();
@@ -1553,6 +1541,17 @@ function createDatabase(options = {}) {
       document: 'document_transfers',
       other: 'other_transfers'
     }[category];
+
+    await pool.query(
+      `INSERT INTO commercial_profiles (
+         user_id,
+         visit_count
+       )
+       VALUES ($1, 0)
+       ON CONFLICT (user_id)
+       DO NOTHING`,
+      [input.userId]
+    );
 
     const query = `
       UPDATE commercial_profiles
@@ -2759,6 +2758,359 @@ function createDatabase(options = {}) {
   }
 
 
+  function customerPublicId(userId) {
+    const secret =
+      String(
+        process.env.SESSION_SECRET ||
+        'airgesture-customer-profile'
+      );
+
+    return (
+      'CUS-' +
+      crypto
+        .createHmac(
+          'sha256',
+          secret
+        )
+        .update(
+          String(userId)
+        )
+        .digest('hex')
+        .slice(0, 12)
+        .toUpperCase()
+    );
+  }
+
+
+  async function customer360Data() {
+    if (!enabled) {
+      return {
+        generatedAt:
+          new Date().toISOString(),
+        customers: []
+      };
+    }
+
+    const result =
+      await pool.query(`
+        SELECT
+          u.id AS user_id,
+
+          COALESCE(
+            cp.visit_count,
+            0
+          ) AS visit_count,
+
+          COALESCE(
+            cp.first_seen_at,
+            activity.first_seen_at,
+            u.created_at
+          ) AS first_seen_at,
+
+          COALESCE(
+            cp.last_seen_at,
+            activity.last_seen_at,
+            u.last_login_at
+          ) AS last_seen_at,
+
+          COALESCE(
+            NULLIF(
+              cp.utm_source,
+              ''
+            ),
+            NULLIF(
+              cp.referrer_host,
+              ''
+            ),
+            'DIRECT'
+          ) AS referral_source,
+
+          COALESCE(
+            cp.utm_campaign,
+            ''
+          ) AS campaign_source,
+
+          COALESCE(
+            activity.session_count,
+            0
+          ) AS session_count,
+
+          COALESCE(
+            sessions.avg_session_duration_sec,
+            0
+          ) AS avg_session_duration_sec,
+
+          GREATEST(
+            COALESCE(
+              cp.total_transfers,
+              0
+            ),
+            COALESCE(
+              activity.total_transfers,
+              0
+            )
+          ) AS total_transfers,
+
+          GREATEST(
+            COALESCE(
+              cp.total_bytes,
+              0
+            ),
+            COALESCE(
+              activity.total_bytes,
+              0
+            )
+          ) AS total_bytes,
+
+          CASE
+            WHEN
+              GREATEST(
+                COALESCE(
+                  cp.total_transfers,
+                  0
+                ),
+                COALESCE(
+                  activity.total_transfers,
+                  0
+                )
+              ) >= 25
+
+              OR
+
+              GREATEST(
+                COALESCE(
+                  cp.total_bytes,
+                  0
+                ),
+                COALESCE(
+                  activity.total_bytes,
+                  0
+                )
+              ) >= 1073741824
+
+              THEN 'HEAVY_USAGE'
+
+            WHEN
+              GREATEST(
+                COALESCE(
+                  cp.total_transfers,
+                  0
+                ),
+                COALESCE(
+                  activity.total_transfers,
+                  0
+                )
+              ) >= 8
+
+              THEN 'ACTIVE_USAGE'
+
+            ELSE 'LIGHT_USAGE'
+          END AS usage_segment,
+
+          conversion.conversion_type
+            AS latest_conversion_event,
+
+          conversion.value_amount
+            AS latest_conversion_value,
+
+          conversion.currency
+            AS latest_conversion_currency,
+
+          conversion.created_at
+            AS latest_conversion_at
+
+        FROM users u
+
+        LEFT JOIN commercial_profiles cp
+          ON cp.user_id = u.id
+
+        LEFT JOIN LATERAL (
+          SELECT
+            MIN(e.created_at)
+              AS first_seen_at,
+
+            MAX(e.created_at)
+              AS last_seen_at,
+
+            COUNT(
+              DISTINCT e.session_id
+            )::int
+              AS session_count,
+
+            COUNT(*)::int
+              AS total_transfers,
+
+            COALESCE(
+              SUM(
+                e.file_size_bytes
+              ),
+              0
+            )::bigint
+              AS total_bytes
+
+          FROM classroom_data_events e
+
+          WHERE e.user_id = u.id
+        ) activity
+          ON TRUE
+
+        LEFT JOIN LATERAL (
+          SELECT
+            ROUND(
+              AVG(
+                session_duration_sec
+              )::numeric,
+              2
+            ) AS avg_session_duration_sec
+
+          FROM (
+            SELECT
+              p.session_id,
+
+              EXTRACT(
+                EPOCH FROM (
+                  MAX(
+                    COALESCE(
+                      p.left_at,
+                      p.updated_at,
+                      NOW()
+                    )
+                  )
+                  -
+                  MIN(p.joined_at)
+                )
+              ) AS session_duration_sec
+
+            FROM session_participants p
+
+            WHERE p.user_id = u.id
+
+            GROUP BY p.session_id
+          ) durations
+        ) sessions
+          ON TRUE
+
+        LEFT JOIN LATERAL (
+          SELECT
+            c.conversion_type,
+            c.value_amount,
+            c.currency,
+            c.created_at
+
+          FROM conversion_events c
+
+          WHERE c.user_id = u.id
+
+          ORDER BY c.created_at DESC
+
+          LIMIT 1
+        ) conversion
+          ON TRUE
+
+        ORDER BY
+          COALESCE(
+            cp.last_seen_at,
+            activity.last_seen_at,
+            u.last_login_at
+          ) DESC
+      `);
+
+
+    return {
+      generatedAt:
+        new Date().toISOString(),
+
+      customers:
+        result.rows.map(
+          (row) => {
+
+            const visits =
+              Math.max(
+                Number(
+                  row.visit_count || 0
+                ),
+                Number(
+                  row.session_count || 0
+                )
+              );
+
+            return {
+              customerId:
+                customerPublicId(
+                  row.user_id
+                ),
+
+              customerStatus:
+                visits > 1
+                  ? 'RETURNING'
+                  : 'NEW',
+
+              visitCount:
+                visits,
+
+              firstSeenAt:
+                row.first_seen_at,
+
+              lastSeenAt:
+                row.last_seen_at,
+
+              referralSource:
+                row.referral_source ||
+                'DIRECT',
+
+              campaignSource:
+                row.campaign_source ||
+                '',
+
+              sessionCount:
+                Number(
+                  row.session_count || 0
+                ),
+
+              averageSessionDurationSec:
+                Number(
+                  row.avg_session_duration_sec ||
+                  0
+                ),
+
+              totalTransfers:
+                Number(
+                  row.total_transfers || 0
+                ),
+
+              totalDataBytes:
+                Number(
+                  row.total_bytes || 0
+                ),
+
+              usageSegment:
+                row.usage_segment ||
+                'LIGHT_USAGE',
+
+              latestConversionEvent:
+                row.latest_conversion_event ||
+                '',
+
+              latestConversionValue:
+                Number(
+                  row.latest_conversion_value ||
+                  0
+                ),
+
+              latestConversionCurrency:
+                row.latest_conversion_currency ||
+                'USD',
+
+              latestConversionAt:
+                row.latest_conversion_at ||
+                null
+            };
+          }
+        )
+    };
+  }
+
+
   async function dashboardData(input = {}) {
     if (!enabled) {
       return {
@@ -3096,6 +3448,7 @@ function createDatabase(options = {}) {
     summary,
     recordLiveDataEvent,
     liveClassroomData,
+    customer360Data,
     dashboardData,
     close
   };

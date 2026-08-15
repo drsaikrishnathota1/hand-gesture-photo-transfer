@@ -428,21 +428,43 @@ test(
 );
 
 test(
-  'V5.4.1 requires analytics consent before commercial collection',
+  'V5.4.2 required classroom commercial profile does not depend on optional consent',
   () => {
-    const source = fs.readFileSync(
-      path.join(root, 'db.js'),
-      'utf8'
-    );
+    const source =
+      fs.readFileSync(
+        path.join(root, 'db.js'),
+        'utf8'
+      );
 
-    assert.match(source, /getConsentPreferences/);
-    assert.match(
-      source,
+    const start =
+      source.indexOf(
+        'async function upsertCommercialProfile'
+      );
+
+    const end =
+      source.indexOf(
+        'async function recordCommercialTransfer',
+        start
+      );
+
+    const profile =
+      source.slice(
+        start,
+        end
+      );
+
+    assert.doesNotMatch(
+      profile,
       /if \(!consent\.analyticsConsent\)/
     );
-    assert.match(source, /return null/);
+
+    assert.match(
+      profile,
+      /commercial_profiles/
+    );
   }
 );
+
 
 test(
   'V5.4.1 stores consent changes as audit events',
@@ -1473,6 +1495,105 @@ test(
     assert.match(
       record,
       /classroomSegment\(client\)/
+    );
+  }
+);
+
+
+
+test(
+  'Customer 360 exposes commercial customer lifecycle attributes',
+  () => {
+    const db =
+      fs.readFileSync(
+        path.join(root, 'db.js'),
+        'utf8'
+      );
+
+    const server =
+      fs.readFileSync(
+        path.join(root, 'server.js'),
+        'utf8'
+      );
+
+    assert.match(
+      db,
+      /customer360Data/
+    );
+
+    for (const field of [
+      'customerId',
+      'customerStatus',
+      'visitCount',
+      'firstSeenAt',
+      'lastSeenAt',
+      'referralSource',
+      'campaignSource',
+      'sessionCount',
+      'averageSessionDurationSec',
+      'totalTransfers',
+      'totalDataBytes',
+      'usageSegment',
+      'latestConversionEvent'
+    ]) {
+      assert.match(
+        db,
+        new RegExp(field)
+      );
+    }
+
+    assert.match(
+      server,
+      /\/api\/commercial\/customer-360/
+    );
+
+    assert.match(
+      server,
+      /requireAuth/
+    );
+  }
+);
+
+
+test(
+  'Customer 360 does not return direct Google or internal database identifiers',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(root, 'db.js'),
+        'utf8'
+      );
+
+    const start =
+      source.indexOf(
+        'async function customer360Data'
+      );
+
+    const end =
+      source.indexOf(
+        'async function dashboardData',
+        start
+      );
+
+    const customer360 =
+      source.slice(
+        start,
+        end
+      );
+
+    assert.doesNotMatch(
+      customer360,
+      /google_sub/
+    );
+
+    assert.doesNotMatch(
+      customer360,
+      /email/
+    );
+
+    assert.match(
+      customer360,
+      /customerPublicId/
     );
   }
 );

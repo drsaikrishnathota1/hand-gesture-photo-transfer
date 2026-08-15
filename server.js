@@ -1153,7 +1153,7 @@ function createServer() {
           reason:
             profile
               ? null
-              : 'analytics_consent_required',
+              : 'profile_not_saved',
 
           consent: {
             analyticsConsent:
@@ -1184,6 +1184,48 @@ function createServer() {
   );
 
 
+
+
+
+  app.get(
+    '/api/commercial/customer-360',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const data =
+          await database
+            .customer360Data();
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        return res.json({
+          ok: true,
+          ...data
+        });
+
+      } catch (error) {
+        databaseError(
+          'customer 360 analytics',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not load Customer 360 analytics.'
+        });
+      }
+    }
+  );
 
 
 
