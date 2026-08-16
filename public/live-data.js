@@ -103,8 +103,8 @@
       label: 'Browser'
     },
     {
-      key: 'country',
-      label: 'Country'
+      key: 'location',
+      label: 'Location'
     },
     {
       key: 'commercialSegment',

@@ -608,6 +608,9 @@ function createDatabase(options = {}) {
         region VARCHAR(120)
           NOT NULL DEFAULT '',
 
+        location VARCHAR(260)
+          NOT NULL DEFAULT '',
+
         commercial_segment VARCHAR(64)
           NOT NULL DEFAULT 'NOT_OPTED_IN',
 
@@ -621,6 +624,10 @@ function createDatabase(options = {}) {
           action
         )
       );
+
+      ALTER TABLE classroom_data_events
+        ADD COLUMN IF NOT EXISTS location VARCHAR(260)
+        NOT NULL DEFAULT '';
 
       CREATE INDEX IF NOT EXISTS idx_classroom_live_room
         ON classroom_data_events (
@@ -1813,11 +1820,12 @@ function createDatabase(options = {}) {
            timezone,
            country,
            region,
+           location,
            commercial_segment
          )
          VALUES (
            $1,$2,$3,$4,$5,$6,$7,$8,$9,
-           $10,$11,$12,$13,$14,$15
+           $10,$11,$12,$13,$14,$15,$16
          )
          ON CONFLICT (
            session_id,
@@ -1850,6 +1858,7 @@ function createDatabase(options = {}) {
           clean(client.timezone, 80),
           clean(network.country, 80),
           clean(network.region, 120),
+          clean(network.location, 260),
           classroomSegment(client)
         ]
       );
@@ -1907,6 +1916,7 @@ function createDatabase(options = {}) {
            e.file_type,
            e.file_size_bytes,
            e.created_at,
+           e.location,
 
            COALESCE(
              c.analytics_consent,
@@ -2649,6 +2659,9 @@ function createDatabase(options = {}) {
 
             region:
               row.region,
+
+            location:
+              row.location,
 
             screenCategory:
               row.screen_category,

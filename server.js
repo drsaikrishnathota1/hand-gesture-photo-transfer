@@ -282,7 +282,7 @@ function baseNetworkIdentity(rawIp, headers = {}) {
     city: city || '',
     region: region || '',
     country: country || '',
-    location: [city, region].filter(Boolean).join(', ') || country || fallbackLocation,
+    location: [city, region, country].filter(Boolean).join(', ') || fallbackLocation,
     provider: provider || (addressClass === 'loopback' ? 'Localhost' : addressClass === 'private' ? 'LAN' : 'Not enriched')
   };
 }
@@ -307,7 +307,11 @@ async function enrichNetworkIdentity(rawIp, identity) {
       city: city || identity.city,
       region: region || identity.region,
       country: country || identity.country,
-      location: [city || identity.city, region || identity.region].filter(Boolean).join(', ') || country || identity.location,
+      location: [
+        city || identity.city,
+        region || identity.region,
+        country || identity.country
+      ].filter(Boolean).join(', ') || identity.location,
       provider: provider || identity.provider
     };
   } catch {
