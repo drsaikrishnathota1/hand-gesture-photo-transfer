@@ -45,6 +45,7 @@ const state = {
   broadcastHostToken: "",
   broadcastClientId: "",
   broadcastFileId: "",
+  broadcastFileSignature: "",
   broadcastUploadInProgress: false,
   broadcastDownloadInProgress: false,
   broadcastXHR: null,
@@ -1461,6 +1462,7 @@ function resetBroadcastState({ keepStats = false } = {}) {
   state.broadcastHostToken = "";
   state.broadcastClientId = "";
   state.broadcastFileId = "";
+  state.broadcastFileSignature = "";
   state.broadcastUploadInProgress = false;
   state.broadcastDownloadInProgress = false;
   state.broadcastXHR = null;
@@ -2186,6 +2188,23 @@ async function prepareBroadcastAirCopy(trigger = "manual") {
   }
   if (state.broadcastUploadInProgress) return;
 
+  const fileSignature = [
+    state.selectedFile.name,
+    state.selectedFile.size,
+    state.selectedFile.lastModified || 0
+  ].join(":");
+
+  // One logical broadcast = one SEND database record.
+  // Ignore repeated hand gestures/manual clicks for the
+  // same file while that file is already active.
+  if (
+    state.broadcastFileId &&
+    state.broadcastFileSignature === fileSignature
+  ) {
+    toast("This file is already sent and waiting for receivers.");
+    return;
+  }
+
   state.transferTrigger = trigger;
   state.broadcastUploadInProgress = true;
   state.transferStart = performance.now();
@@ -2197,6 +2216,7 @@ async function prepareBroadcastAirCopy(trigger = "manual") {
   try {
     const result = await uploadBroadcastFile(state.selectedFile);
     state.broadcastFileId = result.file?.id || "";
+    state.broadcastFileSignature = fileSignature;
     renderBroadcastStats(result.stats || {});
     setProgress(100);
     setTransferState("waiting receivers");
@@ -2502,6 +2522,7 @@ async function cancelBroadcastTransfer() {
       state.ws.send(JSON.stringify({ type: "broadcast-cancel", fileId: state.broadcastFileId }));
     }
     state.broadcastFileId = "";
+    state.broadcastFileSignature = "";
     state.broadcastUploadInProgress = false;
     setProgress(0);
     setTransferState("cancelled");
