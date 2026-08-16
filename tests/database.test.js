@@ -1093,7 +1093,7 @@ test(
 
     assert.match(
       html,
-      /Live Classroom Data Records/
+      /Live Data Records/
     );
 
     assert.match(

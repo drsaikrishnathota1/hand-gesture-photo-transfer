@@ -67,7 +67,7 @@
     },
     {
       key: 'student',
-      label: 'Student'
+      label: 'User'
     },
     {
       key: 'room',
@@ -320,7 +320,7 @@
         'business-empty';
 
       empty.textContent =
-        'Commercial opportunities will appear as classroom data is collected.';
+        'Commercial opportunities will appear as usage data is collected.';
 
       root.appendChild(empty);
 
@@ -344,7 +344,7 @@
         document.createElement('span');
 
       audience.textContent =
-        `${count} student${
+        `${count} user${
           Number(count) === 1
             ? ''
             : 's'
@@ -396,11 +396,6 @@
       Array.isArray(data.rows)
         ? data.rows
         : [];
-
-    setText(
-      'liveUsers',
-      summary.totalUsers || 0
-    );
 
     setText(
       'liveSend',
