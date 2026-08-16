@@ -2112,11 +2112,42 @@ function uploadBroadcastFile(file) {
     state.broadcastXHR = xhr;
     xhr.open("POST", `/api/broadcast/${encodeURIComponent(state.room)}/upload`);
     xhr.responseType = "json";
+
+    // Capture the actual Sender device at the moment
+    // this file is uploaded. Do not depend only on the
+    // WebSocket copy of the client telemetry.
+    const senderClientInfo = collectClientInfo();
+
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
     xhr.setRequestHeader("X-AirGesture-Host-Token", state.broadcastHostToken);
     xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
     xhr.setRequestHeader("X-File-Size", String(file.size));
     xhr.setRequestHeader("X-File-Type", file.type || "application/octet-stream");
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-Browser",
+      encodeURIComponent(senderClientInfo.browser || "")
+    );
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-OS",
+      encodeURIComponent(senderClientInfo.os || "")
+    );
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-Device",
+      encodeURIComponent(senderClientInfo.deviceType || "")
+    );
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-Timezone",
+      encodeURIComponent(senderClientInfo.timezone || "")
+    );
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-Language",
+      encodeURIComponent(senderClientInfo.language || "")
+    );
 
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return;

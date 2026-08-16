@@ -1984,6 +1984,83 @@ function createServer() {
       return res.status(403).json({ error: 'Valid active broadcast host required' });
     }
 
+    // Capture Sender telemetry from the same HTTP request
+    // that is carrying the file. This makes SEND telemetry
+    // independent of WebSocket timing/reconnection state.
+    const senderClientInfo =
+      sanitizeClientInfo({
+        browser:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-browser'
+            )
+          ),
+
+        os:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-os'
+            )
+          ),
+
+        deviceType:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-device'
+            )
+          ),
+
+        timezone:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-timezone'
+            )
+          ),
+
+        language:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-language'
+            )
+          )
+      });
+
+    // This HTTP request definitely belongs to the Sender,
+    // so it is also a reliable source for Sender network data.
+    const uploadNetwork =
+      baseNetworkIdentity(
+        requestIp(req),
+        req.headers || {}
+      );
+
+    // Prefer an already-enriched WebSocket network value when
+    // available, otherwise use the upload request information.
+    const existingNetwork =
+      room.host.network || {};
+
+    const senderNetwork = {
+      ...uploadNetwork,
+
+      ...Object.fromEntries(
+        Object.entries(
+          existingNetwork
+        ).filter(
+          ([, value]) =>
+            value !== '' &&
+            value !== null &&
+            value !== undefined
+        )
+      )
+    };
+
+    // Refresh the host copy as well so participant persistence
+    // and subsequent transfers use the latest Sender telemetry.
+    room.host.clientInfo =
+      senderClientInfo;
+
+    room.host.network =
+      senderNetwork;
+
     const declaredSize = Number(req.get('x-file-size'));
     if (!Number.isFinite(declaredSize) || declaredSize < 0 || declaredSize > MAX_BROADCAST_FILE_BYTES) {
       return res.status(413).json({ error: 'Broadcast file must be 100 MB or smaller' });
@@ -2101,13 +2178,9 @@ function createServer() {
               file:
                 room.file,
               clientInfo:
-                room.host
-                  .clientInfo ||
-                {},
+                senderClientInfo,
               network:
-                room.host
-                  .network ||
-                {},
+                senderNetwork,
               commercialAllowed:
                 Boolean(
                   consent
