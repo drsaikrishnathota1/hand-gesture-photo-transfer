@@ -74,6 +74,18 @@
       label: 'Room'
     },
     {
+      key: 'transferId',
+      label: 'Transfer ID',
+      format: (value) => {
+        const id =
+          String(value || '');
+
+        return id
+          ? `${id.slice(0, 8)}…`
+          : '—';
+      }
+    },
+    {
       key: 'action',
       label: 'Action'
     },

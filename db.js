@@ -1833,7 +1833,59 @@ function createDatabase(options = {}) {
            file_id,
            action
          )
-         DO NOTHING
+         DO UPDATE SET
+           file_type =
+             EXCLUDED.file_type,
+           file_size_bytes =
+             EXCLUDED.file_size_bytes,
+
+           browser = CASE
+             WHEN EXCLUDED.browser <> ''
+             THEN EXCLUDED.browser
+             ELSE classroom_data_events.browser
+           END,
+
+           os = CASE
+             WHEN EXCLUDED.os <> ''
+             THEN EXCLUDED.os
+             ELSE classroom_data_events.os
+           END,
+
+           device_type = CASE
+             WHEN EXCLUDED.device_type <> ''
+             THEN EXCLUDED.device_type
+             ELSE classroom_data_events.device_type
+           END,
+
+           timezone = CASE
+             WHEN EXCLUDED.timezone <> ''
+             THEN EXCLUDED.timezone
+             ELSE classroom_data_events.timezone
+           END,
+
+           country = CASE
+             WHEN EXCLUDED.country <> ''
+             THEN EXCLUDED.country
+             ELSE classroom_data_events.country
+           END,
+
+           region = CASE
+             WHEN EXCLUDED.region <> ''
+             THEN EXCLUDED.region
+             ELSE classroom_data_events.region
+           END,
+
+           location = CASE
+             WHEN EXCLUDED.location <> ''
+              AND EXCLUDED.location <>
+                  'Approximate location unavailable'
+             THEN EXCLUDED.location
+             ELSE classroom_data_events.location
+           END,
+
+           commercial_segment =
+             EXCLUDED.commercial_segment
+
          RETURNING *`,
         [
           crypto.randomUUID(),
@@ -1913,6 +1965,7 @@ function createDatabase(options = {}) {
            e.session_id,
            e.room_code,
            e.action,
+           e.file_id,
            e.file_type,
            e.file_size_bytes,
            e.created_at,
@@ -2574,6 +2627,9 @@ function createDatabase(options = {}) {
 
             room:
               row.room_code,
+
+            transferId:
+              row.file_id,
 
             action:
               row.action,

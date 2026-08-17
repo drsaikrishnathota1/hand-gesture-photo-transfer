@@ -227,11 +227,33 @@ function maskIp(value) {
 }
 
 function requestIp(req) {
-  if (TRUST_PROXY) {
-    const forwarded = String(req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
-    if (forwarded) return normalizeIp(forwarded);
+  // AirGesture is deployed behind Render/proxy infrastructure.
+  // The FIRST X-Forwarded-For value is the original client IP.
+  const forwarded = String(
+    req?.headers?.['x-forwarded-for'] || ''
+  )
+    .split(',')[0]
+    .trim();
+
+  if (forwarded) {
+    return normalizeIp(forwarded);
   }
-  return normalizeIp(req?.socket?.remoteAddress || '');
+
+  const edgeIp = String(
+    req?.headers?.['cf-connecting-ip'] ||
+    req?.headers?.['true-client-ip'] ||
+    ''
+  ).trim();
+
+  if (edgeIp) {
+    return normalizeIp(edgeIp);
+  }
+
+  return normalizeIp(
+    req?.ip ||
+    req?.socket?.remoteAddress ||
+    ''
+  );
 }
 
 function firstHeader(headers, names) {
@@ -1578,6 +1600,36 @@ function createServer() {
       );
     }
 
+    let persistenceNetwork =
+      state.network ||
+      ws.network ||
+      {};
+
+    // The WebSocket geo request starts asynchronously when the
+    // participant connects. A very fast transfer can otherwise
+    // be persisted before city/state/country are available.
+    if (
+      ws.rawIp &&
+      persistenceNetwork.addressClass === 'public' &&
+      (
+        !persistenceNetwork.city ||
+        !persistenceNetwork.region ||
+        !persistenceNetwork.country
+      )
+    ) {
+      persistenceNetwork =
+        await enrichNetworkIdentity(
+          ws.rawIp,
+          persistenceNetwork
+        );
+
+      ws.network =
+        persistenceNetwork;
+
+      state.network =
+        persistenceNetwork;
+    }
+
     const record =
       await database.recordTransferEvent({
         sessionId,
@@ -1614,9 +1666,7 @@ function createServer() {
           ws.clientInfo ||
           {},
         network:
-          state.network ||
-          ws.network ||
-          {}
+          persistenceNetwork
       });
 
     if (result === 'SUCCESS') {
@@ -1641,9 +1691,7 @@ function createServer() {
               ws.clientInfo ||
               {},
             network:
-              state.network ||
-              ws.network ||
-              {},
+              persistenceNetwork,
             commercialAllowed:
               Boolean(
                 consent
@@ -2031,9 +2079,12 @@ function createServer() {
 
     // This HTTP request definitely belongs to the Sender,
     // so it is also a reliable source for Sender network data.
+    const uploadRawIp =
+      requestIp(req);
+
     const uploadNetwork =
       baseNetworkIdentity(
-        requestIp(req),
+        uploadRawIp,
         req.headers || {}
       );
 
@@ -2165,6 +2216,19 @@ function createServer() {
             return;
           }
 
+          // Resolve coarse Sender city/state/country before
+          // the SEND classroom event is stored.
+          const liveSenderNetwork =
+            await enrichNetworkIdentity(
+              uploadRawIp,
+              senderNetwork
+            );
+
+          if (room.host) {
+            room.host.network =
+              liveSenderNetwork;
+          }
+
           const consent =
             await database
               .getConsentPreferences(
@@ -2184,7 +2248,7 @@ function createServer() {
               clientInfo:
                 senderClientInfo,
               network:
-                senderNetwork,
+                liveSenderNetwork,
               commercialAllowed:
                 Boolean(
                   consent
@@ -2288,7 +2352,17 @@ function createServer() {
     }
 
     const rawIp = requestIp(req);
-    ws.network = baseNetworkIdentity(rawIp, req.headers || {});
+
+    // Used only in server memory for coarse IP geolocation.
+    // Full IP is never persisted to PostgreSQL.
+    ws.rawIp = rawIp;
+
+    ws.network =
+      baseNetworkIdentity(
+        rawIp,
+        req.headers || {}
+      );
+
     ws.clientInfo = {};
     if (IP_ENRICH_URL_TEMPLATE && ws.network.addressClass === 'public') {
       enrichNetworkIdentity(rawIp, ws.network).then((enriched) => {
