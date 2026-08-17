@@ -23,6 +23,30 @@ const BROADCAST_DIR = path.join(DATA_DIR, 'broadcasts');
 const TRUST_PROXY = String(process.env.AIRGESTURE_TRUST_PROXY || '').trim() === '1';
 const IP_ENRICH_URL_TEMPLATE = String(process.env.AIRGESTURE_IP_ENRICH_URL_TEMPLATE || '').trim();
 
+const IP_ENRICH_FALLBACK_URL_TEMPLATE =
+  String(
+    process.env.AIRGESTURE_IP_ENRICH_FALLBACK_URL_TEMPLATE ||
+    ''
+  ).trim();
+
+const IP_ENRICH_TIMEOUT_MS =
+  Math.max(
+    1500,
+    Math.min(
+      10000,
+      Number(
+        process.env.AIRGESTURE_IP_ENRICH_TIMEOUT_MS
+      ) || 4500
+    )
+  );
+
+const GEO_CACHE_TTL_MS =
+  12 * 60 * 60 * 1000;
+
+// Raw IP is used ONLY as an in-memory cache key.
+// It is never written to PostgreSQL.
+const geoCache = new Map();
+
 const ADMIN_EMAILS = new Set(
   String(
     process.env.AIRGESTURE_ADMIN_EMAILS || ''
@@ -289,56 +313,486 @@ function sanitizeClientInfo(input = {}) {
   };
 }
 
+function normalizeCountryName(value) {
+  const country =
+    String(value || '')
+      .trim();
+
+  if (!country) {
+    return '';
+  }
+
+  if (/^[A-Za-z]{2}$/.test(country)) {
+    try {
+      const displayNames =
+        new Intl.DisplayNames(
+          ['en'],
+          {
+            type: 'region'
+          }
+        );
+
+      return (
+        displayNames.of(
+          country.toUpperCase()
+        ) ||
+        country.toUpperCase()
+      );
+    } catch {
+      return country.toUpperCase();
+    }
+  }
+
+  return country;
+}
+
+
+function hasCompleteGeo(identity = {}) {
+  return Boolean(
+    String(identity.city || '').trim() &&
+    String(identity.region || '').trim() &&
+    String(identity.country || '').trim()
+  );
+}
+
+
 function baseNetworkIdentity(rawIp, headers = {}) {
-  const addressClass = classifyIp(rawIp);
-  const city = firstHeader(headers, ['x-airgesture-city', 'x-vercel-ip-city', 'cf-ipcity']);
-  const region = firstHeader(headers, ['x-airgesture-region', 'x-vercel-ip-country-region', 'cf-region']);
-  const country = firstHeader(headers, ['x-airgesture-country', 'x-vercel-ip-country', 'cf-ipcountry']);
-  const provider = firstHeader(headers, ['x-airgesture-provider', 'cf-as-organization']);
-  const fallbackLocation = addressClass === 'loopback' ? 'Local device'
-    : addressClass === 'private' ? 'Private network'
-    : 'Approximate location unavailable';
+  const addressClass =
+    classifyIp(rawIp);
+
+  const city =
+    firstHeader(
+      headers,
+      [
+        'x-airgesture-city',
+        'x-vercel-ip-city',
+        'cf-ipcity'
+      ]
+    );
+
+  const region =
+    firstHeader(
+      headers,
+      [
+        'x-airgesture-region',
+        'x-vercel-ip-country-region',
+        'cf-region'
+      ]
+    );
+
+  const country =
+    normalizeCountryName(
+      firstHeader(
+        headers,
+        [
+          'x-airgesture-country',
+          'x-vercel-ip-country',
+          'cf-ipcountry'
+        ]
+      )
+    );
+
+  const provider =
+    firstHeader(
+      headers,
+      [
+        'x-airgesture-provider',
+        'cf-as-organization'
+      ]
+    );
+
+  const fallbackLocation =
+    addressClass === 'loopback'
+      ? 'Local device'
+      : addressClass === 'private'
+        ? 'Private network'
+        : 'Approximate location unavailable';
+
+  const detailedLocation =
+    city || region;
+
   return {
-    maskedIp: maskIp(rawIp),
+    maskedIp:
+      maskIp(rawIp),
+
     addressClass,
-    city: city || '',
-    region: region || '',
-    country: country || '',
-    location: [city, region, country].filter(Boolean).join(', ') || fallbackLocation,
-    provider: provider || (addressClass === 'loopback' ? 'Localhost' : addressClass === 'private' ? 'LAN' : 'Not enriched')
+
+    city:
+      city || '',
+
+    region:
+      region || '',
+
+    country:
+      country || '',
+
+    location:
+      detailedLocation
+        ? [
+            city,
+            region,
+            country
+          ]
+            .filter(Boolean)
+            .join(', ')
+        : fallbackLocation,
+
+    provider:
+      provider ||
+      (
+        addressClass === 'loopback'
+          ? 'Localhost'
+          : addressClass === 'private'
+            ? 'LAN'
+            : 'Not enriched'
+      ),
+
+    geoSource:
+      detailedLocation
+        ? 'edge-header'
+        : 'none'
   };
 }
 
-async function enrichNetworkIdentity(rawIp, identity) {
-  if (!IP_ENRICH_URL_TEMPLATE || identity.addressClass !== 'public' || !globalThis.fetch) return identity;
-  if (!IP_ENRICH_URL_TEMPLATE.includes('{ip}')) return identity;
-  const url = IP_ENRICH_URL_TEMPLATE.replace('{ip}', encodeURIComponent(rawIp));
+
+function normalizeGeoPayload(
+  data = {},
+  identity = {},
+  source = ''
+) {
+  if (
+    !data ||
+    data.error === true ||
+    data.success === false
+  ) {
+    return null;
+  }
+
+  const city =
+    String(
+      data.city ||
+      data.city_name ||
+      data.town ||
+      ''
+    )
+      .trim()
+      .slice(0, 80);
+
+  const region =
+    String(
+      data.region ||
+      data.region_name ||
+      data.regionName ||
+      data.state ||
+      data.state_name ||
+      ''
+    )
+      .trim()
+      .slice(0, 120);
+
+  const country =
+    normalizeCountryName(
+      data.country_name ||
+      data.countryName ||
+      data.country ||
+      data.country_code ||
+      identity.country ||
+      ''
+    )
+      .slice(0, 80);
+
+  // A country-only response such as "US" is not sufficient.
+  // DBA 802 requires City + State/Region + Country.
+  if (
+    !city ||
+    !region ||
+    !country
+  ) {
+    return null;
+  }
+
+  const provider =
+    String(
+      data.org ||
+      data.isp ||
+      data.provider ||
+      data.connection?.isp ||
+      data.connection?.org ||
+      data.asn?.name ||
+      identity.provider ||
+      ''
+    )
+      .trim()
+      .slice(0, 160);
+
+  return {
+    ...identity,
+
+    city,
+    region,
+    country,
+
+    location:
+      `${city}, ${region}, ${country}`,
+
+    provider:
+      provider ||
+      identity.provider,
+
+    geoSource:
+      source
+  };
+}
+
+
+async function fetchGeoCandidate(
+  template,
+  rawIp,
+  identity,
+  source
+) {
+  if (
+    !template ||
+    !template.includes('{ip}') ||
+    !globalThis.fetch
+  ) {
+    return null;
+  }
+
+  const url =
+    template.replace(
+      '{ip}',
+      encodeURIComponent(rawIp)
+    );
+
+  const controller =
+    new AbortController();
+
+  const timer =
+    setTimeout(
+      () =>
+        controller.abort(),
+      IP_ENRICH_TIMEOUT_MS
+    );
+
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1800);
-    const response = await fetch(url, { signal: controller.signal, headers: { accept: 'application/json' } });
+    const response =
+      await fetch(
+        url,
+        {
+          signal:
+            controller.signal,
+
+          headers: {
+            accept:
+              'application/json',
+
+            'user-agent':
+              'AirGesture-DBA802/5.4'
+          }
+        }
+      );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data =
+      await response.json();
+
+    return normalizeGeoPayload(
+      data,
+      identity,
+      source
+    );
+
+  } catch (error) {
+    console.warn(
+      `IP geolocation ${source} lookup failed:`,
+      error?.name ||
+      error?.message ||
+      'unknown error'
+    );
+
+    return null;
+
+  } finally {
     clearTimeout(timer);
-    if (!response.ok) return identity;
-    const data = await response.json();
-    const city = String(data.city || data.town || '').slice(0, 80);
-    const region = String(data.region || data.regionName || data.state || '').slice(0, 80);
-    const country = String(data.country_name || data.countryName || data.country || '').slice(0, 80);
-    const provider = String(data.org || data.isp || data.provider || data.asn?.name || '').slice(0, 120);
-    return {
-      ...identity,
-      city: city || identity.city,
-      region: region || identity.region,
-      country: country || identity.country,
-      location: [
-        city || identity.city,
-        region || identity.region,
-        country || identity.country
-      ].filter(Boolean).join(', ') || identity.location,
-      provider: provider || identity.provider
-    };
-  } catch {
+  }
+}
+
+
+async function enrichNetworkIdentity(
+  rawIp,
+  identity
+) {
+  if (
+    identity.addressClass !== 'public' ||
+    !globalThis.fetch
+  ) {
     return identity;
   }
+
+  // If an edge provider somehow supplied a complete
+  // city/state/country result, use it immediately.
+  if (hasCompleteGeo(identity)) {
+    return {
+      ...identity,
+
+      country:
+        normalizeCountryName(
+          identity.country
+        ),
+
+      location:
+        [
+          identity.city,
+          identity.region,
+          normalizeCountryName(
+            identity.country
+          )
+        ]
+          .filter(Boolean)
+          .join(', ')
+    };
+  }
+
+  const cacheKey =
+    normalizeIp(rawIp);
+
+  const cached =
+    geoCache.get(cacheKey);
+
+  if (
+    cached &&
+    (
+      Date.now() -
+      cached.savedAt
+    ) < GEO_CACHE_TTL_MS
+  ) {
+    return {
+      ...identity,
+      ...cached.identity
+    };
+  }
+
+  if (cached) {
+    geoCache.delete(cacheKey);
+  }
+
+  const providers = [
+    {
+      source: 'primary',
+      template:
+        IP_ENRICH_URL_TEMPLATE
+    },
+
+    {
+      source: 'fallback',
+      template:
+        IP_ENRICH_FALLBACK_URL_TEMPLATE
+    }
+  ];
+
+  const seenTemplates =
+    new Set();
+
+  for (const provider of providers) {
+    const template =
+      String(
+        provider.template || ''
+      ).trim();
+
+    if (
+      !template ||
+      seenTemplates.has(template)
+    ) {
+      continue;
+    }
+
+    seenTemplates.add(template);
+
+    const candidate =
+      await fetchGeoCandidate(
+        template,
+        rawIp,
+        identity,
+        provider.source
+      );
+
+    if (
+      candidate &&
+      hasCompleteGeo(candidate)
+    ) {
+      const safeCachedIdentity = {
+        city:
+          candidate.city,
+
+        region:
+          candidate.region,
+
+        country:
+          candidate.country,
+
+        location:
+          candidate.location,
+
+        provider:
+          candidate.provider,
+
+        geoSource:
+          candidate.geoSource
+      };
+
+      geoCache.set(
+        cacheKey,
+        {
+          savedAt:
+            Date.now(),
+
+          identity:
+            safeCachedIdentity
+        }
+      );
+
+      return {
+        ...identity,
+        ...safeCachedIdentity
+      };
+    }
+  }
+
+  // Never pretend a country code is a complete location.
+  const normalizedCountry =
+    normalizeCountryName(
+      identity.country
+    );
+
+  return {
+    ...identity,
+
+    country:
+      normalizedCountry,
+
+    location:
+      identity.city &&
+      identity.region &&
+      normalizedCountry
+        ? [
+            identity.city,
+            identity.region,
+            normalizedCountry
+          ].join(', ')
+        : (
+            identity.region &&
+            normalizedCountry
+              ? `${identity.region}, ${normalizedCountry}`
+              : 'Approximate location unavailable'
+          ),
+
+    geoSource:
+      'unresolved'
+  };
 }
 
 function safeMetric(value, max = 1000000) {
@@ -560,6 +1014,7 @@ function createServer() {
   // Public: /api/auth/* and /api/health
   // Protected: classroom data, transfer files and telemetry.
   app.use('/api/network/ping', requireAuth);
+  app.use('/api/network/location', requireAuth);
   app.use('/api/analytics', requireAuth);
   app.use('/api/events', requireAuth);
   app.use('/api/demo-data', requireAuth);
@@ -572,7 +1027,20 @@ function createServer() {
     broadcastRooms: broadcastRooms.size,
     receiverLimit: CONFIGURED_RECEIVER_LIMIT || null,
     networkIntelligence: true,
-    ipEnrichmentConfigured: Boolean(IP_ENRICH_URL_TEMPLATE),
+
+    ipEnrichmentConfigured:
+      Boolean(
+        IP_ENRICH_URL_TEMPLATE
+      ),
+
+    ipEnrichmentFallbackConfigured:
+      Boolean(
+        IP_ENRICH_FALLBACK_URL_TEMPLATE
+      ),
+
+    ipEnrichmentTimeoutMs:
+      IP_ENRICH_TIMEOUT_MS,
+
     database: database.status()
   }));
 
@@ -580,6 +1048,61 @@ function createServer() {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ ok: true, serverTime: Date.now() });
   });
+
+
+  app.get(
+    '/api/network/location',
+    async (req, res) => {
+      const rawIp =
+        requestIp(req);
+
+      let network =
+        baseNetworkIdentity(
+          rawIp,
+          req.headers || {}
+        );
+
+      network =
+        await enrichNetworkIdentity(
+          rawIp,
+          network
+        );
+
+      res.setHeader(
+        'Cache-Control',
+        'no-store'
+      );
+
+      return res.json({
+        ok: true,
+
+        maskedIp:
+          network.maskedIp,
+
+        addressClass:
+          network.addressClass,
+
+        city:
+          network.city || '',
+
+        region:
+          network.region || '',
+
+        country:
+          network.country || '',
+
+        location:
+          network.location,
+
+        source:
+          network.geoSource ||
+          'unknown',
+
+        complete:
+          hasCompleteGeo(network)
+      });
+    }
+  );
 
   app.get(
     '/api/persistence/summary',

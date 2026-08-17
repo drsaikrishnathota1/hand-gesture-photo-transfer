@@ -56,3 +56,103 @@ test('V5.4.0 browser code collects device and network signals and measures serve
   assert.match(js, /receiver-intelligence/);
   assert.match(js, /integrityVerified: true/);
 });
+
+
+
+test(
+  'V5.4.2 uses redundant city-level IP enrichment',
+  () => {
+    const serverSource =
+      fs.readFileSync(
+        path.join(
+          __dirname,
+          '..',
+          'server.js'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      serverSource,
+      /AIRGESTURE_IP_ENRICH_FALLBACK_URL_TEMPLATE/
+    );
+
+    assert.match(
+      serverSource,
+      /IP_ENRICH_TIMEOUT_MS/
+    );
+
+    assert.match(
+      serverSource,
+      /hasCompleteGeo/
+    );
+
+    assert.match(
+      serverSource,
+      /geoCache/
+    );
+
+    assert.match(
+      serverSource,
+      /\/api\/network\/location/
+    );
+  }
+);
+
+
+test(
+  'V5.4.2 live dashboard provides interactive Transfer Trace',
+  () => {
+    const js =
+      fs.readFileSync(
+        path.join(
+          __dirname,
+          '..',
+          'public',
+          'live-data.js'
+        ),
+        'utf8'
+      );
+
+    const css =
+      fs.readFileSync(
+        path.join(
+          __dirname,
+          '..',
+          'public',
+          'live-data.css'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      js,
+      /activeTransferId/
+    );
+
+    assert.match(
+      js,
+      /createTransferIdControl/
+    );
+
+    assert.match(
+      js,
+      /transfer-trace-active/
+    );
+
+    assert.match(
+      js,
+      /copyText/
+    );
+
+    assert.match(
+      css,
+      /transfer-id-chip/
+    );
+
+    assert.match(
+      css,
+      /transfer-trace-active/
+    );
+  }
+);

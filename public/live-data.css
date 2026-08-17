@@ -276,3 +276,178 @@
   max-height: 600px;
 }
 
+
+
+
+/* ==========================================================
+   TRANSFER TRACE
+   Interactive expand/collapse + transaction correlation
+   ========================================================== */
+
+.transfer-id-cell {
+  min-width: 150px !important;
+}
+
+.transfer-id-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.transfer-id-chip,
+.transfer-id-copy {
+  border:
+    1px solid
+    rgba(111, 210, 255, .22);
+
+  background:
+    rgba(66, 190, 255, .06);
+
+  color:
+    inherit;
+}
+
+.transfer-id-chip {
+  display: inline-block;
+
+  max-width: 112px;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  border-radius: 8px;
+
+  padding: 5px 8px;
+
+  cursor: pointer;
+
+  font:
+    600 11px/1.25
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+
+  letter-spacing: .015em;
+
+  transition:
+    max-width .24s ease,
+    background-color .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+.transfer-id-chip:hover {
+  border-color:
+    rgba(111, 210, 255, .55);
+
+  background:
+    rgba(66, 190, 255, .12);
+}
+
+.transfer-id-chip.is-expanded {
+  max-width: 360px;
+
+  border-color:
+    rgba(70, 220, 255, .7);
+
+  background:
+    rgba(66, 190, 255, .14);
+
+  box-shadow:
+    0 0 0 2px
+    rgba(66, 190, 255, .05);
+}
+
+.transfer-id-copy {
+  width: 29px;
+  height: 29px;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 8px;
+
+  cursor: pointer;
+
+  opacity: .65;
+
+  transition:
+    opacity .18s ease,
+    transform .18s ease,
+    background-color .18s ease;
+}
+
+.transfer-id-copy:hover {
+  opacity: 1;
+
+  transform:
+    translateY(-1px);
+
+  background:
+    rgba(66, 190, 255, .14);
+}
+
+.transfer-id-copy.is-copied {
+  color: var(--green);
+  opacity: 1;
+}
+
+
+/* Highlight every SEND / RECEIVE row belonging
+   to the currently selected Transfer ID. */
+
+.live-table tbody
+tr.transfer-trace-active td {
+  background:
+    rgba(
+      52,
+      211,
+      153,
+      .065
+    ) !important;
+
+  border-bottom-color:
+    rgba(
+      52,
+      211,
+      153,
+      .28
+    );
+}
+
+.live-table tbody
+tr.transfer-trace-active td:first-child,
+.live-table tbody
+tr.transfer-trace-active td:nth-child(2) {
+  background:
+    #0c2028 !important;
+}
+
+.live-table tbody
+tr.transfer-trace-active
+.transfer-id-chip {
+  border-color:
+    rgba(
+      52,
+      211,
+      153,
+      .65
+    );
+
+  box-shadow:
+    0 0 0 2px
+    rgba(
+      52,
+      211,
+      153,
+      .06
+    );
+}

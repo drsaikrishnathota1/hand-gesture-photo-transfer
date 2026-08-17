@@ -9,6 +9,10 @@
 
   let currentRows = [];
 
+  // Selected transaction remains expanded even while
+  // the live dashboard refreshes every second.
+  let activeTransferId = '';
+
 
   function setText(id, value) {
     const el = $(id);
@@ -75,15 +79,7 @@
     },
     {
       key: 'transferId',
-      label: 'Transfer ID',
-      format: (value) => {
-        const id =
-          String(value || '');
-
-        return id
-          ? `${id.slice(0, 8)}…`
-          : '—';
-      }
+      label: 'Transfer ID'
     },
     {
       key: 'action',
@@ -181,6 +177,224 @@
   }
 
 
+  function compactTransferId(value) {
+    const id =
+      String(value || '');
+
+    if (!id) {
+      return '—';
+    }
+
+    return id.length > 8
+      ? `${id.slice(0, 8)}…`
+      : id;
+  }
+
+
+  async function copyText(value) {
+    const text =
+      String(value || '');
+
+    if (!text) {
+      return false;
+    }
+
+    try {
+      if (
+        navigator.clipboard &&
+        navigator.clipboard.writeText
+      ) {
+        await navigator.clipboard
+          .writeText(text);
+
+        return true;
+      }
+    } catch {
+      // Continue to legacy fallback.
+    }
+
+    const temporary =
+      document.createElement(
+        'textarea'
+      );
+
+    temporary.value =
+      text;
+
+    temporary.setAttribute(
+      'readonly',
+      ''
+    );
+
+    temporary.style.position =
+      'fixed';
+
+    temporary.style.opacity =
+      '0';
+
+    document.body
+      .appendChild(
+        temporary
+      );
+
+    temporary.select();
+
+    let copied = false;
+
+    try {
+      copied =
+        document.execCommand(
+          'copy'
+        );
+    } catch {
+      copied = false;
+    }
+
+    temporary.remove();
+
+    return copied;
+  }
+
+
+  function createTransferIdControl(
+    value
+  ) {
+    const id =
+      String(value || '');
+
+    const wrapper =
+      document.createElement(
+        'div'
+      );
+
+    wrapper.className =
+      'transfer-id-tools';
+
+    if (!id) {
+      wrapper.textContent =
+        '—';
+
+      return wrapper;
+    }
+
+    const expanded =
+      activeTransferId === id;
+
+    const chip =
+      document.createElement(
+        'button'
+      );
+
+    chip.type =
+      'button';
+
+    chip.className =
+      expanded
+        ? 'transfer-id-chip is-expanded'
+        : 'transfer-id-chip';
+
+    chip.textContent =
+      expanded
+        ? id
+        : compactTransferId(id);
+
+    chip.title =
+      expanded
+        ? 'Collapse Transfer Trace'
+        : 'Expand full ID and trace matching SEND / RECEIVE rows';
+
+    chip.setAttribute(
+      'aria-expanded',
+      expanded
+        ? 'true'
+        : 'false'
+    );
+
+    chip.addEventListener(
+      'click',
+      () => {
+        activeTransferId =
+          expanded
+            ? ''
+            : id;
+
+        renderRows(
+          currentRows
+        );
+      }
+    );
+
+
+    const copyButton =
+      document.createElement(
+        'button'
+      );
+
+    copyButton.type =
+      'button';
+
+    copyButton.className =
+      'transfer-id-copy';
+
+    copyButton.textContent =
+      '⧉';
+
+    copyButton.title =
+      'Copy full Transfer ID';
+
+    copyButton.setAttribute(
+      'aria-label',
+      `Copy Transfer ID ${id}`
+    );
+
+    copyButton.addEventListener(
+      'click',
+      async (event) => {
+        event.stopPropagation();
+
+        const copied =
+          await copyText(id);
+
+        if (!copied) {
+          return;
+        }
+
+        copyButton.textContent =
+          '✓';
+
+        copyButton.classList
+          .add(
+            'is-copied'
+          );
+
+        setTimeout(
+          () => {
+            copyButton.textContent =
+              '⧉';
+
+            copyButton.classList
+              .remove(
+                'is-copied'
+              );
+          },
+          900
+        );
+      }
+    );
+
+
+    wrapper.appendChild(
+      chip
+    );
+
+    wrapper.appendChild(
+      copyButton
+    );
+
+    return wrapper;
+  }
+
+
   function renderRows(rows) {
     const body =
       $('liveRows');
@@ -220,6 +434,21 @@
           'tr'
         );
 
+      const rowTransferId =
+        String(
+          row.transferId || ''
+        );
+
+      if (
+        rowTransferId &&
+        rowTransferId ===
+          activeTransferId
+      ) {
+        tr.classList.add(
+          'transfer-trace-active'
+        );
+      }
+
       for (
         const column
         of columns
@@ -229,20 +458,36 @@
             'td'
           );
 
-        td.textContent =
-          displayValue(
-            row,
-            column
+        if (
+          column.key ===
+          'transferId'
+        ) {
+          td.classList.add(
+            'transfer-id-cell'
           );
+
+          td.appendChild(
+            createTransferIdControl(
+              row.transferId
+            )
+          );
+        } else {
+          td.textContent =
+            displayValue(
+              row,
+              column
+            );
+        }
 
         if (
           column.key ===
           'action'
         ) {
-          td.className =
+          td.classList.add(
             row.action === 'SEND'
               ? 'action-send'
-              : 'action-receive';
+              : 'action-receive'
+          );
         }
 
         tr.appendChild(td);
