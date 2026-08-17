@@ -2,7 +2,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { maskIp, classifyIp, sanitizeClientInfo, receiverIntelligenceRecord } = require('../server');
+const {
+  maskIp,
+  classifyIp,
+  sanitizeClientInfo,
+  sanitizeClientGeo,
+  mergeClientGeo,
+  receiverIntelligenceRecord
+} = require('../server');
 
 test('V5.4.0 masks IPv4 rather than exposing a full public address', () => {
   assert.equal(maskIp('73.184.122.57'), '73.184.xxx.xxx');
@@ -153,6 +160,141 @@ test(
     assert.match(
       css,
       /transfer-trace-active/
+    );
+  }
+);
+
+
+
+test(
+  'browser-direct coarse geography requires city region and country',
+  () => {
+    assert.equal(
+      sanitizeClientGeo({
+        country:
+          'United States'
+      }),
+      null
+    );
+
+    const geo =
+      sanitizeClientGeo({
+        city:
+          'Lake Saint Louis',
+
+        region:
+          'Missouri',
+
+        country:
+          'United States',
+
+        source:
+          'ipapi-browser'
+      });
+
+    assert.deepEqual(
+      geo,
+      {
+        city:
+          'Lake Saint Louis',
+
+        region:
+          'Missouri',
+
+        country:
+          'United States',
+
+        location:
+          'Lake Saint Louis, Missouri, United States',
+
+        geoSource:
+          'ipapi-browser'
+      }
+    );
+  }
+);
+
+
+test(
+  'browser-direct geography upgrades unresolved server geography',
+  () => {
+    const merged =
+      mergeClientGeo(
+        {
+          country:
+            'United States',
+
+          location:
+            'Approximate location unavailable',
+
+          geoSource:
+            'unresolved'
+        },
+        {
+          city:
+            'Lake Saint Louis',
+
+          region:
+            'Missouri',
+
+          country:
+            'United States',
+
+          source:
+            'ipwhois-browser'
+        }
+      );
+
+    assert.equal(
+      merged.location,
+      'Lake Saint Louis, Missouri, United States'
+    );
+
+    assert.equal(
+      merged.geoSource,
+      'ipwhois-browser'
+    );
+  }
+);
+
+
+test(
+  'browser code resolves coarse location directly without storing provider IP',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          __dirname,
+          '..',
+          'public',
+          'app.js'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      source,
+      /resolveBrowserCoarseGeo/
+    );
+
+    assert.match(
+      source,
+      /https:\/\/ipapi\.co\/json\//
+    );
+
+    assert.match(
+      source,
+      /https:\/\/ipwho\.is\//
+    );
+
+    assert.match(
+      source,
+      /client-geo/
+    );
+
+    assert.doesNotMatch(
+      source,
+      /geo\.ip\s*=/
     );
   }
 );

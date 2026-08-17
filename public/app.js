@@ -71,6 +71,11 @@ const state = {
 
   commercialProfileSynced: false,
 
+  // Coarse IP-derived location only.
+  // Never stores precise GPS coordinates or the provider's IP field.
+  clientGeo: null,
+  clientGeoPromise: null,
+
   adminDatabaseLoaded: false,
   adminDatabaseDenied: false,
   adminDatabase: null,
@@ -156,6 +161,277 @@ function collectClientInfo() {
     cpuCores: Number(navigator.hardwareConcurrency) || 0,
     memoryGB: Number(navigator.deviceMemory) || 0
   };
+}
+
+
+
+
+const BROWSER_GEO_CACHE_KEY =
+  'airgesture.coarse-geo.v1';
+
+const BROWSER_GEO_CACHE_TTL_MS =
+  12 * 60 * 60 * 1000;
+
+
+function normalizeBrowserGeo(
+  data = {},
+  source = ''
+) {
+  if (
+    !data ||
+    data.success === false ||
+    data.error === true
+  ) {
+    return null;
+  }
+
+  const city =
+    String(
+      data.city || ''
+    )
+      .trim()
+      .slice(0, 80);
+
+  const region =
+    String(
+      data.region ||
+      data.region_name ||
+      data.regionName ||
+      data.state ||
+      ''
+    )
+      .trim()
+      .slice(0, 120);
+
+  const country =
+    String(
+      data.country_name ||
+      data.countryName ||
+      data.country ||
+      ''
+    )
+      .trim()
+      .slice(0, 80);
+
+  if (
+    !city ||
+    !region ||
+    !country
+  ) {
+    return null;
+  }
+
+  return {
+    city,
+    region,
+    country,
+
+    location:
+      `${city}, ${region}, ${country}`,
+
+    source:
+      String(source || 'browser-ip')
+        .slice(0, 40)
+  };
+}
+
+
+async function fetchBrowserGeo(
+  url,
+  source,
+  timeoutMs = 3500
+) {
+  const controller =
+    new AbortController();
+
+  const timer =
+    setTimeout(
+      () =>
+        controller.abort(),
+      timeoutMs
+    );
+
+  try {
+    const response =
+      await fetch(
+        url,
+        {
+          signal:
+            controller.signal,
+
+          cache:
+            'no-store',
+
+          headers: {
+            Accept:
+              'application/json'
+          }
+        }
+      );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data =
+      await response.json();
+
+    // Important:
+    // The provider response may contain an IP field.
+    // We deliberately ignore it and retain ONLY
+    // city, region and country.
+    return normalizeBrowserGeo(
+      data,
+      source
+    );
+
+  } catch {
+    return null;
+
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+
+function readCachedBrowserGeo() {
+  try {
+    const raw =
+      localStorage.getItem(
+        BROWSER_GEO_CACHE_KEY
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    const cached =
+      JSON.parse(raw);
+
+    if (
+      !cached ||
+      !cached.savedAt ||
+      (
+        Date.now() -
+        Number(cached.savedAt)
+      ) >
+        BROWSER_GEO_CACHE_TTL_MS
+    ) {
+      localStorage.removeItem(
+        BROWSER_GEO_CACHE_KEY
+      );
+
+      return null;
+    }
+
+    return normalizeBrowserGeo(
+      cached,
+      cached.source ||
+      'browser-cache'
+    );
+
+  } catch {
+    return null;
+  }
+}
+
+
+function cacheBrowserGeo(geo) {
+  if (!geo) {
+    return;
+  }
+
+  try {
+    // Only coarse geography is cached.
+    // No IP and no latitude/longitude.
+    localStorage.setItem(
+      BROWSER_GEO_CACHE_KEY,
+      JSON.stringify({
+        city:
+          geo.city,
+
+        region:
+          geo.region,
+
+        country:
+          geo.country,
+
+        source:
+          geo.source,
+
+        savedAt:
+          Date.now()
+      })
+    );
+  } catch {}
+}
+
+
+async function resolveBrowserCoarseGeo() {
+  if (state.clientGeo) {
+    return state.clientGeo;
+  }
+
+  if (state.clientGeoPromise) {
+    return state.clientGeoPromise;
+  }
+
+  const cached =
+    readCachedBrowserGeo();
+
+  if (cached) {
+    state.clientGeo =
+      cached;
+
+    return cached;
+  }
+
+  state.clientGeoPromise =
+    (async () => {
+
+      // PRIMARY:
+      // Request originates from the actual browser,
+      // so the provider resolves the participant's
+      // internet connection rather than Render's
+      // outbound connection.
+      let geo =
+        await fetchBrowserGeo(
+          'https://ipapi.co/json/',
+          'ipapi-browser'
+        );
+
+      // FALLBACK:
+      // ipwho.is explicitly supports browser/CORS
+      // lookups with the IP omitted.
+      if (!geo) {
+        geo =
+          await fetchBrowserGeo(
+            'https://ipwho.is/?fields=success,country,region,city',
+            'ipwhois-browser'
+          );
+      }
+
+      if (geo) {
+        state.clientGeo =
+          geo;
+
+        cacheBrowserGeo(
+          geo
+        );
+
+        return geo;
+      }
+
+      return null;
+    })();
+
+  try {
+    return await state.clientGeoPromise;
+
+  } finally {
+    state.clientGeoPromise =
+      null;
+  }
 }
 
 
@@ -369,6 +645,12 @@ async function syncCommercialProfile() {
   }
 
   try {
+    const signals =
+      commercialSignals();
+
+    signals.clientGeo =
+      await resolveBrowserCoarseGeo();
+
     const response =
       await fetch(
         '/api/commercial/profile',
@@ -382,7 +664,7 @@ async function syncCommercialProfile() {
 
           body:
             JSON.stringify(
-              commercialSignals()
+              signals
             )
         }
       );
@@ -1636,8 +1918,44 @@ function connectBroadcastRoom() {
   state.ws = ws;
 
   ws.onopen = async () => {
-    state.networkLatencyMs = await measureServerLatency();
-    ws.send(JSON.stringify({ type: "join", room, role: state.role, mode: "universal", clientInfo: collectClientInfo() }));
+    state.networkLatencyMs =
+      await measureServerLatency();
+
+    ws.send(
+      JSON.stringify({
+        type: "join",
+        room,
+        role:
+          state.role,
+        mode:
+          "universal",
+        clientInfo:
+          collectClientInfo()
+      })
+    );
+
+    // Resolve coarse location independently so room joining
+    // is never blocked by an external geolocation provider.
+    void resolveBrowserCoarseGeo()
+      .then(
+        (clientGeo) => {
+          if (
+            clientGeo &&
+            ws.readyState ===
+              WebSocket.OPEN
+          ) {
+            ws.send(
+              JSON.stringify({
+                type:
+                  "client-geo",
+
+                clientGeo
+              })
+            );
+          }
+        }
+      )
+      .catch(() => {});
   };
 
   ws.onmessage = async (event) => {
@@ -1656,6 +1974,17 @@ function connectBroadcastRoom() {
         ? `Universal room ${msg.room} ready. ${msg.stats?.connected || 0} receiver(s) connected. Choose a file and use ✋ → ✊ to Air Send.`
         : `Joined universal room ${msg.room}. Waiting for the Sender file.`);
       updateActionButtons();
+      return;
+    }
+
+    if (
+      msg.type ===
+      "network-location-update"
+    ) {
+      renderOwnNetwork(
+        msg.network || {}
+      );
+
       return;
     }
 

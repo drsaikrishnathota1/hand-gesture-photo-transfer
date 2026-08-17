@@ -356,6 +356,102 @@ function hasCompleteGeo(identity = {}) {
 }
 
 
+
+
+function sanitizeClientGeo(input = {}) {
+  const cleanGeo =
+    (value, max) =>
+      String(value || '')
+        .replace(
+          /[\r\n\t]/g,
+          ' '
+        )
+        .trim()
+        .slice(0, max);
+
+  const city =
+    cleanGeo(
+      input.city,
+      80
+    );
+
+  const region =
+    cleanGeo(
+      input.region,
+      120
+    );
+
+  const country =
+    normalizeCountryName(
+      cleanGeo(
+        input.country,
+        80
+      )
+    );
+
+  if (
+    !city ||
+    !region ||
+    !country
+  ) {
+    return null;
+  }
+
+  const allowedSources =
+    new Set([
+      'ipapi-browser',
+      'ipwhois-browser',
+      'browser-cache',
+      'browser-ip'
+    ]);
+
+  const requestedSource =
+    cleanGeo(
+      input.source,
+      40
+    );
+
+  const source =
+    allowedSources.has(
+      requestedSource
+    )
+      ? requestedSource
+      : 'browser-ip';
+
+  return {
+    city,
+    region,
+    country,
+
+    location:
+      `${city}, ${region}, ${country}`,
+
+    geoSource:
+      source
+  };
+}
+
+
+function mergeClientGeo(
+  identity = {},
+  input = {}
+) {
+  const geo =
+    sanitizeClientGeo(
+      input
+    );
+
+  if (!geo) {
+    return identity;
+  }
+
+  return {
+    ...identity,
+    ...geo
+  };
+}
+
+
 function baseNetworkIdentity(rawIp, headers = {}) {
   const addressClass =
     classifyIp(rawIp);
@@ -1068,6 +1164,13 @@ function createServer() {
           network
         );
 
+      network =
+        mergeClientGeo(
+          network,
+          req.session?.coarseGeo ||
+          {}
+        );
+
       res.setHeader(
         'Cache-Control',
         'no-store'
@@ -1643,11 +1746,35 @@ function createServer() {
             req.headers
           );
 
-        network =
-          await enrichNetworkIdentity(
-            rawIp,
-            network
+        const clientGeo =
+          sanitizeClientGeo(
+            req.body?.clientGeo ||
+            {}
           );
+
+        // Browser-direct IP geography is preferred because
+        // the lookup originates from the participant's device.
+        if (clientGeo) {
+          network =
+            mergeClientGeo(
+              network,
+              clientGeo
+            );
+
+          if (req.session) {
+            req.session.coarseGeo =
+              clientGeo;
+          }
+        }
+
+        // Server-side IP lookup remains a fallback.
+        if (!hasCompleteGeo(network)) {
+          network =
+            await enrichNetworkIdentity(
+              rawIp,
+              network
+            );
+        }
 
         const profile =
           await database
@@ -2889,7 +3016,13 @@ function createServer() {
     ws.clientInfo = {};
     if (IP_ENRICH_URL_TEMPLATE && ws.network.addressClass === 'public') {
       enrichNetworkIdentity(rawIp, ws.network).then((enriched) => {
-        ws.network = enriched;
+        // Never downgrade a complete browser-direct location
+        // with an incomplete server-side result.
+        if (!hasCompleteGeo(ws.network)) {
+          ws.network =
+            enriched;
+        }
+
         if (ws.mode === 'broadcast' && ws.role === 'receiver' && ws.room) {
           const room = broadcastRooms.get(ws.room);
           const item = room?.receiverStates.get(ws.clientId);
@@ -2920,6 +3053,91 @@ function createServer() {
 
         // Universal workflow: every room is one Sender + N Receivers.
         return joinBroadcast(ws, room, role, data.clientInfo || {});
+      }
+
+      if (data.type === 'client-geo') {
+        const clientGeo =
+          sanitizeClientGeo(
+            data.clientGeo ||
+            {}
+          );
+
+        if (!clientGeo) {
+          return;
+        }
+
+        ws.network =
+          mergeClientGeo(
+            ws.network ||
+            {},
+            clientGeo
+          );
+
+        if (
+          ws.mode === 'broadcast' &&
+          ws.room
+        ) {
+          const room =
+            broadcastRooms.get(
+              ws.room
+            );
+
+          if (
+            room &&
+            ws.role === 'receiver'
+          ) {
+            const item =
+              room.receiverStates.get(
+                ws.clientId
+              ) || {};
+
+            item.network =
+              ws.network;
+
+            room.receiverStates.set(
+              ws.clientId,
+              item
+            );
+
+            emitReceiverIntelligence(
+              room
+            );
+          }
+
+          if (
+            room &&
+            database.enabled &&
+            room.sessionId
+          ) {
+            void persistParticipant(
+              room,
+              ws,
+              ws.role === 'receiver'
+                ? 'receiver'
+                : 'sender'
+            ).catch(
+              (error) => {
+                databaseError(
+                  'browser location participant persistence',
+                  error
+                );
+              }
+            );
+          }
+        }
+
+        sendJson(
+          ws,
+          {
+            type:
+              'network-location-update',
+
+            network:
+              ws.network
+          }
+        );
+
+        return;
       }
 
       if (ws.mode === 'peer' && ['offer', 'answer', 'ice'].includes(data.type) && ws.room) {
@@ -3183,5 +3401,7 @@ module.exports = {
   maskIp,
   classifyIp,
   sanitizeClientInfo,
+  sanitizeClientGeo,
+  mergeClientGeo,
   receiverIntelligenceRecord
 };
