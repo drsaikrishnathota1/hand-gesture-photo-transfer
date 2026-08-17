@@ -167,10 +167,10 @@ function collectClientInfo() {
 
 
 const BROWSER_GEO_CACHE_KEY =
-  'airgesture.coarse-geo.v1';
+  'airgesture.coarse-geo.v2';
 
 const BROWSER_GEO_CACHE_TTL_MS =
-  12 * 60 * 60 * 1000;
+  30 * 60 * 1000;
 
 
 function normalizeBrowserGeo(
@@ -187,13 +187,16 @@ function normalizeBrowserGeo(
 
   const city =
     String(
-      data.city || ''
+      data.city ||
+      data.locality ||
+      ''
     )
       .trim()
       .slice(0, 80);
 
   const region =
     String(
+      data.principalSubdivision ||
       data.region ||
       data.region_name ||
       data.regionName ||
@@ -205,8 +208,8 @@ function normalizeBrowserGeo(
 
   const country =
     String(
-      data.country_name ||
       data.countryName ||
+      data.country_name ||
       data.country ||
       ''
     )
@@ -367,8 +370,171 @@ function cacheBrowserGeo(geo) {
 }
 
 
-async function resolveBrowserCoarseGeo() {
-  if (state.clientGeo) {
+
+
+function requestDevicePosition() {
+  return new Promise(
+    (resolve) => {
+      if (
+        !window.isSecureContext ||
+        !navigator.geolocation
+      ) {
+        resolve(null);
+        return;
+      }
+
+      navigator.geolocation
+        .getCurrentPosition(
+          (position) => {
+            const latitude =
+              Number(
+                position?.coords
+                  ?.latitude
+              );
+
+            const longitude =
+              Number(
+                position?.coords
+                  ?.longitude
+              );
+
+            if (
+              !Number.isFinite(latitude) ||
+              !Number.isFinite(longitude)
+            ) {
+              resolve(null);
+              return;
+            }
+
+            resolve({
+              latitude,
+              longitude
+            });
+          },
+
+          () => {
+            // Permission denied/unavailable:
+            // continue with IP-based coarse fallback.
+            resolve(null);
+          },
+
+          {
+            enableHighAccuracy:
+              true,
+
+            timeout:
+              10000,
+
+            maximumAge:
+              5 * 60 * 1000
+          }
+        );
+    }
+  );
+}
+
+
+async function reverseDevicePosition(
+  position
+) {
+  if (!position) {
+    return null;
+  }
+
+  const url =
+    new URL(
+      'https://api.bigdatacloud.net/data/reverse-geocode-client'
+    );
+
+  url.searchParams.set(
+    'latitude',
+    String(position.latitude)
+  );
+
+  url.searchParams.set(
+    'longitude',
+    String(position.longitude)
+  );
+
+  url.searchParams.set(
+    'localityLanguage',
+    'en'
+  );
+
+  return fetchBrowserGeo(
+    url.toString(),
+    'device-location',
+    6000
+  );
+}
+
+
+async function syncResolvedLocation(
+  geo
+) {
+  if (!geo) {
+    return null;
+  }
+
+  try {
+    const response =
+      await fetch(
+        '/api/network/location',
+        {
+          method:
+            'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          credentials:
+            'same-origin',
+
+          body:
+            JSON.stringify({
+              clientGeo:
+                geo
+            })
+        }
+      );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data =
+      await response.json();
+
+    if (
+      data?.complete &&
+      data?.location
+    ) {
+      renderOwnNetwork(
+        data
+      );
+    }
+
+    return data;
+
+  } catch {
+    return null;
+  }
+}
+
+
+async function resolveBrowserCoarseGeo(
+  options = {}
+) {
+  const allowDevicePrompt =
+    options.allowDevicePrompt === true;
+
+  if (
+    state.clientGeo &&
+    state.clientGeo.source ===
+      'device-location'
+  ) {
     return state.clientGeo;
   }
 
@@ -379,7 +545,14 @@ async function resolveBrowserCoarseGeo() {
   const cached =
     readCachedBrowserGeo();
 
-  if (cached) {
+  if (
+    cached &&
+    (
+      cached.source ===
+        'device-location' ||
+      !allowDevicePrompt
+    )
+  ) {
     state.clientGeo =
       cached;
 
@@ -389,27 +562,72 @@ async function resolveBrowserCoarseGeo() {
   state.clientGeoPromise =
     (async () => {
 
-      // PRIMARY:
-      // Request originates from the actual browser,
-      // so the provider resolves the participant's
-      // internet connection rather than Render's
-      // outbound connection.
-      let geo =
-        await fetchBrowserGeo(
-          'https://ipapi.co/json/',
-          'ipapi-browser'
-        );
+      let geo = null;
 
-      // FALLBACK:
-      // ipwho.is explicitly supports browser/CORS
-      // lookups with the IP omitted.
+      // --------------------------------------------------
+      // MOST ACCURATE:
+      // Browser/OS location permission.
+      // Coordinates are used only for reverse geocoding
+      // and are never sent to AirGesture/PostgreSQL.
+      // --------------------------------------------------
+
+      if (allowDevicePrompt) {
+        const position =
+          await requestDevicePosition();
+
+        if (position) {
+          geo =
+            await reverseDevicePosition(
+              position
+            );
+        }
+      }
+
+
+      // --------------------------------------------------
+      // NO-PERMISSION FALLBACK #1:
+      // BigDataCloud browser IP locality.
+      // Calling without coordinates makes it use
+      // the participant browser's public network.
+      // --------------------------------------------------
+
+      if (!geo) {
+        geo =
+          await fetchBrowserGeo(
+            'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en',
+            'bigdatacloud-ip',
+            6000
+          );
+      }
+
+
+      // --------------------------------------------------
+      // FALLBACK #2
+      // --------------------------------------------------
+
+      if (!geo) {
+        geo =
+          await fetchBrowserGeo(
+            'https://ipapi.co/json/',
+            'ipapi-browser',
+            4500
+          );
+      }
+
+
+      // --------------------------------------------------
+      // FALLBACK #3
+      // --------------------------------------------------
+
       if (!geo) {
         geo =
           await fetchBrowserGeo(
             'https://ipwho.is/?fields=success,country,region,city',
-            'ipwhois-browser'
+            'ipwhois-browser',
+            4500
           );
       }
+
 
       if (geo) {
         state.clientGeo =
@@ -419,8 +637,15 @@ async function resolveBrowserCoarseGeo() {
           geo
         );
 
+        // Save City / Region / Country in the
+        // authenticated AirGesture session immediately.
+        await syncResolvedLocation(
+          geo
+        );
+
         return geo;
       }
+
 
       return null;
     })();
@@ -1934,9 +2159,13 @@ function connectBroadcastRoom() {
       })
     );
 
-    // Resolve coarse location independently so room joining
-    // is never blocked by an external geolocation provider.
-    void resolveBrowserCoarseGeo()
+    // A room join is an explicit user action.
+    // If IP locality is incomplete, the browser may request
+    // location permission for city-level accuracy.
+    void resolveBrowserCoarseGeo({
+      allowDevicePrompt:
+        true
+    })
       .then(
         (clientGeo) => {
           if (

@@ -399,6 +399,8 @@ function sanitizeClientGeo(input = {}) {
 
   const allowedSources =
     new Set([
+      'device-location',
+      'bigdatacloud-ip',
       'ipapi-browser',
       'ipwhois-browser',
       'browser-cache',
@@ -1024,7 +1026,10 @@ function createServer() {
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Permissions-Policy', 'camera=(self)');
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(self), geolocation=(self)'
+    );
     next();
   });
   app.use(express.json({ limit: '128kb' }));
@@ -1206,6 +1211,77 @@ function createServer() {
       });
     }
   );
+
+  app.post(
+    '/api/network/location',
+    async (req, res) => {
+      const clientGeo =
+        sanitizeClientGeo(
+          req.body?.clientGeo ||
+          {}
+        );
+
+      if (!clientGeo) {
+        return res.status(400).json({
+          ok: false,
+
+          error:
+            'Complete city, region and country are required.'
+        });
+      }
+
+      // Store ONLY coarse locality in the authenticated
+      // session. Latitude/longitude are never accepted here.
+      req.session.coarseGeo =
+        clientGeo;
+
+      const rawIp =
+        requestIp(req);
+
+      const network =
+        mergeClientGeo(
+          baseNetworkIdentity(
+            rawIp,
+            req.headers || {}
+          ),
+          clientGeo
+        );
+
+      res.setHeader(
+        'Cache-Control',
+        'no-store'
+      );
+
+      return res.json({
+        ok: true,
+
+        maskedIp:
+          network.maskedIp,
+
+        addressClass:
+          network.addressClass,
+
+        city:
+          network.city,
+
+        region:
+          network.region,
+
+        country:
+          network.country,
+
+        location:
+          network.location,
+
+        source:
+          network.geoSource,
+
+        complete:
+          true
+      });
+    }
+  );
+
 
   app.get(
     '/api/persistence/summary',

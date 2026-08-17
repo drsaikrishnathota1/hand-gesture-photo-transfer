@@ -298,3 +298,122 @@ test(
     );
   }
 );
+
+
+
+test(
+  'V5.4.2 supports device-location reverse geocoding without storing coordinates',
+  () => {
+    const appSource =
+      fs.readFileSync(
+        path.join(
+          __dirname,
+          '..',
+          'public',
+          'app.js'
+        ),
+        'utf8'
+      );
+
+    const serverSource =
+      fs.readFileSync(
+        path.join(
+          __dirname,
+          '..',
+          'server.js'
+        ),
+        'utf8'
+      );
+
+    assert.match(
+      appSource,
+      /navigator\.geolocation/
+    );
+
+    assert.match(
+      appSource,
+      /enableHighAccuracy/
+    );
+
+    assert.match(
+      appSource,
+      /reverse-geocode-client/
+    );
+
+    assert.match(
+      appSource,
+      /principalSubdivision/
+    );
+
+    assert.match(
+      appSource,
+      /device-location/
+    );
+
+    assert.match(
+      serverSource,
+      /geolocation=\(self\)/
+    );
+
+    assert.match(
+      serverSource,
+      /app\.post\(\s*'\/api\/network\/location'/
+    );
+  }
+);
+
+
+test(
+  'location persistence endpoint accepts only coarse locality',
+  () => {
+    const source =
+      fs.readFileSync(
+        path.join(
+          __dirname,
+          '..',
+          'server.js'
+        ),
+        'utf8'
+      );
+
+    const start =
+      source.indexOf(
+        "app.post(\n    '/api/network/location'"
+      );
+
+    const end =
+      source.indexOf(
+        "app.get(\n    '/api/persistence/summary'",
+        start
+      );
+
+    assert.ok(
+      start >= 0
+    );
+
+    assert.ok(
+      end > start
+    );
+
+    const route =
+      source.slice(
+        start,
+        end
+      );
+
+    assert.match(
+      route,
+      /req\.session\.coarseGeo/
+    );
+
+    assert.doesNotMatch(
+      route,
+      /req\.body.*latitude/
+    );
+
+    assert.doesNotMatch(
+      route,
+      /req\.body.*longitude/
+    );
+  }
+);
