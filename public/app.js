@@ -167,7 +167,7 @@ function collectClientInfo() {
 
 
 const BROWSER_GEO_CACHE_KEY =
-  'airgesture.coarse-geo.v2';
+  'airgesture.network-geo.v3';
 
 const BROWSER_GEO_CACHE_TTL_MS =
   30 * 60 * 1000;
@@ -524,17 +524,8 @@ async function syncResolvedLocation(
 }
 
 
-async function resolveBrowserCoarseGeo(
-  options = {}
-) {
-  const allowDevicePrompt =
-    options.allowDevicePrompt === true;
-
-  if (
-    state.clientGeo &&
-    state.clientGeo.source ===
-      'device-location'
-  ) {
+async function resolveBrowserCoarseGeo() {
+  if (state.clientGeo) {
     return state.clientGeo;
   }
 
@@ -545,14 +536,7 @@ async function resolveBrowserCoarseGeo(
   const cached =
     readCachedBrowserGeo();
 
-  if (
-    cached &&
-    (
-      cached.source ===
-        'device-location' ||
-      !allowDevicePrompt
-    )
-  ) {
+  if (cached) {
     state.clientGeo =
       cached;
 
@@ -562,34 +546,33 @@ async function resolveBrowserCoarseGeo(
   state.clientGeoPromise =
     (async () => {
 
-      let geo = null;
+      // ==================================================
+      // CANONICAL AIRGESTURE BUSINESS LOCATION
+      //
+      // Use network/IP-derived city, state and country
+      // consistently for ALL Senders and Receivers.
+      //
+      // Do not mix device/GPS administrative locality
+      // with network market locality.
+      // ==================================================
 
-      // --------------------------------------------------
-      // MOST ACCURATE:
-      // Browser/OS location permission.
-      // Coordinates are used only for reverse geocoding
-      // and are never sent to AirGesture/PostgreSQL.
-      // --------------------------------------------------
+      let geo =
+        await fetchBrowserGeo(
+          'https://ipapi.co/json/',
+          'ipapi-browser',
+          6000
+        );
 
-      if (allowDevicePrompt) {
-        const position =
-          await requestDevicePosition();
 
-        if (position) {
-          geo =
-            await reverseDevicePosition(
-              position
-            );
-        }
+      if (!geo) {
+        geo =
+          await fetchBrowserGeo(
+            'https://ipwho.is/?fields=success,country,region,city',
+            'ipwhois-browser',
+            6000
+          );
       }
 
-
-      // --------------------------------------------------
-      // NO-PERMISSION FALLBACK #1:
-      // BigDataCloud browser IP locality.
-      // Calling without coordinates makes it use
-      // the participant browser's public network.
-      // --------------------------------------------------
 
       if (!geo) {
         geo =
@@ -601,54 +584,29 @@ async function resolveBrowserCoarseGeo(
       }
 
 
-      // --------------------------------------------------
-      // FALLBACK #2
-      // --------------------------------------------------
-
       if (!geo) {
-        geo =
-          await fetchBrowserGeo(
-            'https://ipapi.co/json/',
-            'ipapi-browser',
-            4500
-          );
+        return null;
       }
 
 
-      // --------------------------------------------------
-      // FALLBACK #3
-      // --------------------------------------------------
+      state.clientGeo =
+        geo;
 
-      if (!geo) {
-        geo =
-          await fetchBrowserGeo(
-            'https://ipwho.is/?fields=success,country,region,city',
-            'ipwhois-browser',
-            4500
-          );
-      }
+      cacheBrowserGeo(
+        geo
+      );
 
 
-      if (geo) {
-        state.clientGeo =
-          geo;
-
-        cacheBrowserGeo(
-          geo
-        );
-
-        // Save City / Region / Country in the
-        // authenticated AirGesture session immediately.
-        await syncResolvedLocation(
-          geo
-        );
-
-        return geo;
-      }
+      // Synchronize the canonical location with the
+      // authenticated AirGesture server session.
+      await syncResolvedLocation(
+        geo
+      );
 
 
-      return null;
+      return geo;
     })();
+
 
   try {
     return await state.clientGeoPromise;

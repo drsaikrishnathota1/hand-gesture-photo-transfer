@@ -292,7 +292,11 @@ function firstHeader(headers, names) {
 }
 
 function sanitizeClientInfo(input = {}) {
-  const clean = (value, max = 80) => String(value || '').replace(/[\\r\\n\\t]/g, ' ').slice(0, max);
+  const clean = (value, max = 80) =>
+    String(value || '')
+      .replace(/[\r\n\t]/g, ' ')
+      .replace(/\\[rnt]/g, ' ')
+      .slice(0, max);
   const finite = (value, min, max) => {
     const n = Number(value);
     return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : 0;
@@ -320,6 +324,46 @@ function normalizeCountryName(value) {
 
   if (!country) {
     return '';
+  }
+
+  const canonical =
+    country
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const countryAliases =
+    new Map([
+      [
+        'united states of america (the)',
+        'United States'
+      ],
+      [
+        'united states of america',
+        'United States'
+      ],
+      [
+        'u.s.a.',
+        'United States'
+      ],
+      [
+        'usa',
+        'United States'
+      ],
+      [
+        'u.s.',
+        'United States'
+      ]
+    ]);
+
+  if (
+    countryAliases.has(
+      canonical
+    )
+  ) {
+    return countryAliases.get(
+      canonical
+    );
   }
 
   if (/^[A-Za-z]{2}$/.test(country)) {
@@ -3199,6 +3243,74 @@ function createServer() {
                 );
               }
             );
+
+
+            // A Sender may upload before browser IP
+            // geolocation finishes. Refresh the existing
+            // SEND analytics row when canonical location
+            // becomes available.
+            //
+            // recordLiveDataEvent uses:
+            // session + user + file ID + action
+            // as its conflict key, so this updates the
+            // existing SEND instead of adding a duplicate.
+            if (
+              ws.role === 'sender' &&
+              room.file
+            ) {
+              void (async () => {
+                const userId =
+                  await resolveDatabaseUserId(
+                    ws
+                  );
+
+                if (!userId) {
+                  return;
+                }
+
+                const consent =
+                  await database
+                    .getConsentPreferences(
+                      userId
+                    );
+
+                await database
+                  .recordLiveDataEvent({
+                    sessionId:
+                      room.sessionId,
+
+                    userId,
+
+                    roomCode:
+                      room.code,
+
+                    action:
+                      'SEND',
+
+                    file:
+                      room.file,
+
+                    clientInfo:
+                      ws.clientInfo || {},
+
+                    network:
+                      ws.network || {},
+
+                    commercialAllowed:
+                      Boolean(
+                        consent
+                          .analyticsConsent
+                      )
+                  });
+              })().catch(
+                (error) => {
+                  databaseError(
+                    'canonical SEND location refresh',
+                    error
+                  );
+                }
+              );
+            }
           }
         }
 
