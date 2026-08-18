@@ -119,7 +119,8 @@ test('channel comparison produces a transparent Google vs Meta strategy', () => 
 
   assert.equal(answer.scenario, 'channel-comparison');
   assert.equal(answer.chart.data.length, 2);
-  assert.ok(answer.directAnswer.includes('/100'));
+  assert.match(answer.directAnswer, /recommended first|comparison channel/i);
+  assert.doesNotMatch(answer.directAnswer, /\/100/);
 });
 
 test('external AI evidence is aggregate and excludes raw users and transfer IDs', () => {

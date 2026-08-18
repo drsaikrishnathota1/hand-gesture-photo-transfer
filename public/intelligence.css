@@ -907,10 +907,25 @@ body.intelligence-page::before {
 }
 
 .opportunity-score {
-  min-width: 50px;
+  min-width: 108px;
   text-align: right;
   font-family: "Space Grotesk", sans-serif;
-  font-size: 1.04rem;
+}
+
+.opportunity-score.qualitative strong {
+  display: block;
+  color: #eaf8ff;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.opportunity-score.qualitative small {
+  display: block;
+  margin-top: 3px;
+  color: #ffcf5a;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
 }
 
 .ad-lab-grid {
@@ -1045,9 +1060,14 @@ body.intelligence-page::before {
   transition: 140ms ease;
 }
 
+.matrix-cell[data-strength="very-strong"] {
+  border-color: rgba(51, 223, 154, 0.28);
+  background: rgba(51, 223, 154, 0.085);
+}
+
 .matrix-cell[data-strength="strong"] {
-  border-color: rgba(51, 223, 154, 0.2);
-  background: rgba(51, 223, 154, 0.055);
+  border-color: rgba(91, 140, 255, 0.24);
+  background: rgba(91, 140, 255, 0.065);
 }
 
 .matrix-cell[data-strength="moderate"] {
@@ -1064,6 +1084,12 @@ body.intelligence-page::before {
 .matrix-cell strong {
   font-family: "Space Grotesk", sans-serif;
   font-size: 0.92rem;
+}
+
+.matrix-cell .matrix-stars {
+  color: #ffcf5a;
+  font-size: 0.72rem;
+  letter-spacing: 0.035em;
 }
 
 .matrix-cell small {
@@ -1757,6 +1783,21 @@ body.intelligence-page::before {
 
 .score-breakdown-row strong {
   color: #dbeafa;
+}
+
+.drawer-detail-index {
+  display: block;
+  margin-top: 4px;
+  color: var(--intel-muted);
+  font-size: 0.58rem;
+  font-weight: 600;
+}
+
+.drawer-explainer {
+  margin: 0 0 10px !important;
+  color: var(--intel-muted);
+  font-size: 0.66rem;
+  line-height: 1.5;
 }
 
 .drawer-action-row {

@@ -88,6 +88,28 @@
     return `${scaled >= 100 ? Math.round(scaled) : scaled.toFixed(scaled >= 10 ? 1 : 2)} ${units[index]}`;
   }
 
+  function qualitativeLabel(score) {
+    const value = Number(score || 0);
+    if (value >= 80) return 'Very Strong';
+    if (value >= 65) return 'Strong';
+    if (value >= 50) return 'Moderate';
+    return 'Explore';
+  }
+
+  function qualitativeStars(score) {
+    const value = Number(score || 0);
+    const filled = value >= 80 ? 5 : value >= 65 ? 4 : value >= 50 ? 3 : 2;
+    return `${'★'.repeat(filled)}${'☆'.repeat(5 - filled)}`;
+  }
+
+  function channelDisplayLabel(channel, other) {
+    if (!channel) return 'Explore';
+    if (other && Number(channel.score || 0) >= Number(other.score || 0)) {
+      return 'Recommended First Test';
+    }
+    return 'Secondary Test';
+  }
+
   function shortLabel(value, max = 26) {
     const text = String(value || 'Unknown');
     return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -314,11 +336,13 @@
         scales: {
           x: {
             beginAtZero: true,
+            suggestedMax: options.qualitative && horizontal ? 100 : undefined,
             grid: {
-              color: colors.grid,
+              color: options.qualitative && horizontal ? 'transparent' : colors.grid,
               drawBorder: false
             },
             ticks: {
+              display: !(options.qualitative && horizontal),
               color: colors.text,
               callback: (value) => options.formatValue === 'bytes'
                 ? formatBytes(value)
@@ -327,11 +351,15 @@
           },
           y: {
             beginAtZero: true,
+            suggestedMax: options.qualitative && !horizontal ? 100 : undefined,
             grid: {
-              color: horizontal ? 'transparent' : colors.grid,
+              color: options.qualitative && !horizontal
+                ? 'transparent'
+                : (horizontal ? 'transparent' : colors.grid),
               drawBorder: false
             },
             ticks: {
+              display: !(options.qualitative && !horizontal),
               color: colors.text,
               autoSkip: false,
               font: {
@@ -351,6 +379,9 @@
             callbacks: {
               label: (context) => {
                 const raw = Number(context.raw || 0);
+                if (options.qualitative) {
+                  return ` ${qualitativeLabel(raw)} commercial potential`;
+                }
                 return options.formatValue === 'bytes'
                   ? ` ${formatBytes(raw)}`
                   : ` ${formatNumber(raw)} ${options.valueSuffix || ''}`.trimEnd();
@@ -749,10 +780,10 @@
       value: item.score
     })), {
       valueField: 'value',
-      datasetLabel: 'Opportunity Score',
+      datasetLabel: 'Commercial Potential',
       horizontal: true,
-      footer: 'Click to inspect the score and commercial test',
-      valueSuffix: '/100',
+      qualitative: true,
+      footer: 'Click to see why this opportunity is ranked here',
       onSelect: (item) => openOpportunityDrawer(item.id)
     });
 
@@ -767,10 +798,10 @@
       }
     ], {
       valueField: 'value',
-      datasetLabel: 'Channel Fit',
+      datasetLabel: 'Advertising Recommendation',
       horizontal: false,
-      footer: 'Click to ask which channel should be tested first',
-      valueSuffix: '/100',
+      qualitative: true,
+      footer: 'Click to compare the recommended first test channel',
       onSelect: () => askStrategy('Should we use Google Ads or Instagram / Meta based on the current AirGesture data?')
     });
   }
@@ -780,7 +811,7 @@
     if (tags) {
       tags.innerHTML = (snapshot.opportunities || [])
         .slice(0, 4)
-        .map((item) => `<span class="opportunity-tag">${escapeHtml(item.shortTitle)} · ${item.score}/100</span>`)
+        .map((item) => `<span class="opportunity-tag">${escapeHtml(item.shortTitle)} · ${escapeHtml(qualitativeLabel(item.score))}</span>`)
         .join('');
     }
 
@@ -818,9 +849,12 @@
         <span class="opportunity-row-icon">${escapeHtml(item.icon || '◈')}</span>
         <div>
           <strong>${escapeHtml(item.title)}</strong>
-          <small>${escapeHtml(item.scoreLabel)} · Best market: ${escapeHtml(item.bestMarket || 'N/A')}</small>
+          <small>Best market: ${escapeHtml(item.bestMarket || 'N/A')} · Click to see evidence</small>
         </div>
-        <span class="opportunity-score">${formatNumber(item.score)}/100</span>
+        <span class="opportunity-score qualitative">
+          <strong>${escapeHtml(qualitativeLabel(item.score))}</strong>
+          <small>${escapeHtml(qualitativeStars(item.score))}</small>
+        </span>
       </article>
     `).join('');
   }
@@ -833,9 +867,9 @@
       $('googleAdCard').innerHTML = `
         <div class="ad-logo-line">
           <h3>Google Search Ads</h3>
-          <span class="ad-score-pill">${google.score}/100</span>
+          <span class="ad-score-pill">${escapeHtml(channelDisplayLabel(google, meta))}</span>
         </div>
-        <p><strong>${escapeHtml(google.scoreLabel)}</strong>. Stronger hypothesis for search-intent products such as security, PDF, backup, storage and productivity software.</p>
+        <p><strong>${escapeHtml(qualitativeLabel(google.score))} evidence</strong>. Stronger hypothesis for search-intent products such as security, PDF, backup, storage and productivity software.</p>
         <div class="ad-product-list">
           ${(google.productCategories || []).map((item) => `<span>${escapeHtml(item)}</span>`).join('')}
         </div>
@@ -848,9 +882,9 @@
       $('metaAdCard').innerHTML = `
         <div class="ad-logo-line">
           <h3>Instagram / Meta Ads</h3>
-          <span class="ad-score-pill">${meta.score}/100</span>
+          <span class="ad-score-pill">${escapeHtml(channelDisplayLabel(meta, google))}</span>
         </div>
-        <p><strong>${escapeHtml(meta.scoreLabel)}</strong>. Stronger hypothesis for visual/mobile products such as photo tools, mobile storage, backup and cross-device apps.</p>
+        <p><strong>${escapeHtml(qualitativeLabel(meta.score))} evidence</strong>. Stronger hypothesis for visual/mobile products such as photo tools, mobile storage, backup and cross-device apps.</p>
         <div class="ad-product-list">
           ${(meta.productCategories || []).map((item) => `<span>${escapeHtml(item)}</span>`).join('')}
         </div>
@@ -861,8 +895,9 @@
   }
 
   function matrixStrength(score) {
-    if (score >= 80) return 'strong';
-    if (score >= 65) return 'moderate';
+    if (score >= 80) return 'very-strong';
+    if (score >= 65) return 'strong';
+    if (score >= 50) return 'moderate';
     return 'explore';
   }
 
@@ -882,7 +917,7 @@
 
     const rows = matrix.products.map((product) => `
       <tr>
-        <td class="matrix-product">${escapeHtml(product.title)}<br><small>${product.overallScore}/100 overall</small></td>
+        <td class="matrix-product">${escapeHtml(product.title)}<br><small>Overall: ${escapeHtml(qualitativeLabel(product.overallScore))}</small></td>
         ${product.cells.map((cell) => `
           <td>
             <button
@@ -895,8 +930,8 @@
               data-matrix-score="${cell.score}"
               style="--matrix-score:${cell.score}"
             >
-              <strong>${cell.score}</strong>
-              <small>${escapeHtml(cell.label)}</small>
+              <strong class="matrix-stars">${escapeHtml(qualitativeStars(cell.score))}</strong>
+              <small>${escapeHtml(qualitativeLabel(cell.score))}</small>
             </button>
           </td>
         `).join('')}
@@ -1073,7 +1108,7 @@
           ? `${topFile.name} is the largest content category at ${topFile.share}% of current activity.`
           : 'No file-type pattern is visible.',
         soWhat: topProduct
-          ? `${topProduct.title} currently ranks highest as a commercial test hypothesis at ${topProduct.score}/100.`
+          ? `${topProduct.title} currently ranks highest as a ${qualitativeLabel(topProduct.score).toLowerCase()} commercial test hypothesis.`
           : 'File behavior can inform product hypotheses.',
         why: 'Content behavior helps prioritize which adjacent software categories are worth testing with the audience.',
         decision: topProduct
@@ -1135,7 +1170,7 @@
     if (panel === 'product') {
       return `
         <div class="drawer-section"><h3>File types</h3>${listTop(snapshot.dimensions?.fileTypes)}</div>
-        <div class="drawer-section"><h3>Product hypotheses</h3>${listTop((snapshot.opportunities || []).map((item) => ({ name: item.title, count: item.score })), 'count', 6, (value) => `${value}/100`)}</div>
+        <div class="drawer-section"><h3>Product hypotheses</h3>${listTop((snapshot.opportunities || []).map((item) => ({ name: item.title, count: item.score })), 'count', 6, (value) => qualitativeLabel(value))}</div>
         <div class="drawer-section"><h3>Data volume by file type</h3>${listTop(snapshot.dimensions?.fileTypes, 'bytes', 5, formatBytes)}</div>
       `;
     }
@@ -1223,16 +1258,16 @@
 
     const html = `
       <div class="drawer-summary-grid">
-        <div class="drawer-stat"><span>Opportunity score</span><strong>${opportunity.score}/100</strong></div>
+        <div class="drawer-stat"><span>Commercial potential</span><strong>${escapeHtml(qualitativeLabel(opportunity.score))}</strong><small class="drawer-detail-index">Evidence index: ${opportunity.score}/100</small></div>
         <div class="drawer-stat"><span>Best test market</span><strong>${escapeHtml(opportunity.bestMarket || '—')}</strong></div>
         <div class="drawer-stat"><span>Relevant events</span><strong>${formatNumber(opportunity.relevantEvents || 0)}</strong></div>
         <div class="drawer-stat"><span>Channel hypothesis</span><strong>${escapeHtml(opportunity.channelHint || '—')}</strong></div>
       </div>
       <div class="drawer-section"><h3>Why this opportunity?</h3><p>${escapeHtml(opportunity.reason)}</p></div>
-      <div class="drawer-section"><h3>Transparent score breakdown</h3><div class="drawer-score-breakdown">${breakdown}</div></div>
+      <div class="drawer-section"><h3>How was this decided?</h3><p class="drawer-explainer">The main dashboard uses plain-language labels. The numerical evidence index is shown here only so you can inspect the ranking logic.</p><div class="drawer-score-breakdown">${breakdown}</div></div>
       <div class="drawer-section"><h3>Candidate products</h3><ul>${products}</ul></div>
       <div class="drawer-section"><h3>Candidate markets</h3><ul>${markets || '<li>No market available</li>'}</ul></div>
-      <div class="drawer-section"><h3>Strategic decision</h3><p>Test one ${escapeHtml(opportunity.shortTitle.toLowerCase())} offer in ${escapeHtml(opportunity.bestMarket || 'the strongest market')} before scaling. Treat the score as prioritization evidence, not predicted revenue.</p></div>
+      <div class="drawer-section"><h3>Strategic decision</h3><p>Test one ${escapeHtml(opportunity.shortTitle.toLowerCase())} offer in ${escapeHtml(opportunity.bestMarket || 'the strongest market')} before scaling. Treat the rating as prioritization evidence, not predicted revenue.</p></div>
       <div class="drawer-action-row">
         <button type="button" data-drawer-ai="Where should we promote ${escapeHtml(opportunity.title)} and which advertising channel should we test first?">✦ Ask AI</button>
         <button type="button" data-drawer-compare="product">Compare products</button>
@@ -1307,6 +1342,7 @@
 
     const isLine = chart.type === 'line';
     const colors = cssChartDefaults();
+    const isQualitative = /score|fit|potential/i.test(String(chart.label || ''));
 
     state.aiChart = new Chart(canvas, {
       type: isLine ? 'line' : 'bar',
@@ -1332,8 +1368,9 @@
         scales: {
           x: {
             beginAtZero: !isLine,
-            grid: { color: isLine ? 'transparent' : colors.grid },
-            ticks: { color: colors.text, maxTicksLimit: 10 }
+            suggestedMax: isQualitative && !isLine ? 100 : undefined,
+            grid: { color: isLine || isQualitative ? 'transparent' : colors.grid },
+            ticks: { display: !isQualitative, color: colors.text, maxTicksLimit: 10 }
           },
           y: {
             beginAtZero: true,
@@ -1343,7 +1380,12 @@
         },
         plugins: {
           legend: { display: false },
-          tooltip: basePlugins().tooltip
+          tooltip: {
+            ...basePlugins().tooltip,
+            callbacks: isQualitative ? {
+              label: (context) => ` ${qualitativeLabel(Number(context.raw || 0))} commercial potential`
+            } : undefined
+          }
         }
       }
     });
@@ -1612,11 +1654,11 @@
 
       const html = `
         <div class="drawer-summary-grid">
-          <div class="drawer-stat"><span>Matrix score</span><strong>${escapeHtml(score)}/100</strong></div>
+          <div class="drawer-stat"><span>Product–audience fit</span><strong>${escapeHtml(qualitativeLabel(score))}</strong><small class="drawer-detail-index">Evidence index: ${escapeHtml(score)}/100</small></div>
           <div class="drawer-stat"><span>Audience</span><strong>${escapeHtml(segment)}</strong></div>
         </div>
-        <div class="drawer-section"><h3>Product hypothesis</h3><p>${escapeHtml(product)} is being evaluated against the observed ${escapeHtml(segment)} audience using a classroom fit score plus observed audience share.</p></div>
-        <div class="drawer-section"><h3>Strategic interpretation</h3><p>A high score means the combination is worth testing first. It does not mean the audience will buy the product.</p></div>
+        <div class="drawer-section"><h3>Product hypothesis</h3><p>${escapeHtml(product)} is being evaluated against the observed ${escapeHtml(segment)} audience using aggregate activity plus transparent product-fit assumptions.</p></div>
+        <div class="drawer-section"><h3>Strategic interpretation</h3><p>A stronger fit means the combination is worth testing earlier. It does not mean the audience will buy the product.</p></div>
         <div class="drawer-action-row">
           <button type="button" data-drawer-ai="Should we promote ${escapeHtml(product)} to the ${escapeHtml(segment)} audience? Which market and ad channel should we test first?">✦ Ask AI</button>
           <button type="button" data-drawer-compare="segment">Compare audience</button>

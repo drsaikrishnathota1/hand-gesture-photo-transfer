@@ -554,6 +554,18 @@ function weightedScore(parts = []) {
   };
 }
 
+function commercialPotentialLabel(score) {
+  const value = Number(score || 0);
+  if (value >= 80) return 'Very Strong';
+  if (value >= 65) return 'Strong';
+  if (value >= 50) return 'Moderate';
+  return 'Explore';
+}
+
+function commercialPotentialPhrase(score) {
+  return `${commercialPotentialLabel(score)} commercial potential`;
+}
+
 function relevantRowsForProduct(id, rows = []) {
   if (id === 'antivirus-security') {
     return rows.filter((row) => {
@@ -693,11 +705,7 @@ function productOpportunity(definition, rows, signals) {
   return {
     ...definition,
     score: scored.score,
-    scoreLabel: scored.score >= 75
-      ? 'Strong test candidate'
-      : scored.score >= 55
-        ? 'Promising test candidate'
-        : 'Exploratory candidate',
+    scoreLabel: commercialPotentialPhrase(scored.score),
     breakdown: scored.breakdown,
     reason,
     markets,
@@ -778,7 +786,7 @@ function advertisingChannels(signals, opportunities) {
           .filter(Boolean)
           .sort((a, b) => b.score - a.score)[0]?.title || ''
     },
-    note: 'Channel scores are classroom prioritization hypotheses derived from aggregate AirGesture behavior. They do not measure actual ad conversion or purchase intent.'
+    note: 'Advertising recommendations are classroom prioritization hypotheses derived from aggregate AirGesture behavior. The numerical evidence index is retained only for transparent ranking details and does not measure actual ad conversion or purchase intent.'
   };
 }
 
@@ -877,7 +885,7 @@ function productAudienceMatrix(rows, opportunities) {
         return {
           segment: segment.name,
           score,
-          label: score >= 80 ? 'Strong' : score >= 65 ? 'Moderate' : 'Explore'
+          label: commercialPotentialLabel(score)
         };
       })
     };
@@ -886,7 +894,7 @@ function productAudienceMatrix(rows, opportunities) {
   return {
     segments,
     products,
-    note: 'Matrix scores combine observed audience share with transparent classroom product-fit assumptions. They are prioritization aids, not predicted revenue.'
+    note: 'Product–audience fit ratings combine observed audience share with transparent classroom product-fit assumptions. The numerical evidence index is available only in details; neither the rating nor the index predicts revenue.'
   };
 }
 
@@ -1010,7 +1018,7 @@ function strategicActions(snapshot) {
       priority: 1,
       icon: topProduct.icon,
       title: `${topProduct.shortTitle} opportunity`,
-      evidence: `${topProduct.score}/100 classroom opportunity score based on current aggregate behavior.`,
+      evidence: `${commercialPotentialPhrase(topProduct.score)} based on current aggregate behavior.`,
       decision: `Run a small ${topProduct.shortTitle.toLowerCase()} product-message experiment before making a larger investment.`,
       actionLabel: 'Explore product fit',
       ask: `Why is ${topProduct.title} the leading commercial opportunity right now?`
@@ -1049,7 +1057,7 @@ function strategicActions(snapshot) {
       priority: 4,
       icon: '↗',
       title: `${channel.name} test`,
-      evidence: `${channel.score}/100 channel-fit score from current aggregate device/content behavior.`,
+      evidence: `${commercialPotentialPhrase(channel.score)} for the recommended channel based on current aggregate device/content behavior.`,
       decision: `Use ${channel.name} as the first classroom advertising hypothesis, then compare with the alternative channel using the same market and product.`,
       actionLabel: 'Compare channels',
       ask: 'Should we use Google Ads or Instagram / Meta based on the current AirGesture data?'
@@ -1194,7 +1202,7 @@ function answerForProduct(question, snapshot, productId) {
       ? `${marketLabel} is the strongest first market to test for ${productLabel.toLowerCase()} in the current AirGesture scope.`
       : `The current scope does not contain enough market activity to rank a first test market for ${productLabel.toLowerCase()}.`,
     evidence: [
-      `${opportunity?.score || 0}/100 classroom opportunity score for ${productLabel}.`,
+      `${commercialPotentialPhrase(opportunity?.score || 0)} for ${productLabel}.`,
       bestMarket
         ? `${marketLabel}: ${bestMarket.count} relevant events across ${bestMarket.users} observed users.`
         : 'No location currently has enough relevant activity to rank.',
@@ -1224,7 +1232,7 @@ function answerForProduct(question, snapshot, productId) {
     },
     decisionPath: [
       { stage: 'Observation', text: `${opportunity?.relevantEvents || 0} relevant events are visible in the current scope.` },
-      { stage: 'Analysis', text: `${productLabel} scores ${opportunity?.score || 0}/100 using transparent aggregate signals.` },
+      { stage: 'Analysis', text: `${productLabel} shows ${commercialPotentialPhrase(opportunity?.score || 0).toLowerCase()} using transparent aggregate signals.` },
       { stage: 'Opportunity', text: `${marketLabel} ranks highest among the current candidate markets.` },
       { stage: 'Decision', text: `Prioritize a controlled ${productLabel.toLowerCase()} market test.` },
       { stage: 'Experiment', text: `Measure the test before increasing spend or expanding geography.` }
@@ -1300,10 +1308,10 @@ function channelAnswer(snapshot) {
   return {
     scenario: 'channel-comparison',
     title: 'Google Ads vs Instagram / Meta',
-    directAnswer: `${winner.name} is the stronger first classroom test channel in the current AirGesture scope (${winner.score}/100 vs ${other.score}/100).`,
+    directAnswer: `${winner.name} is the recommended first classroom test channel in the current AirGesture scope. ${other.name} should be used as the comparison channel.`,
     evidence: [
-      `Google Search fit score: ${google.score}/100.`,
-      `Instagram / Meta fit score: ${meta.score}/100.`,
+      `Google Search: ${commercialPotentialPhrase(google.score)}.`,
+      `Instagram / Meta: ${commercialPotentialPhrase(meta.score)}.`,
       `Current desktop share: ${snapshot.signals.desktopPct}%.`,
       `Current mobile share: ${snapshot.signals.mobilePct}%; image/video share: ${snapshot.signals.imageVideoPct}%.`
     ],
@@ -1316,7 +1324,7 @@ function channelAnswer(snapshot) {
     chart: {
       type: 'bar',
       title: 'Advertising channel fit',
-      label: 'Fit score',
+      label: 'Commercial potential',
       data: [
         { label: 'Google Search', value: google.score },
         { label: 'Instagram / Meta', value: meta.score }
@@ -1324,8 +1332,8 @@ function channelAnswer(snapshot) {
     },
     decisionPath: [
       { stage: 'Observation', text: 'Device and content behavior differs across the current audience.' },
-      { stage: 'Analysis', text: 'The application calculates transparent channel-fit scores from those aggregate signals.' },
-      { stage: 'Opportunity', text: `${winner.name} currently has the stronger fit signal.` },
+      { stage: 'Analysis', text: 'The application converts those aggregate signals into plain-language channel recommendations.' },
+      { stage: 'Opportunity', text: `${winner.name} currently has the stronger first-test signal.` },
       { stage: 'Decision', text: `Use ${winner.name} as the first test channel.` },
       { stage: 'Experiment', text: 'Measure actual campaign performance before scaling.' }
     ],
@@ -1494,7 +1502,7 @@ function marketAnswer(snapshot) {
     evidence: [
       market ? `${market.name}: ${market.count} events, ${market.users} users and ${market.share}% of current activity.` : 'No market evidence available.',
       next ? `${next.name} is the next-ranked market with ${next.count} events.` : 'No comparison market is available.',
-      topProduct ? `${topProduct.title} is the current highest-scoring product hypothesis (${topProduct.score}/100).` : 'No product opportunity score is available.'
+      topProduct ? `${topProduct.title} is the current leading product hypothesis with ${commercialPotentialPhrase(topProduct.score).toLowerCase()}.` : 'No product opportunity rating is available.'
     ],
     interpretation: 'Geographic activity identifies where the application has observed usage, making top markets reasonable candidates for controlled commercial experiments.',
     recommendation: market
@@ -1543,25 +1551,25 @@ function topOpportunitiesAnswer(snapshot) {
     scenario: 'top-opportunities',
     title: 'Top Commercial Opportunities',
     directAnswer: top.length
-      ? `${top[0].title} is the highest-scoring product hypothesis in the current AirGesture scope, followed by ${top[1]?.title || 'the next opportunity'}.`
+      ? `${top[0].title} is the strongest current product hypothesis, rated ${commercialPotentialLabel(top[0].score)}, followed by ${top[1]?.title || 'the next opportunity'}.`
       : 'No commercial opportunities can be ranked in the current scope.',
     evidence: top.map((item) =>
-      `${item.title}: ${item.score}/100 — ${item.reason}`
+      `${item.title}: ${commercialPotentialPhrase(item.score)} — ${item.reason}`
     ),
-    interpretation: 'The ranking combines observable usage, device, content, location and activity signals into transparent classroom prioritization scores.',
+    interpretation: 'The ranking combines observable usage, device, content, location and activity signals into plain-language commercial potential ratings. Numerical indexes are retained only for transparent drill-down details.',
     recommendation: top[0]
       ? `Test ${top[0].title.toLowerCase()} first in ${top[0].bestMarket || market?.name || 'the strongest market'} using ${channel.name}, then compare with the second-ranked product hypothesis.`
       : 'Collect additional data before selecting a product experiment.',
     experiment: top[0]
       ? `One market + one product + one channel + one measurable outcome. Keep the test small and compare against the second-ranked option.`
       : 'Collect more data.',
-    channel: `${channel.name} currently has the stronger channel-fit signal (${channel.score}/100).`,
-    risk: 'Opportunity scores are prioritization aids, not revenue forecasts or proof of purchase intent.',
+    channel: `${channel.name} is currently the recommended first test channel; ${channel === snapshot.adChannels.google ? snapshot.adChannels.meta.name : snapshot.adChannels.google.name} is the comparison channel.`,
+    risk: 'Commercial potential ratings are prioritization aids, not revenue forecasts or proof of purchase intent.',
     confidence: baseConfidence(snapshot),
     chart: {
       type: 'bar',
       title: 'Commercial opportunity ranking',
-      label: 'Opportunity score',
+      label: 'Commercial potential',
       data: snapshot.opportunities.map((item) => ({
         label: item.shortTitle,
         value: item.score
@@ -1569,7 +1577,7 @@ function topOpportunitiesAnswer(snapshot) {
     },
     decisionPath: [
       { stage: 'Observation', text: 'The database contains aggregate product, audience, market and timing signals.' },
-      { stage: 'Analysis', text: 'Signals are converted into transparent opportunity scores.' },
+      { stage: 'Analysis', text: 'Signals are converted into plain-language commercial potential ratings.' },
       { stage: 'Opportunity', text: `${top[0]?.title || 'The leading product'} ranks highest in the current scope.` },
       { stage: 'Decision', text: 'Prioritize one small test rather than launching every idea.' },
       { stage: 'Experiment', text: 'Measure outcomes and update the ranking with real response data.' }
@@ -1633,17 +1641,23 @@ function compactAiEvidence(snapshot, strategy) {
     opportunities: (snapshot?.opportunities || []).slice(0, 6).map((item) => ({
       id: item.id,
       title: item.title,
-      score: item.score,
+      commercialPotential: commercialPotentialLabel(item.score),
       bestMarket: item.bestMarket,
       reason: item.reason
     })),
     channels: {
       google: {
-        score: snapshot?.adChannels?.google?.score || 0,
+        recommendation: snapshot?.adChannels?.google?.score >= snapshot?.adChannels?.meta?.score
+          ? 'RECOMMENDED_FIRST_TEST'
+          : 'SECONDARY_TEST',
+        evidenceStrength: commercialPotentialLabel(snapshot?.adChannels?.google?.score || 0),
         bestProduct: snapshot?.adChannels?.google?.bestProduct || ''
       },
       meta: {
-        score: snapshot?.adChannels?.meta?.score || 0,
+        recommendation: snapshot?.adChannels?.meta?.score > snapshot?.adChannels?.google?.score
+          ? 'RECOMMENDED_FIRST_TEST'
+          : 'SECONDARY_TEST',
+        evidenceStrength: commercialPotentialLabel(snapshot?.adChannels?.meta?.score || 0),
         bestProduct: snapshot?.adChannels?.meta?.bestProduct || ''
       }
     },
