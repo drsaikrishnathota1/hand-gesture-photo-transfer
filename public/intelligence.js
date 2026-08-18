@@ -32,6 +32,7 @@
     aiChart: null,
     loadController: null,
     aiController: null,
+    aiHistory: [],
     loadSequence: 0,
     initialized: false,
     refreshTimer: null,
@@ -405,8 +406,20 @@
     if (!badge) return;
     const configured = Boolean(snapshot?.ai?.configured);
     badge.classList.toggle('live', configured);
-    badge.innerHTML = `<span class="ai-status-dot"></span>${configured ? 'AI connected' : 'Grounded strategy'}`;
-    if (provider) provider.textContent = configured ? 'Generative AI + database grounding' : 'Data-grounded strategy mode';
+    badge.classList.toggle('fallback', !configured);
+    badge.innerHTML = `<span class="ai-status-dot"></span>${configured ? 'AI connected' : 'AI not connected'}`;
+    if (provider) {
+      provider.textContent = configured
+        ? 'OpenAI reasoning + live AirGesture aggregate evidence'
+        : 'Analytical fallback only · connect AI on the server for natural-language reasoning';
+    }
+
+    const send = $('aiSendBtn');
+    if (send && !send.disabled) {
+      send.innerHTML = configured
+        ? 'Ask AI <span>↗</span>'
+        : 'Analyze with Rules <span>↗</span>';
+    }
   }
 
   function contentDecision(topFile) {
@@ -757,6 +770,7 @@
   }
 
   function clearConversation() {
+    state.aiHistory = [];
     const container = $('aiConversation');
     if (!container) return;
     container.innerHTML = '<div class="ai-message assistant intro-message"><div class="ai-avatar">✦</div><div><strong>Strategy Copilot</strong><p>Ask a commercial question. I will separate observed evidence from the business hypothesis.</p></div></div>';
@@ -819,18 +833,20 @@
     const ai = data?.ai || {};
     if (!panel || !strategy) return;
 
-    const evidence = (strategy.evidence || []).slice(0, 4);
+    const evidence = (strategy.evidence || []).slice(0, 5);
     const followUps = (strategy.followUps || []).slice(0, 4);
-    const narrative = ai.used && ai.text ? `
-      <div class="ai-narrative"><span>AI interpretation</span><p>${escapeHtml(ai.text)}</p></div>
-    ` : '';
+    const sourceLabel = ai.used
+      ? `AI answer · ${escapeHtml(ai.model || 'OpenAI')} · grounded in AirGesture data`
+      : 'Analytical fallback · generative AI is not connected';
 
     panel.innerHTML = `
       <div class="ai-result">
+        <div class="ai-answer-source ${ai.used ? 'live' : 'fallback'}">${sourceLabel}</div>
+        ${!ai.used ? '<div class="ai-source-warning"><strong>This is not a generative AI answer.</strong><span>The server is using the rule-based analytical fallback, so open-ended or conversational questions may be limited.</span></div>' : ''}
         <div class="ai-result-heading"><span>${escapeHtml(String(strategy.scenario || 'STRATEGY').replace(/-/g, ' ').toUpperCase())}</span><h3>${escapeHtml(strategy.title || 'Strategic analysis')}</h3><p>${escapeHtml(strategy.directAnswer || '')}</p></div>
-        ${narrative}
         <div class="ai-section-card"><span>Evidence from AirGesture</span><ul class="ai-evidence-list">${evidence.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>
         ${strategy.chart?.data?.length ? '<div class="ai-chart-container"><canvas id="strategySupportingChart"></canvas></div>' : ''}
+        ${strategy.interpretation ? `<div class="ai-section-card"><span>What the evidence means</span><p>${escapeHtml(strategy.interpretation)}</p></div>` : ''}
         <div class="ai-section-card decision"><span>Recommended decision</span><p>${escapeHtml(strategy.recommendation || '')}</p></div>
         <div class="ai-section-card"><span>Controlled test</span><p>${escapeHtml(strategy.experiment || '')}</p></div>
         ${strategy.channel ? `<div class="ai-section-card"><span>Channel consideration</span><p>${escapeHtml(strategy.channel)}</p></div>` : ''}
@@ -844,32 +860,66 @@
   async function askStrategy(rawQuestion) {
     const question = String(rawQuestion || '').trim().slice(0, 500);
     if (!question) return;
+
     switchMode('ai');
     if ($('aiQuestionInput')) $('aiQuestionInput').value = question;
+
+    const priorHistory = state.aiHistory.slice(-8);
     addConversationMessage('user', question);
 
     if (state.aiController) state.aiController.abort();
     state.aiController = new AbortController();
     const send = $('aiSendBtn');
-    if (send) { send.disabled = true; send.textContent = 'Analyzing…'; }
+    if (send) { send.disabled = true; send.textContent = 'Analyzing current data…'; }
 
     try {
       const data = await fetchJson('/api/intelligence/ask', {
         method: 'POST',
         signal: state.aiController.signal,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, filters: state.filters })
+        body: JSON.stringify({
+          question,
+          filters: state.filters,
+          history: priorHistory
+        })
       });
+
       renderAiAnswer(data);
-      addConversationMessage('assistant', data.strategy?.directAnswer || 'Analysis complete.', data.ai?.used ? 'AI Strategy Copilot' : 'Strategy Assistant');
-      if (data.ai?.error) showToast('The data-grounded strategy answer was used because the generative layer was unavailable.');
+
+      const answer = data.strategy?.directAnswer || 'Analysis complete.';
+      addConversationMessage(
+        'assistant',
+        answer,
+        data.ai?.used ? 'AI Strategy Copilot' : 'Analytical Fallback'
+      );
+
+      state.aiHistory.push(
+        { role: 'user', content: question },
+        { role: 'assistant', content: answer }
+      );
+      state.aiHistory = state.aiHistory.slice(-8);
+
+      if ($('aiQuestionInput')) $('aiQuestionInput').value = '';
+
+      if (!data.ai?.used) {
+        showToast(
+          data.ai?.configured
+            ? 'Generative AI was unavailable; the analytical fallback answered this question.'
+            : 'AI is not connected; this answer came from the analytical fallback.'
+        );
+      }
     } catch (error) {
       if (error.name === 'AbortError') return;
       console.error(error);
       addConversationMessage('assistant', error.message || 'The strategy request failed.', 'Strategy Assistant');
       showToast(error.message || 'Could not complete strategy analysis.');
     } finally {
-      if (send) { send.disabled = false; send.innerHTML = 'Ask Strategy <span>↗</span>'; }
+      if (send) {
+        send.disabled = false;
+        send.innerHTML = state.snapshot?.ai?.configured
+          ? 'Ask AI <span>↗</span>'
+          : 'Analyze with Rules <span>↗</span>';
+      }
     }
   }
 

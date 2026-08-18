@@ -254,3 +254,54 @@ button { cursor: pointer; }
   .kpi-grid, .opportunity-list { grid-template-columns: 1fr; }
   .peak-timing, .drawer-stat-grid { grid-template-columns: 1fr; }
 }
+
+/* AI answer provenance — make it obvious whether the user is seeing
+   real generative reasoning or the deterministic analytical fallback. */
+.ai-answer-source {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 12px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+  border: 1px solid rgba(148, 163, 184, .18);
+  color: #c7d7e8;
+  background: rgba(255, 255, 255, .035);
+}
+
+.ai-answer-source.live {
+  color: #c8fff0;
+  border-color: rgba(58, 217, 157, .28);
+  background: rgba(58, 217, 157, .08);
+}
+
+.ai-answer-source.fallback {
+  color: #ffe6ad;
+  border-color: rgba(241, 199, 91, .28);
+  background: rgba(241, 199, 91, .08);
+}
+
+.ai-source-warning {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(241, 199, 91, .24);
+  border-radius: 13px;
+  color: #ead8af;
+  background: rgba(241, 199, 91, .055);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+.ai-source-warning strong {
+  color: #fff0c6;
+}
+
+.ai-source-warning span {
+  color: #b8a783;
+}

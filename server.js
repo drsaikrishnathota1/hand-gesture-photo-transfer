@@ -14,6 +14,7 @@ const {
   buildStrategyAnswer,
   compactAiEvidence
 } = require('./strategy-intelligence');
+const { generateAiStrategyAnswer } = require('./ai-strategy-copilot');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -2296,6 +2297,11 @@ function createServer() {
           });
         }
 
+        const history =
+          Array.isArray(req.body?.history)
+            ? req.body.history
+            : [];
+
         const rows =
           await loadStrategicIntelligenceRows();
 
@@ -2305,42 +2311,66 @@ function createServer() {
             req.body?.filters || {}
           );
 
-        const strategy =
+        const fallbackStrategy =
           buildStrategyAnswer(
             question,
             snapshot
           );
 
-        let ai;
+        const apiKey =
+          String(
+            process.env.OPENAI_API_KEY || ''
+          ).trim();
 
-        try {
-          ai =
-            await generateStrategicAiNarrative(
-              question,
-              snapshot,
-              strategy
+        const model =
+          String(
+            process.env.OPENAI_MODEL ||
+            'gpt-5.6'
+          ).trim();
+
+        let strategy =
+          fallbackStrategy;
+
+        let ai = {
+          configured: Boolean(apiKey),
+          used: false,
+          provider: 'AirGesture Analytical Fallback',
+          model: apiKey ? model : null,
+          source: 'deterministic-fallback'
+        };
+
+        if (apiKey && globalThis.fetch) {
+          try {
+            const generated =
+              await generateAiStrategyAnswer({
+                question,
+                history,
+                snapshot,
+                apiKey,
+                model
+              });
+
+            strategy =
+              generated.strategy;
+
+            ai =
+              generated.ai;
+
+          } catch (aiError) {
+            console.warn(
+              'AirGesture AI Strategy Copilot unavailable; using analytical fallback:',
+              aiError?.message || aiError
             );
-        } catch (aiError) {
-          console.warn(
-            'AI Strategy Copilot generative layer unavailable:',
-            aiError?.message || aiError
-          );
 
-          ai = {
-            configured: Boolean(
-              String(
-                process.env.OPENAI_API_KEY || ''
-              ).trim()
-            ),
-            used: false,
-            provider: 'AirGesture Grounded Strategy Engine',
-            model: String(
-              process.env.OPENAI_MODEL ||
-              'gpt-5.6'
-            ),
-            text: '',
-            error: 'The generative narrative was unavailable. The grounded analytics answer is still valid.'
-          };
+            ai = {
+              configured: true,
+              used: false,
+              provider: 'AirGesture Analytical Fallback',
+              model,
+              source: 'deterministic-fallback',
+              error: 'The generative AI layer was unavailable, so the analytical fallback answered this question.'
+            };
+          }
         }
 
         res.setHeader('Cache-Control', 'no-store');
@@ -2350,6 +2380,10 @@ function createServer() {
           generatedAt: new Date().toISOString(),
           question,
           filters: snapshot.filters,
+          answerSource:
+            ai.used
+              ? 'openai-grounded'
+              : 'analytical-fallback',
           strategy,
           ai
         });
