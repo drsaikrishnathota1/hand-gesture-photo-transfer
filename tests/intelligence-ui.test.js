@@ -19,7 +19,8 @@ test('intelligence UI removes confusing duplicate and internal-only sections', (
 
 test('intelligence UI keeps a clear dashboard and AI strategy mode', () => {
   assert.match(html, /Analytics Dashboard/);
-  assert.match(html, /AI Strategy/);
+  assert.match(html, /Strategy Mode/);
+  assert.match(html, /Ask AI/);
   assert.match(html, /Three questions management can act on/);
   assert.match(html, /Commercial test ideas/);
   assert.match(html, /Google Search or Instagram \/ Meta\?/);

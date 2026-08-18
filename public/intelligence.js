@@ -403,22 +403,39 @@
   function renderAiStatus(snapshot) {
     const badge = $('aiStatusBadge');
     const provider = $('aiProviderLabel');
-    if (!badge) return;
+    const aiModeButton = $('aiModeBtn');
+    const send = $('aiSendBtn');
     const configured = Boolean(snapshot?.ai?.configured);
-    badge.classList.toggle('live', configured);
-    badge.classList.toggle('fallback', !configured);
-    badge.innerHTML = `<span class="ai-status-dot"></span>${configured ? 'AI connected' : 'AI not connected'}`;
-    if (provider) {
-      provider.textContent = configured
-        ? 'OpenAI reasoning + live AirGesture aggregate evidence'
-        : 'Analytical fallback only · connect AI on the server for natural-language reasoning';
+
+    document.body.classList.remove('ai-agent-pending');
+    document.body.classList.toggle('ai-agent-disabled', !configured);
+
+    if (badge) {
+      badge.hidden = !configured;
+      badge.classList.toggle('live', configured);
+      badge.classList.remove('fallback');
+      if (configured) {
+        badge.innerHTML = '<span class="ai-status-dot"></span>AI connected';
+      }
     }
 
-    const send = $('aiSendBtn');
-    if (send && !send.disabled) {
+    if (aiModeButton) aiModeButton.hidden = !configured;
+
+    if (!configured && state.currentMode === 'ai') {
+      switchMode('dashboard');
+    }
+
+    if (provider) {
+      provider.textContent = configured
+        ? 'Live AI agent · current AirGesture aggregate data tools'
+        : 'AI agent is not configured on this server.';
+    }
+
+    if (send) {
+      send.disabled = !configured;
       send.innerHTML = configured
         ? 'Ask AI <span>↗</span>'
-        : 'Analyze with Rules <span>↗</span>';
+        : 'AI unavailable';
     }
   }
 
@@ -779,6 +796,15 @@
     if (state.aiChart) { state.aiChart.destroy(); state.aiChart = null; }
   }
 
+  function formatAgentChartLabel(value, dimension) {
+    if (dimension === 'location') return prettyLocation(value, true);
+    if (dimension === 'segment') return prettySegment(value);
+    if (dimension === 'file_type') return prettyFileType(value);
+    if (dimension === 'os') return prettyOs(value);
+    if (dimension === 'browser') return prettyBrowser(value);
+    return String(value || 'Unknown');
+  }
+
   function renderAiChart(strategy) {
     if (state.aiChart) { state.aiChart.destroy(); state.aiChart = null; }
     const canvas = $('strategySupportingChart');
@@ -790,7 +816,7 @@
     state.aiChart = new Chart(canvas, {
       type: isLine ? 'line' : 'bar',
       data: {
-        labels: chart.data.map((item) => prettyLocation(item.label, true)),
+        labels: chart.data.map((item) => formatAgentChartLabel(item.label, chart.dimension)),
         datasets: [{
           data: chart.data.map((item) => Number(item.value || 0)),
           backgroundColor: isLine ? 'rgba(57,216,255,.08)' : chart.data.map((_,i) => `${palette[i % palette.length]}b8`),
@@ -833,24 +859,22 @@
     const ai = data?.ai || {};
     if (!panel || !strategy) return;
 
-    const evidence = (strategy.evidence || []).slice(0, 5);
+    const evidence = (strategy.evidence || []).slice(0, 6);
     const followUps = (strategy.followUps || []).slice(0, 4);
-    const sourceLabel = ai.used
-      ? `AI answer · ${escapeHtml(ai.model || 'OpenAI')} · grounded in AirGesture data`
-      : 'Analytical fallback · generative AI is not connected';
+    const toolCount = Number(ai.toolCalls || 0);
+    const sourceLabel = `Live AI answer · ${escapeHtml(ai.model || 'OpenAI')} · ${toolCount} database tool${toolCount === 1 ? '' : 's'} used`;
 
     panel.innerHTML = `
       <div class="ai-result">
-        <div class="ai-answer-source ${ai.used ? 'live' : 'fallback'}">${sourceLabel}</div>
-        ${!ai.used ? '<div class="ai-source-warning"><strong>This is not a generative AI answer.</strong><span>The server is using the rule-based analytical fallback, so open-ended or conversational questions may be limited.</span></div>' : ''}
-        <div class="ai-result-heading"><span>${escapeHtml(String(strategy.scenario || 'STRATEGY').replace(/-/g, ' ').toUpperCase())}</span><h3>${escapeHtml(strategy.title || 'Strategic analysis')}</h3><p>${escapeHtml(strategy.directAnswer || '')}</p></div>
-        <div class="ai-section-card"><span>Evidence from AirGesture</span><ul class="ai-evidence-list">${evidence.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>
+        <div class="ai-answer-source live">${sourceLabel}</div>
+        <div class="ai-result-heading"><span>${escapeHtml(String(strategy.scenario || 'DATA ANALYSIS').replace(/-/g, ' ').toUpperCase())}</span><h3>${escapeHtml(strategy.title || 'AirGesture analysis')}</h3><p>${escapeHtml(strategy.directAnswer || '')}</p></div>
+        <div class="ai-section-card"><span>Evidence from current AirGesture data</span><ul class="ai-evidence-list">${evidence.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>
         ${strategy.chart?.data?.length ? '<div class="ai-chart-container"><canvas id="strategySupportingChart"></canvas></div>' : ''}
-        ${strategy.interpretation ? `<div class="ai-section-card"><span>What the evidence means</span><p>${escapeHtml(strategy.interpretation)}</p></div>` : ''}
-        <div class="ai-section-card decision"><span>Recommended decision</span><p>${escapeHtml(strategy.recommendation || '')}</p></div>
-        <div class="ai-section-card"><span>Controlled test</span><p>${escapeHtml(strategy.experiment || '')}</p></div>
+        ${strategy.interpretation ? `<div class="ai-section-card"><span>What it means</span><p>${escapeHtml(strategy.interpretation)}</p></div>` : ''}
+        ${strategy.recommendation ? `<div class="ai-section-card decision"><span>Recommended decision</span><p>${escapeHtml(strategy.recommendation)}</p></div>` : ''}
+        ${strategy.experiment ? `<div class="ai-section-card"><span>How to validate it</span><p>${escapeHtml(strategy.experiment)}</p></div>` : ''}
         ${strategy.channel ? `<div class="ai-section-card"><span>Channel consideration</span><p>${escapeHtml(strategy.channel)}</p></div>` : ''}
-        <div class="ai-section-card risk"><span>Limitation</span><p>${escapeHtml(strategy.risk || 'Observed usage does not prove purchase intent.')}</p></div>
+        <div class="ai-section-card risk"><span>Limitation</span><p>${escapeHtml(strategy.limitation || strategy.risk || 'The available AirGesture data does not measure purchase intent or campaign conversion.')}</p></div>
         <div class="follow-up-row">${followUps.map((question) => `<button type="button" data-follow-up="${escapeHtml(question)}">${escapeHtml(question)}</button>`).join('')}</div>
       </div>
     `;
@@ -860,6 +884,10 @@
   async function askStrategy(rawQuestion) {
     const question = String(rawQuestion || '').trim().slice(0, 500);
     if (!question) return;
+    if (!state.snapshot?.ai?.configured) {
+      showToast('Ask AI is unavailable until the server-side AI agent is configured.');
+      return;
+    }
 
     switchMode('ai');
     if ($('aiQuestionInput')) $('aiQuestionInput').value = question;
@@ -890,7 +918,7 @@
       addConversationMessage(
         'assistant',
         answer,
-        data.ai?.used ? 'AI Strategy Copilot' : 'Analytical Fallback'
+        'AirGesture AI Data Agent'
       );
 
       state.aiHistory.push(
@@ -901,13 +929,6 @@
 
       if ($('aiQuestionInput')) $('aiQuestionInput').value = '';
 
-      if (!data.ai?.used) {
-        showToast(
-          data.ai?.configured
-            ? 'Generative AI was unavailable; the analytical fallback answered this question.'
-            : 'AI is not connected; this answer came from the analytical fallback.'
-        );
-      }
     } catch (error) {
       if (error.name === 'AbortError') return;
       console.error(error);
@@ -916,9 +937,10 @@
     } finally {
       if (send) {
         send.disabled = false;
+        send.disabled = !state.snapshot?.ai?.configured;
         send.innerHTML = state.snapshot?.ai?.configured
           ? 'Ask AI <span>↗</span>'
-          : 'Analyze with Rules <span>↗</span>';
+          : 'AI unavailable';
       }
     }
   }

@@ -305,3 +305,14 @@ button { cursor: pointer; }
 .ai-source-warning span {
   color: #b8a783;
 }
+
+
+/* AI Agent V4: do not expose a fake/rule-based Ask AI experience. */
+body.ai-agent-pending [data-ai-question],
+body.ai-agent-disabled [data-ai-question] {
+  display: none !important;
+}
+
+body.ai-agent-disabled #aiView {
+  display: none !important;
+}

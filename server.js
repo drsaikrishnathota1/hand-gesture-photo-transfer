@@ -9,12 +9,8 @@ const session = require('express-session');
 const connectPgSimple = require('connect-pg-simple');
 const { createAuthRouter } = require('./auth');
 const { createDatabase } = require('./db');
-const {
-  buildIntelligenceSnapshot,
-  buildStrategyAnswer,
-  compactAiEvidence
-} = require('./strategy-intelligence');
-const { generateAiStrategyAnswer } = require('./ai-strategy-copilot');
+const { buildIntelligenceSnapshot } = require('./strategy-intelligence');
+const { generateAirGestureAgentAnswer } = require('./airgesture-ai-agent');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -2113,110 +2109,6 @@ function createServer() {
   }
 
 
-  function extractOpenAiOutput(payload = {}) {
-    return (payload.output || [])
-      .flatMap((item) =>
-        Array.isArray(item?.content)
-          ? item.content
-          : []
-      )
-      .filter((part) =>
-        part?.type === 'output_text' &&
-        typeof part?.text === 'string'
-      )
-      .map((part) => part.text.trim())
-      .filter(Boolean)
-      .join('\n')
-      .trim();
-  }
-
-
-  async function generateStrategicAiNarrative(
-    question,
-    snapshot,
-    strategy
-  ) {
-    const apiKey =
-      String(process.env.OPENAI_API_KEY || '').trim();
-
-    const model =
-      String(
-        process.env.OPENAI_MODEL ||
-        'gpt-5.6'
-      ).trim();
-
-    if (!apiKey || !globalThis.fetch) {
-      return {
-        configured: false,
-        used: false,
-        provider: 'AirGesture Grounded Strategy Engine',
-        model: null,
-        text: ''
-      };
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(),
-      20000
-    );
-
-    try {
-      const evidence =
-        compactAiEvidence(snapshot, strategy);
-
-      const response = await fetch(
-        'https://api.openai.com/v1/responses',
-        {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            Authorization: 'Bearer ' + apiKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model,
-            store: false,
-            instructions: [
-              'You are the AI Strategy Copilot for a DBA 802 classroom Decision Intelligence lab.',
-              'Use ONLY the aggregate AirGesture evidence supplied in the input.',
-              'Never invent revenue, demographics, purchase intent, conversion rates, or facts that are not present.',
-              'Do not infer sensitive traits.',
-              'Treat advertising and product recommendations as hypotheses to test, never as guaranteed outcomes.',
-              'Be concise, executive-friendly, and easy for a beginner audience to understand.',
-              'In about 120-180 words, explain: evidence, commercial meaning, recommended decision, controlled experiment, and one limitation.',
-              'Do not reveal raw user names, transfer IDs, or any personal identifiers.'
-            ].join(' '),
-            input: JSON.stringify({
-              question,
-              aggregateEvidence: evidence
-            })
-          })
-        }
-      );
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(
-          'OpenAI ' + response.status + ': ' + body.slice(0, 180)
-        );
-      }
-
-      const payload = await response.json();
-
-      return {
-        configured: true,
-        used: true,
-        provider: 'OpenAI',
-        model,
-        text: extractOpenAiOutput(payload)
-      };
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-
   app.get(
     '/api/intelligence',
     requireAuth,
@@ -2248,7 +2140,7 @@ function createServer() {
           model: apiKey
             ? String(
                 process.env.OPENAI_MODEL ||
-                'gpt-5.6'
+                'gpt-5.6-sol'
               )
             : null
         };
@@ -2280,9 +2172,20 @@ function createServer() {
           });
         }
 
+        const apiKey =
+          String(
+            process.env.OPENAI_API_KEY || ''
+          ).trim();
+
+        if (!apiKey) {
+          return res.status(503).json({
+            error: 'Ask AI is not configured on this server.'
+          });
+        }
+
         if (!allowIntelligenceAiRequest(req)) {
           return res.status(429).json({
-            error: 'AI Strategy Mode is receiving too many requests. Please wait a moment and try again.'
+            error: 'Ask AI is receiving too many requests. Please wait a moment and try again.'
           });
         }
 
@@ -2293,7 +2196,7 @@ function createServer() {
 
         if (!question) {
           return res.status(400).json({
-            error: 'Enter a strategy question.'
+            error: 'Enter a question for Ask AI.'
           });
         }
 
@@ -2305,72 +2208,40 @@ function createServer() {
         const rows =
           await loadStrategicIntelligenceRows();
 
-        const snapshot =
-          buildIntelligenceSnapshot(
-            rows,
-            req.body?.filters || {}
-          );
-
-        const fallbackStrategy =
-          buildStrategyAnswer(
-            question,
-            snapshot
-          );
-
-        const apiKey =
-          String(
-            process.env.OPENAI_API_KEY || ''
-          ).trim();
-
         const model =
           String(
             process.env.OPENAI_MODEL ||
-            'gpt-5.6'
+            'gpt-5.6-sol'
           ).trim();
 
-        let strategy =
-          fallbackStrategy;
+        const reasoningEffort =
+          String(
+            process.env.OPENAI_REASONING_EFFORT ||
+            'medium'
+          ).trim();
 
-        let ai = {
-          configured: Boolean(apiKey),
-          used: false,
-          provider: 'AirGesture Analytical Fallback',
-          model: apiKey ? model : null,
-          source: 'deterministic-fallback'
-        };
+        let generated;
 
-        if (apiKey && globalThis.fetch) {
-          try {
-            const generated =
-              await generateAiStrategyAnswer({
-                question,
-                history,
-                snapshot,
-                apiKey,
-                model
-              });
-
-            strategy =
-              generated.strategy;
-
-            ai =
-              generated.ai;
-
-          } catch (aiError) {
-            console.warn(
-              'AirGesture AI Strategy Copilot unavailable; using analytical fallback:',
-              aiError?.message || aiError
-            );
-
-            ai = {
-              configured: true,
-              used: false,
-              provider: 'AirGesture Analytical Fallback',
+        try {
+          generated =
+            await generateAirGestureAgentAnswer({
+              question,
+              history,
+              rows,
+              filters: req.body?.filters || {},
+              apiKey,
               model,
-              source: 'deterministic-fallback',
-              error: 'The generative AI layer was unavailable, so the analytical fallback answered this question.'
-            };
-          }
+              reasoningEffort
+            });
+        } catch (aiError) {
+          console.warn(
+            'AirGesture live-data AI agent failed:',
+            aiError?.message || aiError
+          );
+
+          return res.status(502).json({
+            error: 'The live AI agent could not complete this request. Please try again.'
+          });
         }
 
         res.setHeader('Cache-Control', 'no-store');
@@ -2379,22 +2250,19 @@ function createServer() {
           ok: true,
           generatedAt: new Date().toISOString(),
           question,
-          filters: snapshot.filters,
-          answerSource:
-            ai.used
-              ? 'openai-grounded'
-              : 'analytical-fallback',
-          strategy,
-          ai
+          filters: req.body?.filters || {},
+          answerSource: 'openai-live-tools',
+          strategy: generated.strategy,
+          ai: generated.ai
         });
       } catch (error) {
         databaseError(
-          'AI strategy question',
+          'AI data agent question',
           error
         );
 
         return res.status(500).json({
-          error: 'Could not answer the strategy question.'
+          error: 'Could not answer the AI data question.'
         });
       }
     }

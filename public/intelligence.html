@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="intelligence.css" />
 </head>
-<body class="intelligence-page">
+<body class="intelligence-page ai-agent-pending">
   <section id="authGate" class="auth-gate">
     <div class="auth-card glass">
       <div class="auth-logo">✦</div>
@@ -54,7 +54,7 @@
       </nav>
 
       <div class="intelligence-user-area">
-        <span id="aiStatusBadge" class="ai-status-badge"><span class="ai-status-dot"></span>Checking AI…</span>
+        <span id="aiStatusBadge" class="ai-status-badge" hidden><span class="ai-status-dot"></span>AI connected</span>
         <div id="authUser" class="auth-user intelligence-auth-user" hidden>
           <img id="authUserPicture" alt="" hidden />
           <div><strong id="authUserName">Signed In</strong><small id="authUserEmail"></small></div>
@@ -82,7 +82,7 @@
 
       <div class="mode-switch" role="tablist" aria-label="Intelligence mode">
         <button id="dashboardModeBtn" class="mode-button active" role="tab" aria-selected="true" type="button">Analytics Dashboard</button>
-        <button id="aiModeBtn" class="mode-button" role="tab" aria-selected="false" type="button">✦ AI Strategy</button>
+        <button id="aiModeBtn" class="mode-button" role="tab" aria-selected="false" type="button" hidden>✦ Ask AI</button>
       </div>
 
       <section id="dashboardView" class="mode-view active">
@@ -176,7 +176,7 @@
 
       <section id="aiView" class="mode-view ai-mode-view" hidden>
         <div class="ai-mode-header">
-          <div><span class="section-kicker">AI STRATEGY</span><h2>Ask the AirGesture data</h2><p>Ask a normal business question. The server first calculates aggregate evidence, then returns a strategy answer grounded in that evidence.</p></div>
+          <div><span class="section-kicker">AI STRATEGY</span><h2>Ask the AirGesture data</h2><p>Ask a normal business question. The AI agent queries the current AirGesture aggregate database through server-side tools before answering.</p></div>
           <div id="aiProviderLabel" class="ai-provider-label">Checking AI connection…</div>
         </div>
 
@@ -193,13 +193,13 @@
           <div class="ai-chat-panel">
             <div class="ai-chat-head"><strong>Strategy conversation</strong><button id="clearAiConversationBtn" type="button">Clear</button></div>
             <div id="aiConversation" class="ai-conversation" aria-live="polite">
-              <div class="ai-message assistant intro-message"><div class="ai-avatar">✦</div><div><strong>Strategy Copilot</strong><p>Ask a commercial question. I will separate observed evidence from the business hypothesis.</p></div></div>
+              <div class="ai-message assistant intro-message"><div class="ai-avatar">✦</div><div><strong>Strategy Copilot</strong><p>Ask any business question about the AirGesture data. I will query the current aggregate database before I answer.</p></div></div>
             </div>
             <form id="aiQuestionForm" class="ai-question-form">
               <textarea id="aiQuestionInput" rows="3" maxlength="500" placeholder="Example: I want to promote antivirus software. Which market should I test first and why?" aria-label="Ask a strategic business question"></textarea>
               <button id="aiSendBtn" type="submit">Ask AI <span>↗</span></button>
             </form>
-            <small class="ai-input-note">Recommendations are controlled-test hypotheses, not guaranteed business outcomes.</small>
+            <small class="ai-input-note">Every answer is grounded in current aggregate AirGesture data. Product recommendations remain hypotheses to validate with real campaign results.</small>
           </div>
           <aside id="aiAnswerPanel" class="ai-answer-panel">
             <div class="ai-answer-empty"><span>✦</span><strong>Your strategy answer will appear here</strong><p>Direct answer · evidence · recommendation · experiment · limitation</p></div>
