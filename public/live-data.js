@@ -11,7 +11,7 @@
 
   // Selected transaction remains expanded even while
   // the live dashboard refreshes every second.
-  let activeTransferId = '';
+  let activeTransferGroupId = '';
 
 
   function setText(id, value) {
@@ -257,10 +257,14 @@
 
 
   function createTransferIdControl(
-    value
+    value,
+    transferGroupId
   ) {
     const id =
       String(value || '');
+
+    const groupId =
+      String(transferGroupId || '');
 
     const wrapper =
       document.createElement(
@@ -278,7 +282,8 @@
     }
 
     const expanded =
-      activeTransferId === id;
+      Boolean(groupId) &&
+      activeTransferGroupId === groupId;
 
     const chip =
       document.createElement(
@@ -313,10 +318,10 @@
     chip.addEventListener(
       'click',
       () => {
-        activeTransferId =
+        activeTransferGroupId =
           expanded
             ? ''
-            : id;
+            : groupId;
 
         renderRows(
           currentRows
@@ -434,15 +439,15 @@
           'tr'
         );
 
-      const rowTransferId =
+      const rowTransferGroupId =
         String(
-          row.transferId || ''
+          row.transferGroupId || ''
         );
 
       if (
-        rowTransferId &&
-        rowTransferId ===
-          activeTransferId
+        rowTransferGroupId &&
+        rowTransferGroupId ===
+          activeTransferGroupId
       ) {
         tr.classList.add(
           'transfer-trace-active'
@@ -468,7 +473,8 @@
 
           td.appendChild(
             createTransferIdControl(
-              row.transferId
+              row.transferId,
+              row.transferGroupId
             )
           );
         } else {

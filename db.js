@@ -1959,13 +1959,15 @@ function createDatabase(options = {}) {
     const result =
       await pool.query(
         `SELECT
+           e.id AS event_transfer_id,
+           e.file_id AS transfer_group_id,
+
            e.user_id,
            u.name,
 
            e.session_id,
            e.room_code,
            e.action,
-           e.file_id,
            e.file_type,
            e.file_size_bytes,
            e.created_at,
@@ -2629,7 +2631,10 @@ function createDatabase(options = {}) {
               row.room_code,
 
             transferId:
-              row.file_id,
+              row.event_transfer_id,
+
+            transferGroupId:
+              row.transfer_group_id,
 
             action:
               row.action,

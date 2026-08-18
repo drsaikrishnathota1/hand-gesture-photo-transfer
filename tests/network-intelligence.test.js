@@ -134,7 +134,7 @@ test(
 
     assert.match(
       js,
-      /activeTransferId/
+      /activeTransferGroupId/
     );
 
     assert.match(
