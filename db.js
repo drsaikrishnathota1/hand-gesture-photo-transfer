@@ -2832,6 +2832,746 @@ function createDatabase(options = {}) {
   }
 
 
+
+  async function liveClassroomDataPage(input = {}) {
+    if (!enabled) {
+      return {
+        generatedAt:
+          new Date().toISOString(),
+
+        roomCode:
+          'ALL_HISTORY',
+
+        summary: {},
+
+        insights: {
+          segments: {},
+          fileMix: {}
+        },
+
+        pagination: {
+          page: 1,
+          pageSize: 20,
+          totalRecords: 0,
+          totalPages: 1,
+          from: 0,
+          to: 0,
+          search: ''
+        },
+
+        rows: []
+      };
+    }
+
+
+    const roomCode =
+      clean(
+        input.roomCode,
+        12
+      ).toUpperCase();
+
+
+    const search =
+      clean(
+        input.search,
+        160
+      ).trim();
+
+
+    const exportAll =
+      input.exportAll === true;
+
+
+    const requestedPage =
+      Math.max(
+        1,
+        Math.floor(
+          Number(input.page) || 1
+        )
+      );
+
+
+    // Normal web view is ALWAYS 20 rows.
+    // Large retrieval is allowed only for an explicit CSV export.
+    const pageSize =
+      exportAll
+        ? Math.max(
+            1,
+            Math.min(
+              50000,
+              Math.floor(
+                Number(input.pageSize) ||
+                50000
+              )
+            )
+          )
+        : 20;
+
+
+    // --------------------------------------------------------
+    // Count matching records first.
+    //
+    // Search supports:
+    // 1. full Transfer ID
+    // 2. partial Transfer ID
+    // 3. full User Name
+    // 4. partial User Name
+    //
+    // ILIKE makes name searching case-insensitive.
+    // --------------------------------------------------------
+
+    const countResult =
+      await pool.query(
+        `SELECT
+           COUNT(*)::int
+             AS total_records
+
+         FROM classroom_data_events e
+
+         JOIN users u
+           ON u.id = e.user_id
+
+         WHERE
+           (
+             $1 = ''
+             OR e.room_code = $1
+           )
+
+           AND
+           (
+             $2 = ''
+
+             OR e.id::text ILIKE
+                ('%' || $2 || '%')
+
+             OR u.name ILIKE
+                ('%' || $2 || '%')
+           )`,
+        [
+          roomCode,
+          search
+        ]
+      );
+
+
+    const totalRecords =
+      Number(
+        countResult
+          .rows?.[0]
+          ?.total_records || 0
+      );
+
+
+    const totalPages =
+      Math.max(
+        1,
+        Math.ceil(
+          totalRecords /
+          pageSize
+        )
+      );
+
+
+    const page =
+      exportAll
+        ? 1
+        : Math.min(
+            requestedPage,
+            totalPages
+          );
+
+
+    const offset =
+      (page - 1) *
+      pageSize;
+
+
+    // --------------------------------------------------------
+    // Overall database KPIs.
+    //
+    // These remain GLOBAL and do not change merely because
+    // the user searches the table.
+    // --------------------------------------------------------
+
+    const summaryPromise =
+      pool.query(
+        `SELECT
+           COUNT(
+             DISTINCT e.user_id
+           )::int
+             AS total_users,
+
+           COUNT(*)::int
+             AS total_events,
+
+           (
+             COUNT(*) FILTER (
+               WHERE e.action = 'SEND'
+             )
+           )::int
+             AS send_events,
+
+           (
+             COUNT(*) FILTER (
+               WHERE e.action = 'RECEIVE'
+             )
+           )::int
+             AS receive_events,
+
+           COALESCE(
+             SUM(
+               e.file_size_bytes
+             ),
+             0
+           )::bigint
+             AS total_bytes
+
+         FROM classroom_data_events e
+
+         WHERE
+           (
+             $1 = ''
+             OR e.room_code = $1
+           )`,
+        [
+          roomCode
+        ]
+      );
+
+
+    // --------------------------------------------------------
+    // One latest commercial/device classification per user.
+    // This keeps the Commercial Intelligence KPIs based on
+    // the full database rather than only the visible 20 rows.
+    // --------------------------------------------------------
+
+    const audiencePromise =
+      pool.query(
+        `WITH latest_user AS (
+           SELECT DISTINCT ON (
+             e.user_id
+           )
+
+             e.user_id,
+
+             COALESCE(
+               NULLIF(
+                 e.commercial_segment,
+                 'NOT_OPTED_IN'
+               ),
+
+               NULLIF(
+                 cp.device_segment,
+                 ''
+               ),
+
+               ''
+             )
+               AS commercial_segment,
+
+             COALESCE(
+               cp.device_segment,
+               ''
+             )
+               AS device_segment
+
+           FROM classroom_data_events e
+
+           LEFT JOIN consent_preferences c
+             ON c.user_id =
+                e.user_id
+
+           LEFT JOIN commercial_profiles cp
+             ON cp.user_id =
+                e.user_id
+
+            AND COALESCE(
+                  c.analytics_consent,
+                  FALSE
+                ) = TRUE
+
+           WHERE
+             (
+               $1 = ''
+               OR e.room_code = $1
+             )
+
+           ORDER BY
+             e.user_id,
+             e.created_at DESC
+         )
+
+         SELECT *
+         FROM latest_user`,
+        [
+          roomCode
+        ]
+      );
+
+
+    // --------------------------------------------------------
+    // Overall file-type mix.
+    // --------------------------------------------------------
+
+    const fileMixPromise =
+      pool.query(
+        `SELECT
+           file_type,
+           COUNT(*)::int
+             AS count
+
+         FROM classroom_data_events
+
+         WHERE
+           (
+             $1 = ''
+             OR room_code = $1
+           )
+
+         GROUP BY
+           file_type`,
+        [
+          roomCode
+        ]
+      );
+
+
+    // --------------------------------------------------------
+    // ONLY requested page records.
+    // --------------------------------------------------------
+
+    const rowsPromise =
+      pool.query(
+        `SELECT
+           e.id
+             AS event_transfer_id,
+
+           e.file_id
+             AS transfer_group_id,
+
+           u.name,
+
+           e.room_code,
+           e.action,
+           e.file_type,
+           e.file_size_bytes,
+           e.created_at,
+
+           COALESCE(
+             NULLIF(
+               e.browser,
+               ''
+             ),
+             cp.browser,
+             ''
+           )
+             AS browser,
+
+           COALESCE(
+             NULLIF(
+               e.os,
+               ''
+             ),
+             cp.os,
+             ''
+           )
+             AS os,
+
+           COALESCE(
+             NULLIF(
+               e.device_type,
+               ''
+             ),
+             cp.device_type,
+             ''
+           )
+             AS device_type,
+
+           COALESCE(
+             e.location,
+             ''
+           )
+             AS location,
+
+           COALESCE(
+             NULLIF(
+               e.commercial_segment,
+               'NOT_OPTED_IN'
+             ),
+
+             NULLIF(
+               cp.device_segment,
+               ''
+             ),
+
+             ''
+           )
+             AS commercial_segment,
+
+           transfer.result
+             AS transfer_result
+
+         FROM classroom_data_events e
+
+         JOIN users u
+           ON u.id = e.user_id
+
+         LEFT JOIN consent_preferences c
+           ON c.user_id =
+              e.user_id
+
+         LEFT JOIN commercial_profiles cp
+           ON cp.user_id =
+              e.user_id
+
+          AND COALESCE(
+                c.analytics_consent,
+                FALSE
+              ) = TRUE
+
+
+         LEFT JOIN LATERAL (
+           SELECT
+             t.result
+
+           FROM transfer_events t
+
+           WHERE
+             t.session_id =
+               e.session_id
+
+             AND t.user_id =
+               e.user_id
+
+             AND t.file_id =
+               e.file_id
+
+           ORDER BY
+             t.created_at DESC
+
+           LIMIT 1
+         ) transfer
+           ON TRUE
+
+
+         WHERE
+           (
+             $1 = ''
+             OR e.room_code = $1
+           )
+
+           AND
+           (
+             $2 = ''
+
+             OR e.id::text ILIKE
+                ('%' || $2 || '%')
+
+             OR u.name ILIKE
+                ('%' || $2 || '%')
+           )
+
+         ORDER BY
+           e.created_at DESC,
+           e.id DESC
+
+         LIMIT $3
+         OFFSET $4`,
+        [
+          roomCode,
+          search,
+          pageSize,
+          offset
+        ]
+      );
+
+
+    const [
+      summaryResult,
+      audienceResult,
+      fileMixResult,
+      rowsResult
+    ] =
+      await Promise.all([
+        summaryPromise,
+        audiencePromise,
+        fileMixPromise,
+        rowsPromise
+      ]);
+
+
+    const summaryRow =
+      summaryResult.rows?.[0] ||
+      {};
+
+
+    const audience =
+      audienceResult.rows ||
+      [];
+
+
+    const segmentCounts = {};
+
+
+    for (
+      const row
+      of audience
+    ) {
+      const segment =
+        row.commercial_segment ||
+        row.device_segment ||
+        'GENERAL';
+
+      segmentCounts[segment] =
+        (
+          segmentCounts[segment] ||
+          0
+        ) + 1;
+    }
+
+
+    const percentage =
+      (count) =>
+        audience.length
+          ? Math.round(
+              (
+                count /
+                audience.length
+              ) *
+              1000
+            ) / 10
+          : 0;
+
+
+    const appleUsers =
+      audience.filter(
+        (row) =>
+          String(
+            row.device_segment ||
+            row.commercial_segment ||
+            ''
+          ).startsWith(
+            'APPLE_'
+          )
+      ).length;
+
+
+    const windowsUsers =
+      audience.filter(
+        (row) =>
+          (
+            row.device_segment ||
+            row.commercial_segment
+          ) ===
+          'WINDOWS_DESKTOP'
+      ).length;
+
+
+    const mobileUsers =
+      audience.filter(
+        (row) =>
+          [
+            'APPLE_MOBILE',
+            'ANDROID_MOBILE',
+            'MOBILE_USER',
+            'TABLET_USER'
+          ].includes(
+            row.device_segment ||
+            row.commercial_segment
+          )
+      ).length;
+
+
+    const fileMix = {
+      IMAGE: 0,
+      PDF: 0,
+      VIDEO: 0,
+      DOCUMENT: 0,
+      OTHER: 0
+    };
+
+
+    for (
+      const row
+      of (
+        fileMixResult.rows ||
+        []
+      )
+    ) {
+      const type =
+        Object.prototype
+          .hasOwnProperty.call(
+            fileMix,
+            row.file_type
+          )
+          ? row.file_type
+          : 'OTHER';
+
+      fileMix[type] +=
+        Number(
+          row.count || 0
+        );
+    }
+
+
+    const rows =
+      (
+        rowsResult.rows ||
+        []
+      ).map(
+        (row) => ({
+          time:
+            row.created_at,
+
+          student:
+            row.name,
+
+          room:
+            row.room_code,
+
+          // Unique event-level UUID.
+          transferId:
+            row.event_transfer_id,
+
+          // Hidden shared grouping ID used only
+          // for Transfer Trace behavior.
+          transferGroupId:
+            row.transfer_group_id,
+
+          action:
+            row.action,
+
+          fileType:
+            row.file_type,
+
+          fileSizeBytes:
+            Number(
+              row.file_size_bytes ||
+              0
+            ),
+
+          result:
+            row.action === 'SEND'
+              ? 'SENT'
+              : (
+                  row.transfer_result ||
+                  'SUCCESS'
+                ),
+
+          device:
+            row.device_type,
+
+          os:
+            row.os,
+
+          browser:
+            row.browser,
+
+          location:
+            row.location,
+
+          commercialSegment:
+            row.commercial_segment
+        })
+      );
+
+
+    const from =
+      totalRecords
+        ? offset + 1
+        : 0;
+
+
+    const to =
+      totalRecords
+        ? Math.min(
+            offset +
+            rows.length,
+            totalRecords
+          )
+        : 0;
+
+
+    return {
+      generatedAt:
+        new Date().toISOString(),
+
+      roomCode:
+        roomCode ||
+        'ALL_HISTORY',
+
+      summary: {
+        totalUsers:
+          Number(
+            summaryRow.total_users ||
+            0
+          ),
+
+        commercialAudience:
+          audience.length,
+
+        totalEvents:
+          Number(
+            summaryRow.total_events ||
+            0
+          ),
+
+        sendEvents:
+          Number(
+            summaryRow.send_events ||
+            0
+          ),
+
+        receiveEvents:
+          Number(
+            summaryRow.receive_events ||
+            0
+          ),
+
+        totalBytes:
+          Number(
+            summaryRow.total_bytes ||
+            0
+          )
+      },
+
+      insights: {
+        applePct:
+          percentage(
+            appleUsers
+          ),
+
+        windowsPct:
+          percentage(
+            windowsUsers
+          ),
+
+        mobilePct:
+          percentage(
+            mobileUsers
+          ),
+
+        segments:
+          segmentCounts,
+
+        fileMix
+      },
+
+      pagination: {
+        page,
+        pageSize,
+        totalRecords,
+        totalPages,
+        from,
+        to,
+        search
+      },
+
+      rows
+    };
+  }
+
+
   function customerPublicId(userId) {
     const secret =
       String(
@@ -3522,6 +4262,7 @@ function createDatabase(options = {}) {
     summary,
     recordLiveDataEvent,
     liveClassroomData,
+    liveClassroomDataPage,
     customer360Data,
     dashboardData,
     close

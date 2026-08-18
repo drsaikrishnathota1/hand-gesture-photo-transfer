@@ -451,3 +451,286 @@ tr.transfer-trace-active
       .06
     );
 }
+
+
+/* ==========================================================
+   SERVER-SIDE LIVE DATABASE SEARCH + PAGINATION
+   ========================================================== */
+
+.live-database-toolbar {
+  margin: 2px 0 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(69,217,255,.035),
+      rgba(79,124,255,.025)
+    );
+}
+
+.live-search-shell {
+  display: grid;
+  grid-template-columns:
+    auto
+    minmax(0, 1fr)
+    auto;
+  align-items: center;
+  min-height: 48px;
+  border: 1px solid
+    rgba(69,217,255,.22);
+  border-radius: 13px;
+  background:
+    rgba(5,14,27,.64);
+  overflow: hidden;
+  transition:
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+.live-search-shell:focus-within {
+  border-color:
+    rgba(69,217,255,.62);
+  box-shadow:
+    0 0 0 3px
+    rgba(69,217,255,.06);
+}
+
+.live-search-icon {
+  padding-left: 15px;
+  color: var(--cyan);
+  font-size: 22px;
+  line-height: 1;
+}
+
+#liveSearchInput {
+  width: 100%;
+  min-width: 0;
+  height: 46px;
+  padding: 0 13px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+}
+
+#liveSearchInput::placeholder {
+  color:
+    rgba(143,162,189,.78);
+}
+
+.live-search-clear {
+  height: 32px;
+  margin-right: 8px;
+  padding: 0 12px;
+  border:
+    1px solid
+    rgba(255,255,255,.10);
+  border-radius: 9px;
+  background:
+    rgba(255,255,255,.045);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.live-search-clear:hover {
+  color: var(--text);
+  border-color:
+    rgba(69,217,255,.26);
+}
+
+.live-search-clear[hidden] {
+  display: none;
+}
+
+.live-search-help {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.live-record-summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+#liveRecordRange {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.live-active-search {
+  padding: 5px 8px;
+  border:
+    1px solid
+    rgba(69,217,255,.18);
+  border-radius: 999px;
+  background:
+    rgba(69,217,255,.055);
+  color: var(--cyan);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.live-active-search[hidden] {
+  display: none;
+}
+
+
+/* Clickable User Name */
+
+.user-search-cell {
+  min-width: 170px !important;
+}
+
+.user-search-link {
+  max-width: 220px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition:
+    color .16s ease,
+    background-color .16s ease;
+}
+
+.user-search-link:hover {
+  color: var(--cyan);
+  background:
+    rgba(69,217,255,.075);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+
+/* Pagination */
+
+.live-pagination {
+  display: grid;
+  grid-template-columns:
+    auto
+    minmax(0, 1fr)
+    auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top:
+    1px solid var(--line);
+}
+
+.pagination-pages {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.pagination-nav,
+.pagination-page {
+  min-width: 36px;
+  height: 36px;
+  border:
+    1px solid var(--line);
+  border-radius: 10px;
+  background:
+    rgba(255,255,255,.025);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color .16s ease,
+    border-color .16s ease,
+    color .16s ease,
+    transform .16s ease;
+}
+
+.pagination-nav {
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
+.pagination-nav:hover:not(:disabled),
+.pagination-page:hover:not(.is-current) {
+  color: var(--text);
+  border-color:
+    rgba(69,217,255,.30);
+  background:
+    rgba(69,217,255,.06);
+  transform:
+    translateY(-1px);
+}
+
+.pagination-page.is-current {
+  border-color:
+    rgba(69,217,255,.55);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(22,120,255,.32),
+      rgba(117,95,255,.24)
+    );
+  color: #fff;
+  box-shadow:
+    0 6px 18px
+    rgba(47,111,255,.14);
+}
+
+.pagination-nav:disabled {
+  opacity: .32;
+  cursor: not-allowed;
+}
+
+.pagination-ellipsis {
+  min-width: 25px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+
+@media (max-width: 720px) {
+  .live-pagination {
+    grid-template-columns:
+      1fr
+      1fr;
+  }
+
+  .pagination-pages {
+    grid-column:
+      1 / -1;
+    grid-row: 1;
+    justify-content:
+      flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 5px;
+  }
+
+  .pagination-nav {
+    width: 100%;
+  }
+
+  .live-search-help {
+    font-size: 9px;
+  }
+}
+

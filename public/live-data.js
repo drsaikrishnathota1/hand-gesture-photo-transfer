@@ -9,6 +9,28 @@
 
   let currentRows = [];
 
+  // ========================================================
+  // SERVER-SIDE DATABASE SEARCH + PAGINATION
+  // ========================================================
+
+  const PAGE_SIZE = 20;
+
+  let currentPage = 1;
+  let currentSearch = '';
+
+  let currentPagination = {
+    page: 1,
+    pageSize: PAGE_SIZE,
+    totalRecords: 0,
+    totalPages: 1,
+    from: 0,
+    to: 0,
+    search: ''
+  };
+
+  let searchTimer = null;
+  let refreshInFlight = false;
+
   // Selected transaction remains expanded even while
   // the live dashboard refreshes every second.
   let activeTransferGroupId = '';
@@ -424,7 +446,9 @@
         'table-empty';
 
       td.textContent =
-        'Waiting for the first SEND or RECEIVE…';
+        currentSearch
+          ? `No records found for "${currentSearch}". Try another Transfer ID or User Name.`
+          : 'Waiting for the first SEND or RECEIVE…';
 
       tr.appendChild(td);
       body.appendChild(tr);
@@ -477,6 +501,47 @@
               row.transferGroupId
             )
           );
+        } else if (
+          column.key ===
+          'student'
+        ) {
+          td.classList.add(
+            'user-search-cell'
+          );
+
+          const userButton =
+            document.createElement(
+              'button'
+            );
+
+          userButton.type =
+            'button';
+
+          userButton.className =
+            'user-search-link';
+
+          userButton.textContent =
+            displayValue(
+              row,
+              column
+            );
+
+          userButton.title =
+            `Show all records for ${row.student || 'this user'}`;
+
+          userButton.addEventListener(
+            'click',
+            () => {
+              applySearch(
+                row.student || ''
+              );
+            }
+          );
+
+          td.appendChild(
+            userButton
+          );
+
         } else {
           td.textContent =
             displayValue(
@@ -500,6 +565,377 @@
       }
 
       body.appendChild(tr);
+    }
+  }
+
+
+
+
+  function applySearch(value) {
+    const next =
+      String(value || '')
+        .trim()
+        .slice(0, 160);
+
+    currentSearch =
+      next;
+
+    currentPage =
+      1;
+
+    activeTransferGroupId =
+      '';
+
+    const input =
+      $('liveSearchInput');
+
+    if (
+      input &&
+      input.value !== next
+    ) {
+      input.value =
+        next;
+    }
+
+    refresh();
+  }
+
+
+  function clearSearch() {
+    currentSearch = '';
+    currentPage = 1;
+    activeTransferGroupId = '';
+
+    const input =
+      $('liveSearchInput');
+
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+
+    refresh();
+  }
+
+
+  function paginationItems(
+    current,
+    total
+  ) {
+    if (total <= 7) {
+      return Array.from(
+        {
+          length: total
+        },
+        (_, index) =>
+          index + 1
+      );
+    }
+
+
+    const pages =
+      new Set([
+        1,
+        total,
+        current - 2,
+        current - 1,
+        current,
+        current + 1,
+        current + 2
+      ]);
+
+
+    const sorted =
+      [...pages]
+        .filter(
+          (page) =>
+            page >= 1 &&
+            page <= total
+        )
+        .sort(
+          (a, b) =>
+            a - b
+        );
+
+
+    const output = [];
+
+    let previous = 0;
+
+
+    for (
+      const page
+      of sorted
+    ) {
+      if (
+        previous &&
+        page - previous > 1
+      ) {
+        output.push(
+          'ellipsis'
+        );
+      }
+
+      output.push(
+        page
+      );
+
+      previous =
+        page;
+    }
+
+
+    return output;
+  }
+
+
+  function goToPage(page) {
+    const next =
+      Math.max(
+        1,
+        Math.min(
+          Number(page) || 1,
+          Number(
+            currentPagination
+              .totalPages
+          ) || 1
+        )
+      );
+
+    if (
+      next ===
+      currentPage
+    ) {
+      return;
+    }
+
+    currentPage =
+      next;
+
+    activeTransferGroupId =
+      '';
+
+    refresh();
+
+    const table =
+      document.querySelector(
+        '.live-panel'
+      );
+
+    if (table) {
+      table.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  }
+
+
+  function renderPagination(
+    pagination = {}
+  ) {
+    currentPagination = {
+      page:
+        Number(
+          pagination.page
+        ) || 1,
+
+      pageSize:
+        Number(
+          pagination.pageSize
+        ) || PAGE_SIZE,
+
+      totalRecords:
+        Number(
+          pagination.totalRecords
+        ) || 0,
+
+      totalPages:
+        Math.max(
+          1,
+          Number(
+            pagination.totalPages
+          ) || 1
+        ),
+
+      from:
+        Number(
+          pagination.from
+        ) || 0,
+
+      to:
+        Number(
+          pagination.to
+        ) || 0,
+
+      search:
+        String(
+          pagination.search ||
+          currentSearch ||
+          ''
+        )
+    };
+
+
+    currentPage =
+      currentPagination.page;
+
+
+    const total =
+      currentPagination
+        .totalRecords;
+
+
+    if (total) {
+      setText(
+        'liveRecordRange',
+        `Showing ${currentPagination.from.toLocaleString()}–${currentPagination.to.toLocaleString()} of ${total.toLocaleString()} matching record${total === 1 ? '' : 's'}`
+      );
+    } else {
+      setText(
+        'liveRecordRange',
+        currentSearch
+          ? 'No matching records'
+          : 'No stored records'
+      );
+    }
+
+
+    const activeSearch =
+      $('liveActiveSearch');
+
+    if (activeSearch) {
+      if (currentSearch) {
+        activeSearch.hidden =
+          false;
+
+        activeSearch.textContent =
+          `Search: "${currentSearch}"`;
+
+      } else {
+        activeSearch.hidden =
+          true;
+
+        activeSearch.textContent =
+          '';
+      }
+    }
+
+
+    const clearButton =
+      $('clearLiveSearchBtn');
+
+    if (clearButton) {
+      clearButton.hidden =
+        !currentSearch;
+    }
+
+
+    const previous =
+      $('livePreviousPage');
+
+    const next =
+      $('liveNextPage');
+
+
+    if (previous) {
+      previous.disabled =
+        currentPagination.page <= 1;
+    }
+
+
+    if (next) {
+      next.disabled =
+        currentPagination.page >=
+        currentPagination.totalPages;
+    }
+
+
+    const root =
+      $('livePageNumbers');
+
+    if (!root) {
+      return;
+    }
+
+
+    root.innerHTML = '';
+
+
+    for (
+      const item
+      of paginationItems(
+        currentPagination.page,
+        currentPagination.totalPages
+      )
+    ) {
+      if (
+        item ===
+        'ellipsis'
+      ) {
+        const ellipsis =
+          document.createElement(
+            'span'
+          );
+
+        ellipsis.className =
+          'pagination-ellipsis';
+
+        ellipsis.textContent =
+          '…';
+
+        root.appendChild(
+          ellipsis
+        );
+
+        continue;
+      }
+
+
+      const button =
+        document.createElement(
+          'button'
+        );
+
+      button.type =
+        'button';
+
+      button.className =
+        item ===
+        currentPagination.page
+          ? 'pagination-page is-current'
+          : 'pagination-page';
+
+      button.textContent =
+        String(item);
+
+      button.setAttribute(
+        'aria-label',
+        `Go to page ${item}`
+      );
+
+
+      if (
+        item ===
+        currentPagination.page
+      ) {
+        button.setAttribute(
+          'aria-current',
+          'page'
+        );
+      }
+
+
+      button.addEventListener(
+        'click',
+        () =>
+          goToPage(item)
+      );
+
+
+      root.appendChild(
+        button
+      );
     }
   }
 
@@ -731,6 +1167,10 @@
       currentRows
     );
 
+    renderPagination(
+      data.pagination || {}
+    );
+
     renderBusiness(
       insights.segments || {}
     );
@@ -738,25 +1178,49 @@
 
 
   async function refresh() {
+    if (refreshInFlight) {
+      return;
+    }
+
+    refreshInFlight =
+      true;
+
     try {
-      setText(
-        'liveStatus',
-        'Loading PostgreSQL…'
-      );
+      const parameters =
+        new URLSearchParams({
+          page:
+            String(currentPage),
+
+          pageSize:
+            String(PAGE_SIZE)
+        });
+
+
+      if (currentSearch) {
+        parameters.set(
+          'q',
+          currentSearch
+        );
+      }
+
 
       const response =
         await fetch(
-          '/api/live-data',
+          `/api/live-data?${parameters.toString()}`,
           {
             cache: 'no-store',
             credentials: 'same-origin'
           }
         );
 
+
       const data =
         await response
           .json()
-          .catch(() => ({}));
+          .catch(
+            () => ({})
+          );
+
 
       if (!response.ok) {
         throw new Error(
@@ -765,7 +1229,9 @@
         );
       }
 
+
       render(data);
+
 
     } catch (error) {
       console.error(
@@ -773,16 +1239,22 @@
         error
       );
 
+
       setText(
         'liveStatus',
         'DATABASE ERROR'
       );
+
 
       setText(
         'lastUpdated',
         error.message ||
         'Could not load PostgreSQL data'
       );
+
+    } finally {
+      refreshInFlight =
+        false;
     }
   }
 
@@ -802,101 +1274,336 @@
   }
 
 
-  function downloadCsv() {
-    if (!currentRows.length) {
-      return;
+  async function downloadCsv() {
+    const button =
+      $('downloadCsvBtn');
+
+    if (button) {
+      button.disabled =
+        true;
+
+      button.textContent =
+        'Preparing CSV…';
     }
 
-    const output = [
-      columns.map(
-        (column) =>
-          column.label
-      ),
 
-      ...currentRows.map(
-        (row) =>
-          columns.map(
-            (column) => {
-              const value =
-                row?.[
-                  column.key
-                ];
+    try {
+      const parameters =
+        new URLSearchParams({
+          export:
+            '1',
 
-              if (
-                value === null ||
-                value === undefined
-              ) {
-                return '';
+          page:
+            '1',
+
+          pageSize:
+            '50000'
+        });
+
+
+      if (currentSearch) {
+        parameters.set(
+          'q',
+          currentSearch
+        );
+      }
+
+
+      const response =
+        await fetch(
+          `/api/live-data?${parameters.toString()}`,
+          {
+            cache:
+              'no-store',
+
+            credentials:
+              'same-origin'
+          }
+        );
+
+
+      const data =
+        await response
+          .json()
+          .catch(
+            () => ({})
+          );
+
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+          'Could not export database'
+        );
+      }
+
+
+      const exportRows =
+        Array.isArray(
+          data.rows
+        )
+          ? data.rows
+          : [];
+
+
+      if (!exportRows.length) {
+        setText(
+          'liveStatus',
+          'NO RECORDS TO EXPORT'
+        );
+
+        return;
+      }
+
+
+      const output = [
+        columns.map(
+          (column) =>
+            column.label
+        ),
+
+        ...exportRows.map(
+          (row) =>
+            columns.map(
+              (column) => {
+                const value =
+                  row?.[
+                    column.key
+                  ];
+
+                if (
+                  value === null ||
+                  value === undefined
+                ) {
+                  return '';
+                }
+
+                return value;
               }
-
-              return value;
-            }
-          )
-      )
-    ]
-      .map(
-        (row) =>
-          row
-            .map(csv)
-            .join(',')
-      )
-      .join('\n');
+            )
+        )
+      ]
+        .map(
+          (row) =>
+            row
+              .map(csv)
+              .join(',')
+        )
+        .join('\n');
 
 
-    const blob =
-      new Blob(
-        [output],
-        {
-          type:
-            'text/csv;charset=utf-8'
-        }
+      const blob =
+        new Blob(
+          [output],
+          {
+            type:
+              'text/csv;charset=utf-8'
+          }
+        );
+
+
+      const url =
+        URL.createObjectURL(
+          blob
+        );
+
+
+      const link =
+        document.createElement(
+          'a'
+        );
+
+
+      link.href =
+        url;
+
+
+      const stamp =
+        new Date()
+          .toISOString()
+          .slice(0, 10);
+
+
+      link.download =
+        currentSearch
+          ? `airgesture-search-data-${stamp}.csv`
+          : `airgesture-commercial-data-${stamp}.csv`;
+
+
+      document.body
+        .appendChild(
+          link
+        );
+
+
+      link.click();
+      link.remove();
+
+
+      URL.revokeObjectURL(
+        url
       );
 
 
-    const url =
-      URL.createObjectURL(
-        blob
+      setText(
+        'liveStatus',
+        `EXPORTED · ${exportRows.length.toLocaleString()} RECORDS`
       );
 
 
-    const link =
-      document.createElement(
-        'a'
+      setTimeout(
+        () =>
+          setText(
+            'liveStatus',
+            'LIVE · PostgreSQL'
+          ),
+        1200
       );
 
-    link.href =
-      url;
 
-    const stamp =
-      new Date()
-        .toISOString()
-        .slice(0, 10);
-
-    link.download =
-      `airgesture-commercial-data-${stamp}.csv`;
-
-
-    document.body
-      .appendChild(
-        link
+    } catch (error) {
+      console.error(
+        'CSV export failed:',
+        error
       );
 
-    link.click();
-    link.remove();
 
-    URL.revokeObjectURL(
-      url
-    );
+      setText(
+        'liveStatus',
+        'CSV EXPORT ERROR'
+      );
+
+
+    } finally {
+      if (button) {
+        button.disabled =
+          false;
+
+        button.textContent =
+          'Download CSV';
+      }
+    }
   }
+
 
 
 
   renderHeader();
 
+
   setText(
     'liveRoom',
     databaseScope
   );
+
+
+  const searchInput =
+    $('liveSearchInput');
+
+
+  if (searchInput) {
+    searchInput.addEventListener(
+      'input',
+      () => {
+        clearTimeout(
+          searchTimer
+        );
+
+
+        const value =
+          searchInput.value
+            .trim()
+            .slice(
+              0,
+              160
+            );
+
+
+        searchTimer =
+          setTimeout(
+            () => {
+              currentSearch =
+                value;
+
+              currentPage =
+                1;
+
+              activeTransferGroupId =
+                '';
+
+              refresh();
+            },
+            350
+          );
+      }
+    );
+
+
+    searchInput.addEventListener(
+      'keydown',
+      (event) => {
+        if (
+          event.key !==
+          'Enter'
+        ) {
+          return;
+        }
+
+
+        event.preventDefault();
+
+
+        clearTimeout(
+          searchTimer
+        );
+
+
+        applySearch(
+          searchInput.value
+        );
+      }
+    );
+  }
+
+
+  const clearButton =
+    $('clearLiveSearchBtn');
+
+  if (clearButton) {
+    clearButton.addEventListener(
+      'click',
+      clearSearch
+    );
+  }
+
+
+  const previousButton =
+    $('livePreviousPage');
+
+  if (previousButton) {
+    previousButton.addEventListener(
+      'click',
+      () =>
+        goToPage(
+          currentPage - 1
+        )
+    );
+  }
+
+
+  const nextButton =
+    $('liveNextPage');
+
+  if (nextButton) {
+    nextButton.addEventListener(
+      'click',
+      () =>
+        goToPage(
+          currentPage + 1
+        )
+    );
+  }
+
 
   $('downloadCsvBtn')
     .addEventListener(
@@ -904,8 +1611,12 @@
       downloadCsv
     );
 
+
   refresh();
 
+
+  // Preserve the live character of the database page.
+  // refreshInFlight prevents overlapping PostgreSQL requests.
   setInterval(
     refresh,
     1000

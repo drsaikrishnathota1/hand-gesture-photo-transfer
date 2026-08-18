@@ -2059,25 +2059,73 @@ function createServer() {
           });
         }
 
+
+        const exportAll =
+          String(
+            req.query?.export ||
+            ''
+          ) === '1';
+
+
+        const page =
+          Math.max(
+            1,
+            Math.floor(
+              Number(
+                req.query?.page
+              ) || 1
+            )
+          );
+
+
+        // Normal page requests are intentionally fixed
+        // at exactly 20 rows.
+        //
+        // Explicit CSV exports may retrieve a larger set.
+        const pageSize =
+          exportAll
+            ? 50000
+            : 20;
+
+
+        const search =
+          String(
+            req.query?.q ||
+            ''
+          )
+            .trim()
+            .slice(
+              0,
+              160
+            );
+
+
         const data =
           await database
-            .liveClassroomData({
-              allHistory: true,
-              limit: null
+            .liveClassroomDataPage({
+              page,
+              pageSize,
+              search,
+              exportAll
             });
+
 
         res.setHeader(
           'Cache-Control',
           'no-store'
         );
 
-        return res.json(data);
+
+        return res.json(
+          data
+        );
 
       } catch (error) {
         console.error(
           'Live classroom database failed:',
           error
         );
+
 
         return res.status(500).json({
           error:
@@ -2086,6 +2134,7 @@ function createServer() {
       }
     }
   );
+
 
   app.get(
     '/api/admin/database',

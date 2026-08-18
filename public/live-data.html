@@ -122,8 +122,69 @@
         </div>
 
         <small>
-          Essential business analytics fields · auto-refreshes every second
+          20 records per page · PostgreSQL search · live auto-refresh
         </small>
+      </div>
+
+
+
+      <div
+        class="live-database-toolbar"
+        aria-label="Search AirGesture database"
+      >
+
+        <div class="live-search-shell">
+
+          <span
+            class="live-search-icon"
+            aria-hidden="true"
+          >
+            ⌕
+          </span>
+
+          <input
+            id="liveSearchInput"
+            type="search"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Search by Transfer ID or User Name..."
+            aria-label="Search by Transfer ID or User Name"
+          />
+
+          <button
+            id="clearLiveSearchBtn"
+            class="live-search-clear"
+            type="button"
+            hidden
+          >
+            Clear
+          </button>
+
+        </div>
+
+
+        <div class="live-search-help">
+          Search using a full or partial Transfer ID,
+          or enter a participant's name.
+          You can also click any User Name in the table
+          to view that user's records.
+        </div>
+
+
+        <div class="live-record-summary">
+
+          <strong id="liveRecordRange">
+            Loading records…
+          </strong>
+
+          <span
+            id="liveActiveSearch"
+            class="live-active-search"
+            hidden
+          ></span>
+
+        </div>
+
       </div>
 
 
@@ -147,6 +208,37 @@
         </table>
 
       </div>
+
+
+      <nav
+        id="livePagination"
+        class="live-pagination"
+        aria-label="Database pages"
+      >
+
+        <button
+          id="livePreviousPage"
+          class="pagination-nav"
+          type="button"
+        >
+          ‹ Previous
+        </button>
+
+        <div
+          id="livePageNumbers"
+          class="pagination-pages"
+        ></div>
+
+        <button
+          id="liveNextPage"
+          class="pagination-nav"
+          type="button"
+        >
+          Next ›
+        </button>
+
+      </nav>
+
 
     </section>
 

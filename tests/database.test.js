@@ -1168,7 +1168,7 @@ test(
 
 
 test(
-  'V5.4.2 Live Data shows all history to any authenticated user',
+  'V5.4.2 Live Data provides authenticated server-side search and pagination',
   () => {
     const server =
       fs.readFileSync(
@@ -1208,6 +1208,7 @@ test(
         'utf8'
       );
 
+
     const routeStart =
       server.indexOf(
         "'/api/live-data'"
@@ -1227,16 +1228,37 @@ test(
           : undefined
       );
 
+
+    // Live database remains available to authenticated users.
     assert.match(
       route,
       /requireAuth/
     );
 
+
+    // New implementation must use the dedicated
+    // server-side paginated PostgreSQL query.
     assert.match(
       route,
-      /allHistory:\s*true/
+      /liveClassroomDataPage/
     );
 
+
+    // Normal web browsing is fixed at 20 records per page.
+    assert.match(
+      route,
+      /exportAll[\s\S]*50000[\s\S]*20/
+    );
+
+
+    // Search is accepted from the q query parameter.
+    assert.match(
+      route,
+      /req\.query\?\.q/
+    );
+
+
+    // It must not revert to room-participant-only access.
     assert.doesNotMatch(
       route,
       /isRoomParticipant/
@@ -1247,14 +1269,33 @@ test(
       /Join this AirGesture room/
     );
 
+
+    // Main AirGesture application still links to Live Data.
     assert.match(
       app,
       /['"]\/live-data\.html['"]/
     );
 
+
+    // Browser now builds page/search parameters.
     assert.match(
       live,
-      /fetch\(\s*['"]\/api\/live-data['"]/
+      /URLSearchParams/
+    );
+
+    assert.match(
+      live,
+      /PAGE_SIZE\s*=\s*20/
+    );
+
+    assert.match(
+      live,
+      /currentSearch/
+    );
+
+    assert.match(
+      live,
+      /\/api\/live-data\?/
     );
 
     assert.match(
@@ -1262,9 +1303,26 @@ test(
       /ALL STORED RECORDS/
     );
 
+
+    // Database performs true server-side pagination.
     assert.match(
       db,
-      /input\.allHistory === true/
+      /async function liveClassroomDataPage/
+    );
+
+    assert.match(
+      db,
+      /e\.id::text ILIKE/
+    );
+
+    assert.match(
+      db,
+      /u\.name ILIKE/
+    );
+
+    assert.match(
+      db,
+      /LIMIT \$3[\s\S]*OFFSET \$4/
     );
   }
 );
