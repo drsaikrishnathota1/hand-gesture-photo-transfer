@@ -1402,3 +1402,173 @@ body:not(.auth-ready) .app-shell {
   border: 1px solid rgba(255,255,255,.07);
 }
 
+
+/* ==========================================================
+   V5.4.2 Visible Event-Level Transfer IDs
+   ========================================================== */
+
+.transfer-id-banner {
+  margin-top: 12px;
+  padding: 13px 14px;
+  border: 1px solid rgba(69,217,255,.24);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(69,217,255,.07),
+      rgba(79,124,255,.06)
+    );
+}
+
+.transfer-id-banner[hidden] {
+  display: none;
+}
+
+.transfer-id-label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--cyan);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+}
+
+.transfer-id-value-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.transfer-id-value-row code {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.transfer-id-banner > small {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.transfer-id-copy-btn {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(69,217,255,.22);
+  border-radius: 9px;
+  background: rgba(69,217,255,.07);
+  color: var(--cyan);
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.transfer-id-copy-btn:hover:not(:disabled) {
+  background: rgba(69,217,255,.13);
+}
+
+.transfer-id-copy-btn:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.received-file-details {
+  min-width: 0;
+}
+
+.received-transfer-id {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(151,178,215,.08);
+}
+
+.received-transfer-id > span {
+  color: var(--cyan);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .7px;
+}
+
+.received-transfer-id code {
+  min-width: 0;
+  color: var(--text);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  font-size: 8px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.received-copy-btn {
+  min-height: 25px;
+  padding: 0 7px;
+  font-size: 8px;
+}
+
+.my-transfer-id-line {
+  align-items: flex-start !important;
+}
+
+#myTransferId {
+  max-width: 70%;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  font-size: 8px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  text-align: right;
+}
+
+
+@media (max-width: 720px) {
+  .transfer-id-value-row {
+    align-items: flex-start;
+  }
+
+  .received-item {
+    grid-template-columns:
+      38px
+      minmax(0,1fr);
+  }
+
+  .received-item .download-link {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .received-transfer-id {
+    grid-template-columns: 1fr;
+  }
+
+  .received-copy-btn {
+    justify-self: start;
+  }
+}
+

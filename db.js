@@ -1888,7 +1888,7 @@ function createDatabase(options = {}) {
 
          RETURNING *`,
         [
-          crypto.randomUUID(),
+          input.eventId || crypto.randomUUID(),
           input.sessionId,
           input.userId,
           clean(

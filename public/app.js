@@ -46,6 +46,10 @@ const state = {
   broadcastClientId: "",
   broadcastFileId: "",
   broadcastFileSignature: "",
+
+  // Public event-level SEND Transfer ID.
+  // This is NOT the shared broadcast file ID.
+  senderTransferId: "",
   broadcastUploadInProgress: false,
   broadcastDownloadInProgress: false,
   broadcastXHR: null,
@@ -95,6 +99,106 @@ function toast(message) {
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => el.classList.remove("show"), 2600);
 }
+
+
+async function copyTransferIdValue(value) {
+  const id =
+    String(value || '').trim();
+
+  if (!id) return;
+
+  try {
+    if (
+      navigator.clipboard &&
+      navigator.clipboard.writeText
+    ) {
+      await navigator.clipboard
+        .writeText(id);
+    } else {
+      const temporary =
+        document.createElement('textarea');
+
+      temporary.value = id;
+      temporary.setAttribute(
+        'readonly',
+        ''
+      );
+
+      temporary.style.position =
+        'fixed';
+
+      temporary.style.opacity =
+        '0';
+
+      document.body.appendChild(
+        temporary
+      );
+
+      temporary.select();
+
+      document.execCommand(
+        'copy'
+      );
+
+      temporary.remove();
+    }
+
+    toast(
+      'Transfer ID copied'
+    );
+
+  } catch (error) {
+    console.error(
+      'Transfer ID copy failed:',
+      error
+    );
+
+    toast(
+      'Could not copy Transfer ID'
+    );
+  }
+}
+
+
+function renderSenderTransferId() {
+  const panel =
+    $('senderTransferIdPanel');
+
+  const value =
+    $('senderTransferIdValue');
+
+  const copyButton =
+    $('copySenderTransferIdBtn');
+
+  if (
+    !panel ||
+    !value
+  ) {
+    return;
+  }
+
+  const id =
+    String(
+      state.senderTransferId || ''
+    );
+
+  const visible =
+    state.role === 'sender' &&
+    Boolean(id);
+
+  panel.hidden =
+    !visible;
+
+  value.textContent =
+    id || '--';
+
+  if (copyButton) {
+    copyButton.onclick =
+      () =>
+        copyTransferIdValue(id);
+  }
+}
+
 
 function status(message, mode = "info") {
   $("statusText").textContent = message;
@@ -1200,7 +1304,21 @@ function renderMyIntelligence() {
     latencyMs ? `${latencyMs.toFixed(1)} ms` : 'Measuring…'
   );
 
-  setText('myTransferFile', transferName);
+  setText(
+    'myTransferFile',
+    transferName
+  );
+
+  setText(
+    'myTransferId',
+    transfer.transferId ||
+      (
+        result === 'SUCCESS'
+          ? 'Saving…'
+          : '--'
+      )
+  );
+
   setText('myTransferSize', transferSize ? formatBytes(transferSize) : '--');
   setText(
     'myTransferSpeed',
@@ -1928,10 +2046,14 @@ function resetBroadcastState({ keepStats = false } = {}) {
   state.broadcastClientId = "";
   state.broadcastFileId = "";
   state.broadcastFileSignature = "";
+  state.senderTransferId = "";
   state.broadcastUploadInProgress = false;
   state.broadcastDownloadInProgress = false;
   state.broadcastXHR = null;
   state.broadcastAbortController = null;
+
+  renderSenderTransferId();
+
   if (!keepStats) renderBroadcastStats({});
 }
 
@@ -1961,6 +2083,7 @@ function setRole(role) {
 
   if (changed) state.myTransfer = null;
   renderRoleIntelligence();
+  renderSenderTransferId();
 
   if (changed && state.ws?.readyState === WebSocket.OPEN) {
     try { state.ws.close(); } catch {}
@@ -1998,6 +2121,11 @@ function selectFile(file) {
     return;
   }
   state.selectedFile = file;
+
+  // Selecting a document is not yet a SEND transaction.
+  // Remove the previous SEND ID until Air Copy succeeds.
+  state.senderTransferId = "";
+  renderSenderTransferId();
 
   syncGestureExperience();
   $("fileTitle").textContent = file.name;
@@ -2577,23 +2705,133 @@ async function handleDataMessage(event) {
   }
 }
 
-function addReceivedFile(name, size, url) {
+function addReceivedFile(
+  name,
+  size,
+  url,
+  transferId = ''
+) {
   state.receivedFiles += 1;
-  $("receivedCount").textContent = String(state.receivedFiles);
-  const list = $("receivedFiles");
-  if (list.classList.contains("empty-state")) {
-    list.className = "received-list";
-    list.innerHTML = "";
+
+  $('receivedCount').textContent =
+    String(state.receivedFiles);
+
+  const list =
+    $('receivedFiles');
+
+  if (
+    list.classList.contains(
+      'empty-state'
+    )
+  ) {
+    list.className =
+      'received-list';
+
+    list.innerHTML = '';
   }
-  const item = document.createElement("div");
-  item.className = "received-item";
-  const ext = (name.split(".").pop() || "FILE").slice(0, 4).toUpperCase();
-  item.innerHTML = `<span class="file-token">${ext}</span><div><strong></strong><small>${formatBytes(size)} · received now</small></div><a class="download-link" download>Download</a>`;
-  item.querySelector("strong").textContent = name;
-  const link = item.querySelector("a");
-  link.href = url;
-  link.download = name;
-  list.prepend(item);
+
+  const item =
+    document.createElement(
+      'div'
+    );
+
+  item.className =
+    'received-item';
+
+  const ext =
+    (
+      name.split('.').pop() ||
+      'FILE'
+    )
+      .slice(0, 4)
+      .toUpperCase();
+
+  const id =
+    String(
+      transferId || ''
+    );
+
+  item.innerHTML = `
+    <span class="file-token"></span>
+
+    <div class="received-file-details">
+      <strong class="received-file-name"></strong>
+
+      <small class="received-file-meta"></small>
+
+      <div class="received-transfer-id">
+        <span>TRANSFER ID</span>
+
+        <code></code>
+
+        <button
+          class="transfer-id-copy-btn received-copy-btn"
+          type="button"
+        >
+          Copy
+        </button>
+      </div>
+    </div>
+
+    <a
+      class="download-link"
+      download
+    >
+      Download
+    </a>
+  `;
+
+  item.querySelector(
+    '.file-token'
+  ).textContent =
+    ext;
+
+  item.querySelector(
+    '.received-file-name'
+  ).textContent =
+    name;
+
+  item.querySelector(
+    '.received-file-meta'
+  ).textContent =
+    `${formatBytes(size)} · received now`;
+
+  const code =
+    item.querySelector(
+      '.received-transfer-id code'
+    );
+
+  code.textContent =
+    id || 'Unavailable';
+
+  const copyButton =
+    item.querySelector(
+      '.received-copy-btn'
+    );
+
+  copyButton.disabled =
+    !id;
+
+  copyButton.addEventListener(
+    'click',
+    () =>
+      copyTransferIdValue(id)
+  );
+
+  const link =
+    item.querySelector(
+      '.download-link'
+    );
+
+  link.href =
+    url;
+
+  link.download =
+    name;
+
+  list.prepend(
+    item
+  );
 }
 
 async function failActiveTransfer(reason) {
@@ -2731,9 +2969,23 @@ async function prepareBroadcastAirCopy(trigger = "manual") {
 
   try {
     const result = await uploadBroadcastFile(state.selectedFile);
-    state.broadcastFileId = result.file?.id || "";
-    state.broadcastFileSignature = fileSignature;
-    renderBroadcastStats(result.stats || {});
+    state.broadcastFileId =
+      result.file?.id || "";
+
+    state.broadcastFileSignature =
+      fileSignature;
+
+    // Unique SEND event UUID returned by the server.
+    state.senderTransferId =
+      String(
+        result.transferId || ''
+      );
+
+    renderSenderTransferId();
+
+    renderBroadcastStats(
+      result.stats || {}
+    );
     setProgress(100);
     setTransferState("waiting receivers");
     status(`Broadcast ready. ${state.broadcastStats.connected} receiver(s) can now show ✊ → ✋ to Air Paste ${state.selectedFile.name}.`);
@@ -2863,8 +3115,8 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
 
     const durationSec = (performance.now() - started) / 1000;
     const speedMbps = durationSec > 0 ? (receivedBytes * 8) / 1_000_000 / durationSec : 0;
-    const url = URL.createObjectURL(blob);
-    addReceivedFile(request.name, blob.size, url);
+    const url =
+      URL.createObjectURL(blob);
 
     state.myTransfer = {
       result: 'SUCCESS',
@@ -2912,17 +3164,40 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
       }
     );
 
-    if (!persistenceResponse.ok) {
-      const persistenceError =
-        await persistenceResponse
-          .json()
-          .catch(() => ({}));
+    const persistenceData =
+      await persistenceResponse
+        .json()
+        .catch(() => ({}));
 
+    let receiverTransferId = '';
+
+    if (!persistenceResponse.ok) {
       console.error(
         "PostgreSQL persistence failed:",
-        persistenceError
+        persistenceData
       );
+
+    } else {
+      receiverTransferId =
+        String(
+          persistenceData
+            .transferId || ''
+        );
     }
+
+    // The ID shown beside the received document is the
+    // exact classroom_data_events.id returned by PostgreSQL.
+    state.myTransfer.transferId =
+      receiverTransferId;
+
+    renderMyIntelligence();
+
+    addReceivedFile(
+      request.name,
+      blob.size,
+      url,
+      receiverTransferId
+    );
 
     state.ws.send(JSON.stringify({
       type: "broadcast-complete",

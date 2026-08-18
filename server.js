@@ -1637,6 +1637,8 @@ function createServer() {
           );
         }
 
+        let liveTransferId = null;
+
         if (result === 'SUCCESS') {
           try {
             const liveConsent =
@@ -1645,10 +1647,14 @@ function createServer() {
                   userId
                 );
 
-            await database
-              .recordLiveDataEvent({
-                sessionId,
-                userId,
+            const liveRecord =
+              await database
+                .recordLiveDataEvent({
+                  eventId:
+                    crypto.randomUUID(),
+
+                  sessionId,
+                  userId,
                 roomCode,
                 action:
                   'RECEIVE',
@@ -1666,7 +1672,15 @@ function createServer() {
                     liveConsent
                       .analyticsConsent
                   )
-              });
+                });
+
+            // Use the actual database row UUID.
+            // If an existing event was updated because of
+            // retry/deduplication, RETURNING gives us the
+            // already-authoritative UUID.
+            liveTransferId =
+              liveRecord?.id || null;
+
           } catch (liveError) {
             databaseError(
               'live HTTP RECEIVE persistence',
@@ -1686,7 +1700,15 @@ function createServer() {
           ok: true,
           persisted: true,
           result,
-          id: record?.id || null,
+          // Legacy transfer_events ID retained for
+          // internal compatibility.
+          id:
+            record?.id || null,
+
+          // Public event-level Transfer ID.
+          transferId:
+            liveTransferId,
+
           sessionId
         });
       } catch (error) {
@@ -2894,6 +2916,11 @@ function createServer() {
     const name = sanitizeFilename(safeDecodeHeader(req.get('x-file-name')));
     const mime = String(req.get('x-file-type') || 'application/octet-stream').slice(0, 120);
     const fileId = crypto.randomUUID();
+
+    // Unique public SEND transaction identifier.
+    // fileId remains the internal transfer-group identifier.
+    const senderTransferId = crypto.randomUUID();
+
     const filePath = path.join(BROADCAST_DIR, `${roomCode}-${fileId}.bin`);
     const output = fs.createWriteStream(filePath, { flags: 'wx' });
     const hash = crypto.createHash('sha256');
@@ -3007,6 +3034,9 @@ function createServer() {
 
           await database
             .recordLiveDataEvent({
+              eventId:
+                senderTransferId,
+
               sessionId,
               userId,
               roomCode:
@@ -3042,8 +3072,17 @@ function createServer() {
 
         res.status(201).json({
           ok: true,
-          file: publicBroadcastFile(room.file),
-          stats: broadcastStats(room)
+
+          // This is the unique SEND event UUID shown to
+          // the Sender and in the Database / CSV.
+          transferId:
+            senderTransferId,
+
+          file:
+            publicBroadcastFile(room.file),
+
+          stats:
+            broadcastStats(room)
         });
       });
     });

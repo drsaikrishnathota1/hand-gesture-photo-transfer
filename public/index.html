@@ -272,6 +272,32 @@
               <button id="chooseFileBtn" class="btn ghost small">Browse File</button>
             </div>
 
+            <div
+              id="senderTransferIdPanel"
+              class="transfer-id-banner"
+              hidden
+            >
+              <span class="transfer-id-label">
+                SEND TRANSFER ID
+              </span>
+
+              <div class="transfer-id-value-row">
+                <code id="senderTransferIdValue">--</code>
+
+                <button
+                  id="copySenderTransferIdBtn"
+                  class="transfer-id-copy-btn"
+                  type="button"
+                >
+                  Copy
+                </button>
+              </div>
+
+              <small>
+                Unique transaction ID for this Sender SEND event
+              </small>
+            </div>
+
             <div class="transfer-state">
               <div class="state-row">
                 <span>Transfer state</span>
@@ -382,6 +408,10 @@
               <span>MY TRANSFER</span>
               <strong id="myTransferFile">Waiting for Sender</strong>
               <div class="my-card-lines">
+                <small class="my-transfer-id-line">
+                  Transfer ID
+                  <b id="myTransferId">--</b>
+                </small>
                 <small>Size <b id="myTransferSize">--</b></small>
                 <small>Speed <b id="myTransferSpeed">--</b></small>
                 <small>Duration <b id="myTransferDuration">--</b></small>
