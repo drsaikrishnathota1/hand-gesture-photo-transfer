@@ -2004,8 +2004,8 @@ function renderRoleFilePanel() {
     } else {
       $("fileTitle").textContent = broadcast ? "Choose a file to Air Send" : "Choose a file to Air Copy";
       $("fileMeta").textContent = broadcast
-        ? "Upload once · up to 100 MB · distribute to all receivers in the room"
-        : "Click or drag & drop · up to 100 MB";
+        ? "Supported: PDF, Word, Excel, CSV, TXT, images, videos & other files · Maximum 100 MB per file"
+        : "Supported: PDF, Word, Excel, CSV, TXT, images, videos & other files · Maximum 100 MB per file";
     }
   } else {
     $("dropZone").style.opacity = ".75";
