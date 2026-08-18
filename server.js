@@ -10,7 +10,7 @@ const connectPgSimple = require('connect-pg-simple');
 const { createAuthRouter } = require('./auth');
 const { createDatabase } = require('./db');
 const { buildIntelligenceSnapshot } = require('./strategy-intelligence');
-const { generateAirGestureAgentAnswer } = require('./airgesture-ai-agent');
+const { answerAirGestureQuestion } = require('./airgesture-data-assistant');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -2094,18 +2094,38 @@ function createServer() {
   }
 
 
-  async function loadStrategicIntelligenceRows() {
-    const data =
-      await database.liveClassroomDataPage({
+  const intelligenceRowsCache = { rows: null, loadedAt: 0, inFlight: null };
+
+  async function loadStrategicIntelligenceRows(force = false) {
+    const now = Date.now();
+    const maxAgeMs = 5000;
+
+    if (!force && intelligenceRowsCache.rows && now - intelligenceRowsCache.loadedAt < maxAgeMs) {
+      return intelligenceRowsCache.rows;
+    }
+
+    if (!force && intelligenceRowsCache.inFlight) {
+      return intelligenceRowsCache.inFlight;
+    }
+
+    intelligenceRowsCache.inFlight = (async () => {
+      const data = await database.liveClassroomDataPage({
         page: 1,
         pageSize: 50000,
         search: '',
         exportAll: true
       });
+      const rows = Array.isArray(data?.rows) ? data.rows : [];
+      intelligenceRowsCache.rows = rows;
+      intelligenceRowsCache.loadedAt = Date.now();
+      return rows;
+    })();
 
-    return Array.isArray(data?.rows)
-      ? data.rows
-      : [];
+    try {
+      return await intelligenceRowsCache.inFlight;
+    } finally {
+      intelligenceRowsCache.inFlight = null;
+    }
   }
 
 
@@ -2129,20 +2149,12 @@ function createServer() {
             req.query || {}
           );
 
-        const apiKey =
-          String(process.env.OPENAI_API_KEY || '').trim();
-
-        snapshot.ai = {
-          configured: Boolean(apiKey),
-          provider: apiKey
-            ? 'OpenAI + AirGesture Grounding'
-            : 'AirGesture Grounded Strategy Engine',
-          model: apiKey
-            ? String(
-                process.env.OPENAI_MODEL ||
-                'gpt-5.6-sol'
-              )
-            : null
+        snapshot.assistant = {
+          configured: true,
+          provider: 'AirGesture Data Assistant',
+          source: 'local-deterministic',
+          externalApi: false,
+          costPerQuestion: 0
         };
 
         res.setHeader('Cache-Control', 'no-store');
@@ -2172,97 +2184,40 @@ function createServer() {
           });
         }
 
-        const apiKey =
-          String(
-            process.env.OPENAI_API_KEY || ''
-          ).trim();
-
-        if (!apiKey) {
-          return res.status(503).json({
-            error: 'Ask AI is not configured on this server.'
-          });
-        }
-
         if (!allowIntelligenceAiRequest(req)) {
           return res.status(429).json({
-            error: 'Ask AI is receiving too many requests. Please wait a moment and try again.'
+            error: 'The Data Assistant is receiving too many requests. Please wait a moment and try again.'
           });
         }
 
-        const question =
-          String(req.body?.question || '')
-            .trim()
-            .slice(0, 500);
-
+        const question = String(req.body?.question || '').trim().slice(0, 500);
         if (!question) {
-          return res.status(400).json({
-            error: 'Enter a question for Ask AI.'
-          });
+          return res.status(400).json({ error: 'Enter a question for the Data Assistant.' });
         }
 
-        const history =
-          Array.isArray(req.body?.history)
-            ? req.body.history
-            : [];
-
-        const rows =
-          await loadStrategicIntelligenceRows();
-
-        const model =
-          String(
-            process.env.OPENAI_MODEL ||
-            'gpt-5.6-sol'
-          ).trim();
-
-        const reasoningEffort =
-          String(
-            process.env.OPENAI_REASONING_EFFORT ||
-            'medium'
-          ).trim();
-
-        let generated;
-
-        try {
-          generated =
-            await generateAirGestureAgentAnswer({
-              question,
-              history,
-              rows,
-              filters: req.body?.filters || {},
-              apiKey,
-              model,
-              reasoningEffort
-            });
-        } catch (aiError) {
-          console.warn(
-            'AirGesture live-data AI agent failed:',
-            aiError?.message || aiError
-          );
-
-          return res.status(502).json({
-            error: 'The live AI agent could not complete this request. Please try again.'
-          });
-        }
+        const history = Array.isArray(req.body?.history) ? req.body.history : [];
+        const rows = await loadStrategicIntelligenceRows();
+        const generated = answerAirGestureQuestion({
+          question,
+          history,
+          rows,
+          filters: req.body?.filters || {}
+        });
 
         res.setHeader('Cache-Control', 'no-store');
-
         return res.json({
           ok: true,
           generatedAt: new Date().toISOString(),
           question,
           filters: req.body?.filters || {},
-          answerSource: 'openai-live-tools',
+          answerSource: 'airgesture-data-assistant',
           strategy: generated.strategy,
-          ai: generated.ai
+          assistant: generated.assistant
         });
       } catch (error) {
-        databaseError(
-          'AI data agent question',
-          error
-        );
-
+        databaseError('Data Assistant question', error);
         return res.status(500).json({
-          error: 'Could not answer the AI data question.'
+          error: 'Could not answer the AirGesture data question.'
         });
       }
     }

@@ -43,12 +43,12 @@
   const palette = ['#39d8ff', '#6d94ff', '#8b7dff', '#3ad99d', '#f1c75b', '#ff7d8a', '#6ee7d7', '#c18cff'];
 
   const panelPrompts = {
-    audience: 'Which audience should we focus on first, what product categories fit that audience, and what market should we use for a small test?',
-    market: 'Which market should management test first, what evidence supports it, and what product should be tested there?',
-    product: 'What commercial product ideas are suggested by the current file-type mix, and which one should we test first?',
-    platform: 'How should the current operating-system mix affect product and marketing priorities?',
-    timing: 'When should we test promotions or support coverage based on current usage timing?',
-    usage: 'What does current usage intensity suggest about a feature-tier or premium experiment?'
+    audience: 'Which audience has the most events in the current AirGesture data?',
+    market: 'Which market has the most users in the current AirGesture data?',
+    product: 'Which file type has the most events in the current AirGesture data?',
+    platform: 'Which operating system has the most events in the current AirGesture data?',
+    timing: 'Which hour has the most events in the current AirGesture data?',
+    usage: 'Summarize the current AirGesture data.'
   };
 
   const filterLabels = {
@@ -400,43 +400,23 @@
     $('lastUpdated').textContent = `Updated ${generated.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
   }
 
-  function renderAiStatus(snapshot) {
+  function renderAiStatus(_snapshot) {
     const badge = $('aiStatusBadge');
     const provider = $('aiProviderLabel');
     const aiModeButton = $('aiModeBtn');
     const send = $('aiSendBtn');
-    const configured = Boolean(snapshot?.ai?.configured);
 
-    document.body.classList.remove('ai-agent-pending');
-    document.body.classList.toggle('ai-agent-disabled', !configured);
+    document.body.classList.remove('ai-agent-pending', 'ai-agent-disabled');
 
     if (badge) {
-      badge.hidden = !configured;
-      badge.classList.toggle('live', configured);
+      badge.hidden = false;
+      badge.classList.add('live');
       badge.classList.remove('fallback');
-      if (configured) {
-        badge.innerHTML = '<span class="ai-status-dot"></span>AI connected';
-      }
+      badge.innerHTML = '<span class="ai-status-dot"></span>Data Assistant ready';
     }
-
-    if (aiModeButton) aiModeButton.hidden = !configured;
-
-    if (!configured && state.currentMode === 'ai') {
-      switchMode('dashboard');
-    }
-
-    if (provider) {
-      provider.textContent = configured
-        ? 'Live AI agent · current AirGesture aggregate data tools'
-        : 'AI agent is not configured on this server.';
-    }
-
-    if (send) {
-      send.disabled = !configured;
-      send.innerHTML = configured
-        ? 'Ask AI <span>↗</span>'
-        : 'AI unavailable';
-    }
+    if (aiModeButton) aiModeButton.hidden = false;
+    if (provider) provider.textContent = '$0 external API · current PostgreSQL aggregates';
+    if (send && !send.disabled) send.innerHTML = 'Ask Data Assistant <span>↗</span>';
   }
 
   function contentDecision(topFile) {
@@ -494,7 +474,7 @@
         <h3>${escapeHtml(card.title)}</h3>
         <p>${escapeHtml(card.evidence)}</p>
         <strong>${escapeHtml(card.action)}</strong>
-        <button type="button" data-ai-question="${escapeHtml(card.question)}">Ask Strategy →</button>
+        <button type="button" data-ai-question="${escapeHtml(card.question)}">Ask Assistant →</button>
       </article>
     `).join('');
   }
@@ -575,7 +555,7 @@
       <article class="opportunity-row">
         <div class="opportunity-row-head"><h3>${escapeHtml(item.title)}</h3><span class="opportunity-label">${escapeHtml(opportunityLabel(item.score))}</span></div>
         <p>${escapeHtml(item.reason || 'Observed behavior supports a controlled product-message test.')}</p>
-        <button type="button" data-ai-question="Should we test ${escapeHtml(item.title)}? Which audience, market and channel should we use first based on current AirGesture data?">Ask Strategy →</button>
+        <button type="button" data-ai-question="Should we test ${escapeHtml(item.title)}? Which audience, market and channel should we use first based on current AirGesture data?">Ask Assistant →</button>
       </article>
     `).join('');
   }
@@ -776,7 +756,7 @@
       avatar.textContent = '✦';
       const bubble = document.createElement('div');
       const strong = document.createElement('strong');
-      strong.textContent = label || 'Strategy Copilot';
+      strong.textContent = label || 'AirGesture Data Assistant';
       const p = document.createElement('p');
       p.textContent = text;
       bubble.append(strong, p);
@@ -790,9 +770,9 @@
     state.aiHistory = [];
     const container = $('aiConversation');
     if (!container) return;
-    container.innerHTML = '<div class="ai-message assistant intro-message"><div class="ai-avatar">✦</div><div><strong>Strategy Copilot</strong><p>Ask a commercial question. I will separate observed evidence from the business hypothesis.</p></div></div>';
+    container.innerHTML = '<div class="ai-message assistant intro-message"><div class="ai-avatar">✦</div><div><strong>AirGesture Data Assistant</strong><p>Ask a data or business-test question. I calculate the answer from the current AirGesture aggregates without an external AI API.</p></div></div>';
     const panel = $('aiAnswerPanel');
-    if (panel) panel.innerHTML = '<div class="ai-answer-empty"><span>✦</span><strong>Your strategy answer will appear here</strong><p>Direct answer · evidence · recommendation · experiment · limitation</p></div>';
+    if (panel) panel.innerHTML = '<div class="ai-answer-empty"><span>✦</span><strong>Your data answer will appear here</strong><p>Direct answer · evidence · recommendation · experiment · limitation</p></div>';
     if (state.aiChart) { state.aiChart.destroy(); state.aiChart = null; }
   }
 
@@ -856,13 +836,13 @@
   function renderAiAnswer(data) {
     const panel = $('aiAnswerPanel');
     const strategy = data?.strategy;
-    const ai = data?.ai || {};
+    const assistant = data?.assistant || {};
     if (!panel || !strategy) return;
 
     const evidence = (strategy.evidence || []).slice(0, 6);
     const followUps = (strategy.followUps || []).slice(0, 4);
-    const toolCount = Number(ai.toolCalls || 0);
-    const sourceLabel = `Live AI answer · ${escapeHtml(ai.model || 'OpenAI')} · ${toolCount} database tool${toolCount === 1 ? '' : 's'} used`;
+    const rowsAnalyzed = Number(assistant.rowsAnalyzed || 0);
+    const sourceLabel = `Current database answer · ${rowsAnalyzed ? `${formatNumber(rowsAnalyzed)} events analyzed · ` : ''}$0 external AI API`;
 
     panel.innerHTML = `
       <div class="ai-result">
@@ -884,10 +864,6 @@
   async function askStrategy(rawQuestion) {
     const question = String(rawQuestion || '').trim().slice(0, 500);
     if (!question) return;
-    if (!state.snapshot?.ai?.configured) {
-      showToast('Ask AI is unavailable until the server-side AI agent is configured.');
-      return;
-    }
 
     switchMode('ai');
     if ($('aiQuestionInput')) $('aiQuestionInput').value = question;
@@ -898,7 +874,7 @@
     if (state.aiController) state.aiController.abort();
     state.aiController = new AbortController();
     const send = $('aiSendBtn');
-    if (send) { send.disabled = true; send.textContent = 'Analyzing current data…'; }
+    if (send) { send.disabled = true; send.textContent = 'Calculating from current data…'; }
 
     try {
       const data = await fetchJson('/api/intelligence/ask', {
@@ -913,34 +889,24 @@
       });
 
       renderAiAnswer(data);
-
       const answer = data.strategy?.directAnswer || 'Analysis complete.';
-      addConversationMessage(
-        'assistant',
-        answer,
-        'AirGesture AI Data Agent'
-      );
+      addConversationMessage('assistant', answer, 'AirGesture Data Assistant');
 
       state.aiHistory.push(
         { role: 'user', content: question },
         { role: 'assistant', content: answer }
       );
       state.aiHistory = state.aiHistory.slice(-8);
-
       if ($('aiQuestionInput')) $('aiQuestionInput').value = '';
-
     } catch (error) {
       if (error.name === 'AbortError') return;
       console.error(error);
-      addConversationMessage('assistant', error.message || 'The strategy request failed.', 'Strategy Assistant');
-      showToast(error.message || 'Could not complete strategy analysis.');
+      addConversationMessage('assistant', error.message || 'The data request failed.', 'AirGesture Data Assistant');
+      showToast(error.message || 'Could not complete data analysis.');
     } finally {
       if (send) {
         send.disabled = false;
-        send.disabled = !state.snapshot?.ai?.configured;
-        send.innerHTML = state.snapshot?.ai?.configured
-          ? 'Ask AI <span>↗</span>'
-          : 'AI unavailable';
+        send.innerHTML = 'Ask Data Assistant <span>↗</span>';
       }
     }
   }

@@ -17,15 +17,14 @@ test('intelligence UI removes confusing duplicate and internal-only sections', (
   assert.doesNotMatch(html, /Evidence index/i);
 });
 
-test('intelligence UI keeps a clear dashboard and AI strategy mode', () => {
+test('intelligence UI keeps a clear dashboard and permanent data assistant', () => {
   assert.match(html, /Analytics Dashboard/);
-  assert.match(html, /Strategy Mode/);
-  assert.match(html, /Ask AI/);
+  assert.match(html, /Data Assistant/);
   assert.match(html, /Three questions management can act on/);
   assert.match(html, /Commercial test ideas/);
-  assert.match(html, /Google Search or Instagram \/ Meta\?/);
+  assert.match(html, /no external AI API|\$0 external API/i);
+  assert.doesNotMatch(html, /Ask AI/);
 });
-
 test('display helpers clean dirty device and browser labels without changing database values', () => {
   assert.equal(utils.prettyDevice('Lap op/Desk op'), 'Laptop/Desktop');
   assert.equal(utils.prettyBrowser('Ch ome'), 'Chrome');

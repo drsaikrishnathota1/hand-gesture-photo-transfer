@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check airgesture-ai-agent.js && node --check public/intelligence-utils.js && node --check strategy-intelligence.js && node --check public/intelligence.js && node --check db.js && node --check auth.js && node --check server.js && node --check public/core.js && node --check public/auth-client.js && node --check public/app.js && node --test tests/*.test.js",
+    "check": "node --check airgesture-data-assistant.js && node --check public/intelligence-utils.js && node --check strategy-intelligence.js && node --check public/intelligence.js && node --check db.js && node --check auth.js && node --check server.js && node --check public/core.js && node --check public/auth-client.js && node --check public/app.js && node --test tests/*.test.js",
     "test": "node --test tests/*.test.js"
   },
   "keywords": [

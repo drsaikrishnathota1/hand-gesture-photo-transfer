@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="intelligence.css" />
 </head>
-<body class="intelligence-page ai-agent-pending">
+<body class="intelligence-page">
   <section id="authGate" class="auth-gate">
     <div class="auth-card glass">
       <div class="auth-logo">✦</div>
@@ -28,12 +28,12 @@
       <div class="auth-purpose">
         <div><strong>ANALYZE</strong><span>See audience, market, content and platform patterns.</span></div>
         <div><strong>DECIDE</strong><span>Turn evidence into a small, testable business action.</span></div>
-        <div><strong>ASK</strong><span>Use Strategy Mode to ask normal business questions.</span></div>
+        <div><strong>ASK</strong><span>Use the Data Assistant to ask normal business questions.</span></div>
       </div>
       <div id="googleSignInButton" class="google-signin"></div>
       <p id="authMessage" class="auth-message">Loading secure sign-in…</p>
       <small class="auth-footnote">
-        Strategy answers use aggregate evidence. Passwords, file contents, Google IDs and full IP addresses are not sent to the strategy layer.
+        The Data Assistant uses aggregate AirGesture records only. It has no external AI API cost and does not expose passwords, file contents, Google IDs or full IP addresses.
       </small>
     </div>
   </section>
@@ -54,7 +54,7 @@
       </nav>
 
       <div class="intelligence-user-area">
-        <span id="aiStatusBadge" class="ai-status-badge" hidden><span class="ai-status-dot"></span>AI connected</span>
+        <span id="aiStatusBadge" class="ai-status-badge"><span class="ai-status-dot"></span>Data Assistant ready</span>
         <div id="authUser" class="auth-user intelligence-auth-user" hidden>
           <img id="authUserPicture" alt="" hidden />
           <div><strong id="authUserName">Signed In</strong><small id="authUserEmail"></small></div>
@@ -82,7 +82,7 @@
 
       <div class="mode-switch" role="tablist" aria-label="Intelligence mode">
         <button id="dashboardModeBtn" class="mode-button active" role="tab" aria-selected="true" type="button">Analytics Dashboard</button>
-        <button id="aiModeBtn" class="mode-button" role="tab" aria-selected="false" type="button" hidden>✦ Ask AI</button>
+        <button id="aiModeBtn" class="mode-button" role="tab" aria-selected="false" type="button">✦ Data Assistant</button>
       </div>
 
       <section id="dashboardView" class="mode-view active">
@@ -111,7 +111,7 @@
         <section class="section-block executive-block">
           <div class="section-heading simple">
             <div><span class="section-kicker">DECISION SNAPSHOT</span><h2>Three questions management can act on</h2><p>These are neutral starting points from the current data—not product sales predictions.</p></div>
-            <button class="text-action" data-ai-question="What should management do next based on the current AirGesture data?" type="button">Ask Strategy →</button>
+            <button class="text-action" data-ai-question="What should management do next based on the current AirGesture data?" type="button">Ask Assistant →</button>
           </div>
           <div id="decisionSnapshot" class="decision-snapshot-grid"></div>
         </section>
@@ -120,23 +120,23 @@
           <div class="section-heading simple"><div><span class="section-kicker">CORE ANALYTICS</span><h2>Explore what the data says</h2><p>Click a chart value to filter the entire dashboard.</p></div></div>
           <div class="analytics-grid">
             <article class="chart-card" data-panel="audience">
-              <div class="chart-card-head"><div><h3>Audience mix</h3><p>Which technology segments are most active?</p></div><div class="card-actions"><button data-insight="audience" type="button">View insight</button><button data-panel-ai="audience" type="button">Ask AI</button></div></div>
+              <div class="chart-card-head"><div><h3>Audience mix</h3><p>Which technology segments are most active?</p></div><div class="card-actions"><button data-insight="audience" type="button">View insight</button><button data-panel-ai="audience" type="button">Ask Assistant</button></div></div>
               <div class="chart-stage donut-stage"><canvas id="segmentChart"></canvas></div>
             </article>
 
             <article class="chart-card" data-panel="market">
-              <div class="chart-card-head"><div><h3>Top markets</h3><p>Where is observed activity concentrated?</p></div><div class="card-actions"><button data-insight="market" type="button">View insight</button><button data-panel-ai="market" type="button">Ask AI</button></div></div>
+              <div class="chart-card-head"><div><h3>Top markets</h3><p>Where is observed activity concentrated?</p></div><div class="card-actions"><button data-insight="market" type="button">View insight</button><button data-panel-ai="market" type="button">Ask Assistant</button></div></div>
               <div class="metric-toggle" id="marketMetricToggle"><button class="active" data-metric="count" type="button">Events</button><button data-metric="users" type="button">Users</button><button data-metric="bytes" type="button">Volume</button></div>
               <div class="chart-stage bar-stage"><canvas id="marketChart"></canvas></div>
             </article>
 
             <article class="chart-card" data-panel="product">
-              <div class="chart-card-head"><div><h3>Content mix</h3><p>What types of files drive usage?</p></div><div class="card-actions"><button data-insight="product" type="button">View insight</button><button data-panel-ai="product" type="button">Ask AI</button></div></div>
+              <div class="chart-card-head"><div><h3>Content mix</h3><p>What types of files drive usage?</p></div><div class="card-actions"><button data-insight="product" type="button">View insight</button><button data-panel-ai="product" type="button">Ask Assistant</button></div></div>
               <div class="chart-stage donut-stage"><canvas id="fileTypeChart"></canvas></div>
             </article>
 
             <article class="chart-card" data-panel="platform">
-              <div class="chart-card-head"><div><h3>Platform mix</h3><p>Which operating systems dominate?</p></div><div class="card-actions"><button data-insight="platform" type="button">View insight</button><button data-panel-ai="platform" type="button">Ask AI</button></div></div>
+              <div class="chart-card-head"><div><h3>Platform mix</h3><p>Which operating systems dominate?</p></div><div class="card-actions"><button data-insight="platform" type="button">View insight</button><button data-panel-ai="platform" type="button">Ask Assistant</button></div></div>
               <div class="chart-stage bar-stage"><canvas id="platformChart"></canvas></div>
               <div id="browserMiniStats" class="mini-stat-row"></div>
             </article>
@@ -147,12 +147,12 @@
           <div class="section-heading simple"><div><span class="section-kicker">BEHAVIOR</span><h2>When and how intensely AirGesture is used</h2><p>Useful for support, messaging and feature-tier experiments.</p></div></div>
           <div class="behavior-grid">
             <article class="chart-card wide-card" data-panel="timing">
-              <div class="chart-card-head"><div><h3>Activity by hour</h3><p>Hourly activity is displayed in UTC.</p></div><div class="card-actions"><button data-insight="timing" type="button">View insight</button><button data-panel-ai="timing" type="button">Ask AI</button></div></div>
+              <div class="chart-card-head"><div><h3>Activity by hour</h3><p>Hourly activity is displayed in UTC.</p></div><div class="card-actions"><button data-insight="timing" type="button">View insight</button><button data-panel-ai="timing" type="button">Ask Assistant</button></div></div>
               <div class="chart-stage line-stage"><canvas id="timeChart"></canvas></div>
               <div id="peakTiming" class="peak-timing"></div>
             </article>
             <article class="chart-card" data-panel="usage">
-              <div class="chart-card-head"><div><h3>Usage intensity</h3><p>Light, active and heavy usage groups.</p></div><div class="card-actions"><button data-insight="usage" type="button">View insight</button><button data-panel-ai="usage" type="button">Ask AI</button></div></div>
+              <div class="chart-card-head"><div><h3>Usage intensity</h3><p>Light, active and heavy usage groups.</p></div><div class="card-actions"><button data-insight="usage" type="button">View insight</button><button data-panel-ai="usage" type="button">Ask Assistant</button></div></div>
               <div class="chart-stage donut-stage"><canvas id="usageChart"></canvas></div>
               <p class="plain-note">High usage can justify a feature-tier test; it does not prove willingness to pay.</p>
             </article>
@@ -160,49 +160,41 @@
         </section>
 
         <section class="section-block commercial-block">
-          <div class="section-heading simple"><div><span class="section-kicker">COMMERCIAL STRATEGY</span><h2>Commercial test ideas</h2><p>Observed usage can suggest what to test. It cannot prove what users will buy.</p></div><button class="text-action" data-ai-question="Based on the current data, which commercial product ideas are worth testing first and why?" type="button">Ask Strategy →</button></div>
+          <div class="section-heading simple"><div><span class="section-kicker">COMMERCIAL STRATEGY</span><h2>Commercial test ideas</h2><p>Observed usage can suggest what to test. It cannot prove what users will buy.</p></div><button class="text-action" data-ai-question="What should management do next based on the current AirGesture data?" type="button">Ask Assistant →</button></div>
           <div id="opportunityList" class="opportunity-list"></div>
         </section>
 
-        <section class="section-block campaign-block">
-          <div class="section-heading simple"><div><span class="section-kicker">CAMPAIGN PLANNER</span><h2>Google Search or Instagram / Meta?</h2><p>Choose the channel after defining the product objective. AirGesture contains no ad-click or conversion data.</p></div><button class="text-action" data-ai-question="I have not selected an advertising channel yet. Based on the current AirGesture data, explain when Google Search or Instagram / Meta would be the better test and what product should be tested." type="button">Ask Strategy →</button></div>
-          <div class="channel-grid">
-            <article class="channel-card"><span>SEARCH INTENT</span><h3>Google Search Ads</h3><p>Better first hypothesis for products people may actively search for: antivirus, PDF tools, backup, storage and business software.</p><button data-ai-question="I want to use Google Search Ads. Which product and market should I test first based on the current AirGesture data?" type="button">Build a Google test →</button></article>
-            <article class="channel-card"><span>VISUAL / MOBILE AWARENESS</span><h3>Instagram / Meta Ads</h3><p>Better first hypothesis for visually oriented or mobile products: photo tools, mobile storage, backup and cross-device apps.</p><button data-ai-question="I want to use Instagram or Meta Ads. Which product and market should I test first based on the current AirGesture data?" type="button">Build a Meta test →</button></article>
-          </div>
-          <p class="method-note"><strong>Decision rule:</strong> Use AirGesture behavior to choose a hypothesis; use real campaign metrics later to decide whether to scale.</p>
-        </section>
       </section>
 
       <section id="aiView" class="mode-view ai-mode-view" hidden>
         <div class="ai-mode-header">
-          <div><span class="section-kicker">AI STRATEGY</span><h2>Ask the AirGesture data</h2><p>Ask a normal business question. The AI agent queries the current AirGesture aggregate database through server-side tools before answering.</p></div>
-          <div id="aiProviderLabel" class="ai-provider-label">Checking AI connection…</div>
+          <div><span class="section-kicker">DATA ASSISTANT</span><h2>Ask the AirGesture data</h2><p>Ask a normal business question. The assistant calculates the answer from the current AirGesture PostgreSQL aggregates using transparent rules—no external AI API.</p></div>
+          <div id="aiProviderLabel" class="ai-provider-label">$0 external API · current PostgreSQL aggregates</div>
         </div>
 
         <div class="suggested-prompts" id="suggestedPrompts">
-          <button type="button">Where should I test an antivirus campaign?</button>
-          <button type="button">Which market should we target first?</button>
-          <button type="button">Google or Instagram for cloud storage?</button>
-          <button type="button">Which products fit Windows users best?</button>
-          <button type="button">Which products fit Apple users best?</button>
+          <button type="button">Which area has the most users?</button>
+          <button type="button">Which area has the least users?</button>
+          <button type="button">Which area has the most Windows users?</button>
+          <button type="button">Compare Dallas and Chicago by users.</button>
+          <button type="button">I want to promote a music app. Which area is best?</button>
           <button type="button">What should management do next?</button>
         </div>
 
         <div class="ai-workspace">
           <div class="ai-chat-panel">
-            <div class="ai-chat-head"><strong>Strategy conversation</strong><button id="clearAiConversationBtn" type="button">Clear</button></div>
+            <div class="ai-chat-head"><strong>Data conversation</strong><button id="clearAiConversationBtn" type="button">Clear</button></div>
             <div id="aiConversation" class="ai-conversation" aria-live="polite">
-              <div class="ai-message assistant intro-message"><div class="ai-avatar">✦</div><div><strong>Strategy Copilot</strong><p>Ask any business question about the AirGesture data. I will query the current aggregate database before I answer.</p></div></div>
+              <div class="ai-message assistant intro-message"><div class="ai-avatar">✦</div><div><strong>AirGesture Data Assistant</strong><p>Ask a data or business-test question. I calculate the answer from the current aggregate database without calling an external AI service.</p></div></div>
             </div>
             <form id="aiQuestionForm" class="ai-question-form">
-              <textarea id="aiQuestionInput" rows="3" maxlength="500" placeholder="Example: I want to promote antivirus software. Which market should I test first and why?" aria-label="Ask a strategic business question"></textarea>
-              <button id="aiSendBtn" type="submit">Ask AI <span>↗</span></button>
+              <textarea id="aiQuestionInput" rows="3" maxlength="500" placeholder="Example: Which area has the least users?" aria-label="Ask an AirGesture data question"></textarea>
+              <button id="aiSendBtn" type="submit">Ask Data Assistant <span>↗</span></button>
             </form>
-            <small class="ai-input-note">Every answer is grounded in current aggregate AirGesture data. Product recommendations remain hypotheses to validate with real campaign results.</small>
+            <small class="ai-input-note">Every answer is calculated from current aggregate AirGesture data. Product recommendations use transparent behavioral proxies and remain hypotheses to validate.</small>
           </div>
           <aside id="aiAnswerPanel" class="ai-answer-panel">
-            <div class="ai-answer-empty"><span>✦</span><strong>Your strategy answer will appear here</strong><p>Direct answer · evidence · recommendation · experiment · limitation</p></div>
+            <div class="ai-answer-empty"><span>✦</span><strong>Your data answer will appear here</strong><p>Direct answer · evidence · recommendation · experiment · limitation</p></div>
           </aside>
         </div>
       </section>
