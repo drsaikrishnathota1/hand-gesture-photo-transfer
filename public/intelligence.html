@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#07111f" />
+  <title>AirGesture Strategic Intelligence</title>
+  <meta
+    name="description"
+    content="Interactive AirGesture commercial analytics and AI-grounded strategic decision intelligence for DBA 802."
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="intelligence.css" />
+</head>
+<body class="intelligence-page">
+
+  <section id="authGate" class="auth-gate">
+    <div class="auth-card glass">
+      <div class="auth-logo">✦</div>
+      <div class="eyebrow">DBA 802 · STRATEGIC DECISION INTELLIGENCE</div>
+      <h1>
+        Enter the
+        <span>Intelligence Center</span>
+      </h1>
+      <p>
+        Sign in with Google to explore live commercial analytics,
+        interactive decision paths and the AI Strategy Copilot.
+      </p>
+      <div class="auth-purpose">
+        <div>
+          <strong>ANALYTICS</strong>
+          <span>Explore aggregate audience, market, product and timing signals.</span>
+        </div>
+        <div>
+          <strong>STRATEGY</strong>
+          <span>Turn evidence into a clear management test or next action.</span>
+        </div>
+        <div>
+          <strong>AI</strong>
+          <span>Ask business questions against grounded aggregate evidence.</span>
+        </div>
+      </div>
+      <div id="googleSignInButton" class="google-signin"></div>
+      <p id="authMessage" class="auth-message">Loading secure sign-in…</p>
+      <small class="auth-footnote">
+        AI analysis uses aggregate analytical evidence only. AirGesture does not send
+        transfer contents, passwords, Google IDs or full IP addresses to the AI layer.
+      </small>
+    </div>
+  </section>
+
+  <div class="intelligence-ambient intelligence-ambient-one"></div>
+  <div class="intelligence-ambient intelligence-ambient-two"></div>
+
+  <div class="intelligence-shell">
+    <header class="intelligence-topbar glass">
+      <a class="brand intelligence-brand" href="/" aria-label="AirGesture home">
+        <span class="brand-mark">
+          <svg viewBox="0 0 42 42" aria-hidden="true">
+            <path d="M8 22c6-12 11-13 13-2 2-10 7-9 8-1 3-6 8-3 6 5-3 11-11 15-20 9C7 28 5 26 8 22Z"/>
+            <circle cx="31" cy="10" r="3"/>
+          </svg>
+        </span>
+        <span>
+          <strong>AirGesture</strong>
+          <small>Strategic Intelligence</small>
+        </span>
+      </a>
+
+      <nav class="intelligence-nav" aria-label="AirGesture views">
+        <a href="/" class="intelligence-nav-link">Transfer</a>
+        <a href="/live-data.html" class="intelligence-nav-link">Database</a>
+        <a href="/intelligence.html" class="intelligence-nav-link active">Intelligence</a>
+      </nav>
+
+      <div class="intelligence-user-area">
+        <span id="aiStatusBadge" class="ai-status-badge">
+          <span class="ai-status-dot"></span>
+          Checking AI…
+        </span>
+
+        <div id="authUser" class="auth-user intelligence-auth-user" hidden>
+          <img id="authUserPicture" alt="" hidden />
+          <div>
+            <strong id="authUserName">Signed In</strong>
+            <small id="authUserEmail"></small>
+          </div>
+          <button id="logoutBtn" class="mini-btn" type="button">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="intelligence-main">
+      <section class="intelligence-hero">
+        <div class="intelligence-hero-copy">
+          <span class="section-kicker">AIRGESTURE · DBA 802 DECISION INTELLIGENCE LAB</span>
+          <h1>
+            Data Analytics → Insight →
+            <span>Strategic Decision</span>
+          </h1>
+          <p>
+            Explore what the AirGesture database says about audiences, markets,
+            product opportunities, advertising hypotheses and management actions.
+            Click any visualization to cross-filter the entire dashboard.
+          </p>
+          <div class="hero-mode-actions">
+            <button id="dashboardModeBtn" class="btn primary" type="button">
+              Analytics Dashboard
+            </button>
+            <button id="aiModeBtn" class="btn intelligence-ai-button" type="button">
+              ✦ AI Strategy Mode
+            </button>
+          </div>
+        </div>
+
+        <div class="intelligence-hero-panel glass-soft">
+          <div class="live-orb">
+            <span class="live-orb-pulse"></span>
+            <strong id="heroRecordCount">—</strong>
+            <small>records in current analysis</small>
+          </div>
+          <div class="hero-live-meta">
+            <span>LIVE ANALYTICS</span>
+            <strong id="heroTopAction">Calculating…</strong>
+            <small id="lastUpdated">Waiting for database…</small>
+          </div>
+        </div>
+      </section>
+
+      <section id="filterBar" class="filter-bar glass" aria-label="Intelligence filters">
+        <div class="filter-bar-title">
+          <span>Cross-filter</span>
+          <strong>Explore a business scenario</strong>
+        </div>
+
+        <label class="filter-control">
+          <span>Period</span>
+          <select id="rangeFilter">
+            <option value="all">All data</option>
+            <option value="90d">Last 90 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="7d">Last 7 days</option>
+          </select>
+        </label>
+
+        <label class="filter-control">
+          <span>Segment</span>
+          <select id="segmentFilter">
+            <option value="">All segments</option>
+          </select>
+        </label>
+
+        <label class="filter-control">
+          <span>Market</span>
+          <select id="locationFilter">
+            <option value="">All markets</option>
+          </select>
+        </label>
+
+        <label class="filter-control">
+          <span>File type</span>
+          <select id="fileTypeFilter">
+            <option value="">All file types</option>
+          </select>
+        </label>
+
+        <label class="filter-control">
+          <span>Device</span>
+          <select id="deviceFilter">
+            <option value="">All devices</option>
+          </select>
+        </label>
+
+        <button id="resetFiltersBtn" class="filter-reset" type="button">
+          Reset
+        </button>
+      </section>
+
+      <div id="activeFilters" class="active-filter-row" aria-live="polite"></div>
+
+      <section class="kpi-grid" aria-label="Executive analytics overview">
+        <article class="kpi-card glass-soft">
+          <span>DATABASE ACTIVITY</span>
+          <strong id="kpiEvents">—</strong>
+          <small>events in current scope</small>
+        </article>
+        <article class="kpi-card glass-soft">
+          <span>OBSERVED USERS</span>
+          <strong id="kpiUsers">—</strong>
+          <small>unique names in scope</small>
+        </article>
+        <article class="kpi-card glass-soft">
+          <span>MARKETS</span>
+          <strong id="kpiMarkets">—</strong>
+          <small>observed locations</small>
+        </article>
+        <article class="kpi-card glass-soft">
+          <span>DATA VOLUME</span>
+          <strong id="kpiBytes">—</strong>
+          <small>aggregate file volume</small>
+        </article>
+        <article class="kpi-card glass-soft">
+          <span>TOP AUDIENCE</span>
+          <strong id="kpiSegment">—</strong>
+          <small id="kpiSegmentShare">—</small>
+        </article>
+        <article class="kpi-card glass-soft">
+          <span>TOP CONTENT</span>
+          <strong id="kpiFileType">—</strong>
+          <small id="kpiFileTypeShare">—</small>
+        </article>
+      </section>
+
+      <section class="decision-now-panel glass">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">01 · EXECUTIVE PRIORITIES</span>
+            <h2>What Should Management Do Now?</h2>
+            <p>Top actions update automatically with the current filters and latest database state.</p>
+          </div>
+          <button class="section-ai-trigger" data-ai-question="What should management do next based on the current AirGesture data?" type="button">
+            ✦ Ask AI
+          </button>
+        </div>
+        <div id="strategicActions" class="strategic-action-grid"></div>
+      </section>
+
+      <section class="trend-strip glass-soft">
+        <div class="trend-strip-head">
+          <div>
+            <span class="section-kicker">REAL-TIME SIGNAL</span>
+            <h3>What Changed?</h3>
+          </div>
+          <small>Latest 30 days vs previous 30 days, anchored to the newest record.</small>
+        </div>
+        <div id="trendCards" class="trend-card-grid"></div>
+      </section>
+
+      <section id="analyticsGrid" class="analytics-grid">
+        <article class="chart-card glass" data-panel="audience">
+          <div class="chart-card-head">
+            <div>
+              <span class="section-kicker">02 · AUDIENCE</span>
+              <h3>Commercial Segment</h3>
+              <p>Who is using AirGesture?</p>
+            </div>
+            <div class="chart-actions" aria-label="Audience actions">
+              <button data-chart-action="explore" title="Explore">⌕</button>
+              <button data-chart-action="explain" title="Explain">💡</button>
+              <button data-chart-action="decide" title="Strategic decision">🎯</button>
+              <button data-chart-action="ai" title="Ask AI">✦</button>
+            </div>
+          </div>
+          <div class="chart-stage chart-stage-donut">
+            <canvas id="segmentChart"></canvas>
+          </div>
+          <div class="chart-card-foot">
+            <span>Click a slice to filter every visual</span>
+            <button data-compare="segment" type="button">Compare segments</button>
+          </div>
+        </article>
+
+        <article class="chart-card glass" data-panel="market">
+          <div class="chart-card-head">
+            <div>
+              <span class="section-kicker">03 · MARKET</span>
+              <h3>Top Markets</h3>
+              <p>Where is observed activity strongest?</p>
+            </div>
+            <div class="chart-actions" aria-label="Market actions">
+              <button data-chart-action="explore" title="Explore">⌕</button>
+              <button data-chart-action="explain" title="Explain">💡</button>
+              <button data-chart-action="decide" title="Strategic decision">🎯</button>
+              <button data-chart-action="ai" title="Ask AI">✦</button>
+            </div>
+          </div>
+          <div class="metric-toggle" data-toggle="marketMetric">
+            <button class="active" data-metric="count" type="button">Transfers</button>
+            <button data-metric="users" type="button">Users</button>
+            <button data-metric="bytes" type="button">Data Volume</button>
+          </div>
+          <div class="chart-stage chart-stage-bars">
+            <canvas id="marketChart"></canvas>
+          </div>
+          <div class="chart-card-foot">
+            <span>Click a market to cross-filter</span>
+            <button data-compare="market" type="button">Compare markets</button>
+          </div>
+        </article>
+
+        <article class="chart-card glass" data-panel="product">
+          <div class="chart-card-head">
+            <div>
+              <span class="section-kicker">04 · PRODUCT</span>
+              <h3>What Users Transfer</h3>
+              <p>Content mix → product hypotheses</p>
+            </div>
+            <div class="chart-actions" aria-label="Product actions">
+              <button data-chart-action="explore" title="Explore">⌕</button>
+              <button data-chart-action="explain" title="Explain">💡</button>
+              <button data-chart-action="decide" title="Strategic decision">🎯</button>
+              <button data-chart-action="ai" title="Ask AI">✦</button>
+            </div>
+          </div>
+          <div class="chart-stage chart-stage-donut">
+            <canvas id="fileTypeChart"></canvas>
+          </div>
+          <div id="productOpportunityTags" class="opportunity-tags"></div>
+        </article>
+
+        <article class="chart-card glass" data-panel="platform">
+          <div class="chart-card-head">
+            <div>
+              <span class="section-kicker">05 · PLATFORM</span>
+              <h3>Device & OS Intelligence</h3>
+              <p>Where should product experience investment go?</p>
+            </div>
+            <div class="chart-actions" aria-label="Platform actions">
+              <button data-chart-action="explore" title="Explore">⌕</button>
+              <button data-chart-action="explain" title="Explain">💡</button>
+              <button data-chart-action="decide" title="Strategic decision">🎯</button>
+              <button data-chart-action="ai" title="Ask AI">✦</button>
+            </div>
+          </div>
+          <div class="chart-stage chart-stage-bars">
+            <canvas id="platformChart"></canvas>
+          </div>
+          <div id="browserMiniStats" class="mini-stat-row"></div>
+        </article>
+
+        <article class="chart-card glass" data-panel="timing">
+          <div class="chart-card-head">
+            <div>
+              <span class="section-kicker">06 · ENGAGEMENT</span>
+              <h3>When Users Engage</h3>
+              <p>Peak timing for campaigns, support and testing</p>
+            </div>
+            <div class="chart-actions" aria-label="Timing actions">
+              <button data-chart-action="explore" title="Explore">⌕</button>
+              <button data-chart-action="explain" title="Explain">💡</button>
+              <button data-chart-action="decide" title="Strategic decision">🎯</button>
+              <button data-chart-action="ai" title="Ask AI">✦</button>
+            </div>
+          </div>
+          <div class="chart-stage chart-stage-line">
+            <canvas id="timeChart"></canvas>
+          </div>
+          <div id="peakTiming" class="peak-timing"></div>
+        </article>
+
+        <article class="chart-card glass" data-panel="premium">
+          <div class="chart-card-head">
+            <div>
+              <span class="section-kicker">07 · PREMIUM</span>
+              <h3>Usage Opportunity</h3>
+              <p>Which audiences may justify a Pro experiment?</p>
+            </div>
+            <div class="chart-actions" aria-label="Premium actions">
+              <button data-chart-action="explore" title="Explore">⌕</button>
+              <button data-chart-action="explain" title="Explain">💡</button>
+              <button data-chart-action="decide" title="Strategic decision">🎯</button>
+              <button data-chart-action="ai" title="Ask AI">✦</button>
+            </div>
+          </div>
+          <div class="chart-stage chart-stage-donut">
+            <canvas id="usageChart"></canvas>
+          </div>
+          <div class="premium-note">
+            Usage bands indicate testing candidates — not willingness to pay.
+          </div>
+        </article>
+      </section>
+
+      <section class="opportunity-section glass">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">08 · COMMERCIAL OPPORTUNITY</span>
+            <h2>Product Opportunity Ranking</h2>
+            <p>Transparent 0–100 classroom scores convert behavior into test priorities, not revenue forecasts.</p>
+          </div>
+          <button class="section-ai-trigger" data-ai-question="Based on the current data, what products should we promote and why?" type="button">
+            ✦ Ask AI
+          </button>
+        </div>
+        <div class="opportunity-layout">
+          <div class="opportunity-chart-wrap">
+            <canvas id="opportunityChart"></canvas>
+          </div>
+          <div id="opportunityList" class="opportunity-list"></div>
+        </div>
+      </section>
+
+      <section class="advertising-section glass">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">09 · ADVERTISING OPPORTUNITY LAB</span>
+            <h2>Google Ads vs Instagram / Meta</h2>
+            <p>Use current device, content and market signals to select a controlled first advertising experiment.</p>
+          </div>
+          <button class="section-ai-trigger" data-ai-question="Should we use Google Ads or Instagram / Meta based on the current AirGesture data?" type="button">
+            ✦ Ask AI
+          </button>
+        </div>
+
+        <div class="ad-lab-grid">
+          <article id="googleAdCard" class="ad-channel-card"></article>
+          <div class="ad-chart-wrap">
+            <canvas id="adChannelChart"></canvas>
+          </div>
+          <article id="metaAdCard" class="ad-channel-card"></article>
+        </div>
+
+        <div class="ad-disclaimer">
+          Advertising recommendations are experimental hypotheses derived from aggregate usage behavior.
+          AirGesture does not know whether an individual uses a specific ad platform or intends to purchase a product.
+        </div>
+      </section>
+
+      <section class="matrix-section glass">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">10 · PRODUCT × AUDIENCE</span>
+            <h2>Commercial Opportunity Matrix</h2>
+            <p>Click any cell to explore why a product/audience combination is worth testing.</p>
+          </div>
+          <button class="section-ai-trigger" data-ai-question="Which product and audience combination should management test first?" type="button">
+            ✦ Ask AI
+          </button>
+        </div>
+        <div id="opportunityMatrix" class="opportunity-matrix-wrap"></div>
+      </section>
+
+      <section class="decision-center glass">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">11 · STRATEGIC DECISION CENTER</span>
+            <h2>Evidence → Insight → Decision → Experiment</h2>
+            <p>The application keeps a visible separation between observed evidence and commercial inference.</p>
+          </div>
+        </div>
+        <div id="decisionCenter" class="decision-center-grid"></div>
+      </section>
+
+      <section id="aiStrategySection" class="ai-strategy-section glass">
+        <div class="ai-strategy-header">
+          <div>
+            <span class="section-kicker">12 · AI STRATEGY COPILOT</span>
+            <h2>Ask the AirGesture Data</h2>
+            <p>
+              Ask a normal business question. The server analyzes the current aggregate database first,
+              then the AI layer explains the evidence and recommends a controlled management test.
+            </p>
+          </div>
+          <div id="aiProviderLabel" class="ai-provider-label">Grounded analytics engine</div>
+        </div>
+
+        <div class="suggested-prompts" id="suggestedPrompts">
+          <button type="button">Where should I advertise antivirus?</button>
+          <button type="button">Which market is best for Google Ads?</button>
+          <button type="button">Google or Instagram for cloud storage?</button>
+          <button type="button">What product should we promote now?</button>
+          <button type="button">Should we focus on Apple or Windows?</button>
+          <button type="button">When should we run promotions?</button>
+          <button type="button">What should management do next?</button>
+        </div>
+
+        <div class="ai-workspace">
+          <div class="ai-chat-panel">
+            <div id="aiConversation" class="ai-conversation" aria-live="polite">
+              <div class="ai-message assistant intro-message">
+                <div class="ai-avatar">✦</div>
+                <div>
+                  <strong>AI Strategy Copilot</strong>
+                  <p>
+                    Ask me a commercial strategy question. I will ground the answer in the current
+                    AirGesture analytics and clearly separate evidence from hypotheses.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <form id="aiQuestionForm" class="ai-question-form">
+              <textarea
+                id="aiQuestionInput"
+                rows="2"
+                maxlength="500"
+                placeholder="Example: I want to promote an antivirus product. Which market should I test first and why?"
+                aria-label="Ask a strategic business question"
+              ></textarea>
+              <button id="aiSendBtn" type="submit" class="ai-send-button">
+                Ask Strategy Copilot
+                <span>↗</span>
+              </button>
+            </form>
+            <div class="ai-input-note">
+              Answers use aggregate behavioral evidence. Recommendations are test hypotheses, not guaranteed business outcomes.
+            </div>
+          </div>
+
+          <aside id="aiAnswerPanel" class="ai-answer-panel">
+            <div class="ai-answer-empty">
+              <span>✦</span>
+              <strong>Strategy answer appears here</strong>
+              <p>Evidence, supporting chart, interpretation, recommendation, experiment and risk.</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="methodology-panel glass-soft">
+        <div>
+          <span class="section-kicker">METHODOLOGY</span>
+          <h3>How to read this page</h3>
+        </div>
+        <div class="methodology-path">
+          <span><b>1</b> Observation</span>
+          <i>→</i>
+          <span><b>2</b> Analytics</span>
+          <i>→</i>
+          <span><b>3</b> Commercial Hypothesis</span>
+          <i>→</i>
+          <span><b>4</b> Strategic Decision</span>
+          <i>→</i>
+          <span><b>5</b> Controlled Experiment</span>
+        </div>
+        <p>
+          Classroom/demo datasets can contain synthetic records. Product-fit and advertising scores are transparent prioritization aids;
+          they are not predicted revenue, ad conversion, demographic inference or proof of purchase intent.
+        </p>
+      </section>
+    </main>
+
+    <footer class="intelligence-footer">
+      <span>AirGesture · DBA 802 Data Analytics & Strategic Decision Intelligence</span>
+      <span>Aggregate evidence · Interactive analytics · Grounded AI strategy</span>
+    </footer>
+  </div>
+
+  <aside id="intelligenceDrawer" class="intelligence-drawer" aria-hidden="true">
+    <div class="drawer-backdrop" data-close-drawer></div>
+    <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+      <div class="drawer-head">
+        <div>
+          <span id="drawerKicker" class="section-kicker">INTELLIGENCE EXPLORER</span>
+          <h2 id="drawerTitle">Analysis</h2>
+        </div>
+        <button class="drawer-close" type="button" data-close-drawer aria-label="Close analysis drawer">×</button>
+      </div>
+      <div id="drawerContent" class="drawer-content"></div>
+    </div>
+  </aside>
+
+  <div id="intelligenceToast" class="intelligence-toast" role="status" aria-live="polite"></div>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth-client.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="intelligence.js"></script>
+</body>
+</html>

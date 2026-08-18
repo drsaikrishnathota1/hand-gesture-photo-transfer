@@ -9,6 +9,11 @@ const session = require('express-session');
 const connectPgSimple = require('connect-pg-simple');
 const { createAuthRouter } = require('./auth');
 const { createDatabase } = require('./db');
+const {
+  buildIntelligenceSnapshot,
+  buildStrategyAnswer,
+  compactAiEvidence
+} = require('./strategy-intelligence');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -2045,6 +2050,321 @@ function createServer() {
     }
   );
 
+
+
+  // ------------------------------------------------------------------
+  // DBA 802 · DATA ANALYTICS & STRATEGIC DECISION INTELLIGENCE
+  //
+  // Read-only analytics over classroom_data_events. The browser never
+  // receives database credentials and the AI never executes SQL.
+  // ------------------------------------------------------------------
+
+  const intelligenceAiRate = new Map();
+
+  function allowIntelligenceAiRequest(req) {
+    const key =
+      String(
+        req.sessionID ||
+        req.session?.user?.email ||
+        'anonymous'
+      );
+
+    const now = Date.now();
+    const windowMs = 60 * 1000;
+    const limit = 12;
+    const recent =
+      (intelligenceAiRate.get(key) || [])
+        .filter((time) => now - time < windowMs);
+
+    if (recent.length >= limit) {
+      intelligenceAiRate.set(key, recent);
+      return false;
+    }
+
+    recent.push(now);
+    intelligenceAiRate.set(key, recent);
+
+    // Keep the in-memory limiter bounded.
+    if (intelligenceAiRate.size > 500) {
+      for (const [candidate, entries] of intelligenceAiRate) {
+        if (!entries.some((time) => now - time < windowMs)) {
+          intelligenceAiRate.delete(candidate);
+        }
+      }
+    }
+
+    return true;
+  }
+
+
+  async function loadStrategicIntelligenceRows() {
+    const data =
+      await database.liveClassroomDataPage({
+        page: 1,
+        pageSize: 50000,
+        search: '',
+        exportAll: true
+      });
+
+    return Array.isArray(data?.rows)
+      ? data.rows
+      : [];
+  }
+
+
+  function extractOpenAiOutput(payload = {}) {
+    return (payload.output || [])
+      .flatMap((item) =>
+        Array.isArray(item?.content)
+          ? item.content
+          : []
+      )
+      .filter((part) =>
+        part?.type === 'output_text' &&
+        typeof part?.text === 'string'
+      )
+      .map((part) => part.text.trim())
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+
+
+  async function generateStrategicAiNarrative(
+    question,
+    snapshot,
+    strategy
+  ) {
+    const apiKey =
+      String(process.env.OPENAI_API_KEY || '').trim();
+
+    const model =
+      String(
+        process.env.OPENAI_MODEL ||
+        'gpt-5.6'
+      ).trim();
+
+    if (!apiKey || !globalThis.fetch) {
+      return {
+        configured: false,
+        used: false,
+        provider: 'AirGesture Grounded Strategy Engine',
+        model: null,
+        text: ''
+      };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(),
+      20000
+    );
+
+    try {
+      const evidence =
+        compactAiEvidence(snapshot, strategy);
+
+      const response = await fetch(
+        'https://api.openai.com/v1/responses',
+        {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: 'Bearer ' + apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model,
+            store: false,
+            instructions: [
+              'You are the AI Strategy Copilot for a DBA 802 classroom Decision Intelligence lab.',
+              'Use ONLY the aggregate AirGesture evidence supplied in the input.',
+              'Never invent revenue, demographics, purchase intent, conversion rates, or facts that are not present.',
+              'Do not infer sensitive traits.',
+              'Treat advertising and product recommendations as hypotheses to test, never as guaranteed outcomes.',
+              'Be concise, executive-friendly, and easy for a beginner audience to understand.',
+              'In about 120-180 words, explain: evidence, commercial meaning, recommended decision, controlled experiment, and one limitation.',
+              'Do not reveal raw user names, transfer IDs, or any personal identifiers.'
+            ].join(' '),
+            input: JSON.stringify({
+              question,
+              aggregateEvidence: evidence
+            })
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(
+          'OpenAI ' + response.status + ': ' + body.slice(0, 180)
+        );
+      }
+
+      const payload = await response.json();
+
+      return {
+        configured: true,
+        used: true,
+        provider: 'OpenAI',
+        model,
+        text: extractOpenAiOutput(payload)
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+
+  app.get(
+    '/api/intelligence',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error: 'PostgreSQL database is not configured.'
+          });
+        }
+
+        const rows =
+          await loadStrategicIntelligenceRows();
+
+        const snapshot =
+          buildIntelligenceSnapshot(
+            rows,
+            req.query || {}
+          );
+
+        const apiKey =
+          String(process.env.OPENAI_API_KEY || '').trim();
+
+        snapshot.ai = {
+          configured: Boolean(apiKey),
+          provider: apiKey
+            ? 'OpenAI + AirGesture Grounding'
+            : 'AirGesture Grounded Strategy Engine',
+          model: apiKey
+            ? String(
+                process.env.OPENAI_MODEL ||
+                'gpt-5.6'
+              )
+            : null
+        };
+
+        res.setHeader('Cache-Control', 'no-store');
+        return res.json(snapshot);
+      } catch (error) {
+        databaseError(
+          'strategic intelligence snapshot',
+          error
+        );
+
+        return res.status(500).json({
+          error: 'Could not build strategic intelligence.'
+        });
+      }
+    }
+  );
+
+
+  app.post(
+    '/api/intelligence/ask',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error: 'PostgreSQL database is not configured.'
+          });
+        }
+
+        if (!allowIntelligenceAiRequest(req)) {
+          return res.status(429).json({
+            error: 'AI Strategy Mode is receiving too many requests. Please wait a moment and try again.'
+          });
+        }
+
+        const question =
+          String(req.body?.question || '')
+            .trim()
+            .slice(0, 500);
+
+        if (!question) {
+          return res.status(400).json({
+            error: 'Enter a strategy question.'
+          });
+        }
+
+        const rows =
+          await loadStrategicIntelligenceRows();
+
+        const snapshot =
+          buildIntelligenceSnapshot(
+            rows,
+            req.body?.filters || {}
+          );
+
+        const strategy =
+          buildStrategyAnswer(
+            question,
+            snapshot
+          );
+
+        let ai;
+
+        try {
+          ai =
+            await generateStrategicAiNarrative(
+              question,
+              snapshot,
+              strategy
+            );
+        } catch (aiError) {
+          console.warn(
+            'AI Strategy Copilot generative layer unavailable:',
+            aiError?.message || aiError
+          );
+
+          ai = {
+            configured: Boolean(
+              String(
+                process.env.OPENAI_API_KEY || ''
+              ).trim()
+            ),
+            used: false,
+            provider: 'AirGesture Grounded Strategy Engine',
+            model: String(
+              process.env.OPENAI_MODEL ||
+              'gpt-5.6'
+            ),
+            text: '',
+            error: 'The generative narrative was unavailable. The grounded analytics answer is still valid.'
+          };
+        }
+
+        res.setHeader('Cache-Control', 'no-store');
+
+        return res.json({
+          ok: true,
+          generatedAt: new Date().toISOString(),
+          question,
+          filters: snapshot.filters,
+          strategy,
+          ai
+        });
+      } catch (error) {
+        databaseError(
+          'AI strategy question',
+          error
+        );
+
+        return res.status(500).json({
+          error: 'Could not answer the strategy question.'
+        });
+      }
+    }
+  );
 
 
   app.get(
