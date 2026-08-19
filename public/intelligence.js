@@ -3795,4 +3795,1152 @@
 
   updateCommercialScenarioV1();
 
+
+
+  // AIRGESTURE_REALTIME_OPPORTUNITY_V1
+
+  window.airgestureRealtimeOpportunityV1 =
+    null;
+
+  let realtimeOpportunityTimerV1 =
+    null;
+
+  let realtimeOpportunityRequestV1 =
+    0;
+
+
+  function ensureRealtimeOpportunityPanelV1() {
+
+    let panel =
+      $('realtimeOpportunityV1');
+
+    if (panel) {
+      return panel;
+    }
+
+    const scenario =
+      $('commercialScenarioV1');
+
+    if (!scenario) {
+      return null;
+    }
+
+    panel =
+      document.createElement(
+        'div'
+      );
+
+    panel.id =
+      'realtimeOpportunityV1';
+
+    panel.className =
+      'realtime-opportunity-v1';
+
+    panel.innerHTML = `
+
+      <div class="realtime-opportunity-head-v1">
+
+        <div>
+
+          <span class="section-kicker">
+            REAL-TIME PRODUCT OPPORTUNITY
+          </span>
+
+          <h3>
+            Live market signal
+          </h3>
+
+          <p>
+            Waiting for the latest AirGesture records…
+          </p>
+
+        </div>
+
+        <span
+          class="realtime-live-badge-v1">
+          LIVE
+        </span>
+
+      </div>
+
+      <div
+        id="realtimeOpportunityBodyV1"
+        class="realtime-opportunity-body-v1">
+
+        <div class="realtime-loading-v1">
+          Calculating recent market momentum…
+        </div>
+
+      </div>
+
+    `;
+
+    scenario.insertAdjacentElement(
+      'afterend',
+      panel
+    );
+
+    return panel;
+  }
+
+
+  function realtimeScopeLabelV1(
+    data
+  ) {
+
+    const location =
+      data?.scope?.location ||
+      'All markets';
+
+    let segment =
+      data?.scope?.segment ||
+      'All audiences';
+
+    try {
+      if (
+        data?.scope?.segment &&
+        typeof prettySegment ===
+          'function'
+      ) {
+        segment =
+          prettySegment(
+            data.scope.segment
+          );
+      }
+    } catch {}
+
+    return `${segment} · ${location}`;
+  }
+
+
+  function growthDisplayV1(
+    growth
+  ) {
+
+    if (!growth) {
+      return '—';
+    }
+
+    return (
+      growth.label ||
+      (
+        Number.isFinite(
+          growth.percent
+        )
+          ? `${growth.percent}%`
+          : '—'
+      )
+    );
+  }
+
+
+  function renderRealtimeOpportunityV1(
+    data
+  ) {
+
+    ensureRealtimeOpportunityPanelV1();
+
+    const body =
+      $('realtimeOpportunityBodyV1');
+
+    if (!body) {
+      return;
+    }
+
+    const categories =
+      Array.isArray(
+        data?.categoryScores
+      )
+        ? data.categoryScores
+            .slice(0, 3)
+        : [];
+
+    const emerging =
+      Array.isArray(
+        data?.emergingMarkets
+      )
+        ? data.emergingMarkets
+            .slice(0, 3)
+        : [];
+
+
+    body.innerHTML = `
+
+      <div class="realtime-scope-v1">
+
+        <div>
+          <span>CURRENT SCENARIO</span>
+
+          <strong>
+            ${escapeHtml(
+              realtimeScopeLabelV1(
+                data
+              )
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <span>CONFIDENCE</span>
+
+          <strong>
+            ${escapeHtml(
+              data?.confidence ||
+              'EXPLORE'
+            )}
+          </strong>
+        </div>
+
+      </div>
+
+
+      <div class="realtime-metrics-v1">
+
+        <article>
+          <span>LAST 7 DAYS</span>
+
+          <strong>
+            ${formatNumber(
+              data?.recentEvents ||
+              0
+            )}
+          </strong>
+
+          <small>
+            observed events
+          </small>
+        </article>
+
+
+        <article>
+          <span>RECENT USERS</span>
+
+          <strong>
+            ${formatNumber(
+              data?.recentUsers ||
+              0
+            )}
+          </strong>
+
+          <small>
+            unique users
+          </small>
+        </article>
+
+
+        <article>
+          <span>MOMENTUM</span>
+
+          <strong>
+            ${escapeHtml(
+              growthDisplayV1(
+                data?.growth
+              )
+            )}
+          </strong>
+
+          <small>
+            vs previous 7 days
+          </small>
+        </article>
+
+
+        <article>
+          <span>USAGE INTENSITY</span>
+
+          <strong>
+            ${escapeHtml(
+              String(
+                data?.eventsPerUser ||
+                0
+              )
+            )}
+          </strong>
+
+          <small>
+            events per user
+          </small>
+        </article>
+
+      </div>
+
+
+      <div class="realtime-explanation-v1">
+
+        <div>
+
+          <span>WHAT CHANGED</span>
+
+          <strong>
+            ${
+              data?.leadingContent
+                ? `${escapeHtml(
+                    data.leadingContent
+                  )} is the leading recent content signal.`
+                : 'More data is needed to identify a recent content signal.'
+            }
+          </strong>
+
+        </div>
+
+        <div>
+
+          <span>WHAT IT MEANS</span>
+
+          <strong>
+            Product priorities below are recalculated from recent activity, audience mix and content behavior.
+          </strong>
+
+        </div>
+
+      </div>
+
+
+      <div class="realtime-category-v1">
+
+        <div class="realtime-subhead-v1">
+
+          <div>
+            <span>PRODUCT CATEGORIES TO TEST NOW</span>
+
+            <small>
+              Live hypothesis ranking
+            </small>
+          </div>
+
+        </div>
+
+
+        <div class="realtime-category-grid-v1">
+
+          ${
+            categories.length
+
+              ? categories.map(
+                  (item, index) => `
+
+                    <article>
+
+                      <span>
+                        ${String(
+                          index + 1
+                        ).padStart(
+                          2,
+                          '0'
+                        )}
+                      </span>
+
+                      <div>
+
+                        <strong>
+                          ${escapeHtml(
+                            item.title
+                          )}
+                        </strong>
+
+                        <small>
+                          Opportunity score
+                          ${escapeHtml(
+                            String(
+                              item.score
+                            )
+                          )}/100
+                        </small>
+
+                      </div>
+
+                    </article>
+
+                  `
+                ).join('')
+
+              : `
+                  <p class="plain-note">
+                    More recent records are needed for a confident product ranking.
+                  </p>
+                `
+          }
+
+        </div>
+
+      </div>
+
+
+      <div class="realtime-emerging-v1">
+
+        <div class="realtime-subhead-v1">
+
+          <div>
+            <span>EMERGING MARKETS</span>
+
+            <small>
+              Recent momentum can surface smaller markets
+            </small>
+          </div>
+
+        </div>
+
+
+        <div class="realtime-emerging-grid-v1">
+
+          ${
+            emerging.length
+
+              ? emerging.map(
+                  market => `
+
+                    <article>
+
+                      <div>
+
+                        <strong>
+                          ${escapeHtml(
+                            market.location
+                          )}
+                        </strong>
+
+                        <small>
+                          ${formatNumber(
+                            market.recentUsers
+                          )} recent users ·
+                          ${formatNumber(
+                            market.recentEvents
+                          )} events
+                        </small>
+
+                      </div>
+
+                      <span>
+                        ${escapeHtml(
+                          growthDisplayV1(
+                            market.growth
+                          )
+                        )}
+                      </span>
+
+                    </article>
+
+                  `
+                ).join('')
+
+              : `
+                  <p class="plain-note">
+                    No market currently has enough recent activity to qualify as emerging.
+                  </p>
+                `
+          }
+
+        </div>
+
+      </div>
+
+
+      <p class="realtime-disclaimer-v1">
+
+        This is an AirGesture observed-demand signal.
+        It reflects activity inside this dataset and is
+        a business-test hypothesis—not proof of external
+        consumer purchase demand.
+
+      </p>
+
+    `;
+  }
+
+
+  async function loadRealtimeOpportunityV1() {
+
+    const requestId =
+      ++realtimeOpportunityRequestV1;
+
+    const params =
+      new URLSearchParams();
+
+    const market =
+      $('locationFilter')
+        ?.value || '';
+
+    const segment =
+      $('segmentFilter')
+        ?.value || '';
+
+    if (market) {
+      params.set(
+        'location',
+        market
+      );
+    }
+
+    if (segment) {
+      params.set(
+        'segment',
+        segment
+      );
+    }
+
+    try {
+
+      const response =
+        await fetch(
+          `/api/intelligence/opportunity?${params.toString()}`,
+          {
+            credentials:
+              'same-origin',
+            cache:
+              'no-store'
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          `HTTP ${response.status}`
+        );
+      }
+
+      const data =
+        await response.json();
+
+      if (
+        requestId !==
+        realtimeOpportunityRequestV1
+      ) {
+        return;
+      }
+
+      window
+        .airgestureRealtimeOpportunityV1 =
+        data;
+
+      renderRealtimeOpportunityV1(
+        data
+      );
+
+
+      /*
+        If the Product Opportunity Marketplace
+        is currently open, redraw it using the
+        latest backend signal.
+      */
+
+      if (
+        typeof renderProductExplorerGridV1
+          === 'function' &&
+        typeof productExplorerCategoryV1
+          !== 'undefined' &&
+        productExplorerCategoryV1
+      ) {
+
+        try {
+          renderProductExplorerGridV1();
+        } catch {}
+      }
+
+    } catch (error) {
+
+      console.warn(
+        'Real-time opportunity refresh failed:',
+        error
+      );
+
+      const body =
+        $('realtimeOpportunityBodyV1');
+
+      if (body) {
+
+        body.innerHTML = `
+          <p class="plain-note">
+            Real-time opportunity data is temporarily unavailable.
+            The existing dashboard remains available.
+          </p>
+        `;
+      }
+    }
+  }
+
+
+  function scheduleRealtimeOpportunityV1() {
+
+    clearInterval(
+      realtimeOpportunityTimerV1
+    );
+
+    realtimeOpportunityTimerV1 =
+      setInterval(
+        loadRealtimeOpportunityV1,
+        20000
+      );
+  }
+
+
+  /*
+    Add the backend opportunity score to the
+    existing product ordering without replacing
+    the existing marketplace logic.
+  */
+
+  if (
+    typeof scenarioProductScoreV1
+      === 'function'
+  ) {
+
+    const previousRealtimeScoreV1 =
+      scenarioProductScoreV1;
+
+
+    scenarioProductScoreV1 =
+      function(
+        product,
+        index,
+        category
+      ) {
+
+        let score =
+          previousRealtimeScoreV1(
+            product,
+            index,
+            category
+          );
+
+
+        const data =
+          window
+            .airgestureRealtimeOpportunityV1;
+
+
+        if (!data) {
+          return score;
+        }
+
+
+        const categorySignal =
+          (
+            data.categoryScores ||
+            []
+          ).find(
+            item =>
+              item.title ===
+              category
+          );
+
+
+        if (categorySignal) {
+
+          score +=
+            Number(
+              categorySignal.score ||
+              0
+            ) * 0.18;
+        }
+
+
+        const name =
+          String(
+            product?.[0] ||
+            ''
+          ).toLowerCase();
+
+
+        for (
+          const keyword
+          of (
+            data.keywords ||
+            []
+          )
+        ) {
+
+          if (
+            name.includes(
+              String(
+                keyword
+              ).toLowerCase()
+            )
+          ) {
+            score += 11;
+          }
+        }
+
+
+        return score;
+      };
+  }
+
+
+  document.addEventListener(
+    'change',
+    event => {
+
+      if (
+        event.target?.id
+          === 'segmentFilter' ||
+        event.target?.id
+          === 'locationFilter'
+      ) {
+
+        setTimeout(
+          loadRealtimeOpportunityV1,
+          150
+        );
+      }
+    }
+  );
+
+
+  ensureRealtimeOpportunityPanelV1();
+
+  setTimeout(
+    loadRealtimeOpportunityV1,
+    700
+  );
+
+  scheduleRealtimeOpportunityV1();
+
+
+
+  // AIRGESTURE_COMMERCIAL_LOCAL_FILTERS_V1
+
+  let commercialAudienceV1 = '';
+  let commercialMarketV1 = '';
+
+
+  function populateCommercialStrategyFiltersV1() {
+
+    const audienceSelect =
+      $('commercialAudienceFilterV1');
+
+    const marketSelect =
+      $('commercialMarketFilterV1');
+
+    if (
+      !audienceSelect ||
+      !marketSelect ||
+      !state.snapshot
+    ) {
+      return;
+    }
+
+
+    const audiences =
+      state.snapshot
+        ?.dimensions
+        ?.segments || [];
+
+
+    const markets =
+      state.snapshot
+        ?.dimensions
+        ?.locations || [];
+
+
+    const currentAudience =
+      commercialAudienceV1;
+
+    const currentMarket =
+      commercialMarketV1;
+
+
+    audienceSelect.innerHTML =
+      `
+        <option value="">
+          All audiences
+        </option>
+      `
+      +
+      audiences
+        .filter(
+          item =>
+            item.name &&
+            item.name !==
+              'NOT_OPTED_IN'
+        )
+        .map(
+          item => `
+
+            <option
+              value="${escapeHtml(
+                item.name
+              )}">
+
+              ${escapeHtml(
+                typeof prettySegment
+                  === 'function'
+                    ? prettySegment(
+                        item.name
+                      )
+                    : item.name
+              )}
+
+            </option>
+
+          `
+        )
+        .join('');
+
+
+    marketSelect.innerHTML =
+      `
+        <option value="">
+          All markets
+        </option>
+      `
+      +
+      markets
+        .filter(
+          item =>
+            item.name &&
+            !String(
+              item.name
+            )
+              .toLowerCase()
+              .includes(
+                'unavailable'
+              )
+        )
+        .map(
+          item => `
+
+            <option
+              value="${escapeHtml(
+                item.name
+              )}">
+
+              ${escapeHtml(
+                typeof prettyLocation
+                  === 'function'
+                    ? prettyLocation(
+                        item.name
+                      )
+                    : item.name
+              )}
+              (${formatNumber(
+                item.count || 0
+              )})
+
+            </option>
+
+          `
+        )
+        .join('');
+
+
+    audienceSelect.value =
+      currentAudience;
+
+    marketSelect.value =
+      currentMarket;
+  }
+
+
+  function selectedCommercialAudienceV1() {
+
+    return (
+      commercialAudienceV1 ||
+      ''
+    );
+  }
+
+
+  function selectedCommercialMarketV1() {
+
+    return (
+      commercialMarketV1 ||
+      ''
+    );
+  }
+
+
+  function commercialAudienceLabelV1() {
+
+    if (
+      !commercialAudienceV1
+    ) {
+      return 'All audiences';
+    }
+
+    try {
+
+      return (
+        prettySegment(
+          commercialAudienceV1
+        )
+        ||
+        commercialAudienceV1
+      );
+
+    } catch {
+
+      return commercialAudienceV1;
+    }
+  }
+
+
+  function commercialMarketLabelV1() {
+
+    if (
+      !commercialMarketV1
+    ) {
+      return 'All markets';
+    }
+
+    try {
+
+      return (
+        prettyLocation(
+          commercialMarketV1
+        )
+        ||
+        commercialMarketV1
+      );
+
+    } catch {
+
+      return commercialMarketV1;
+    }
+  }
+
+
+  /*
+    Override only the Commercial Strategy scenario
+    selection. The main dashboard filters remain
+    independent.
+  */
+
+  selectedAudienceScenarioV1 =
+    function() {
+
+      return (
+        commercialAudienceLabelV1()
+      );
+    };
+
+
+  selectedMarketScenarioV1 =
+    function() {
+
+      return (
+        commercialMarketLabelV1()
+      );
+    };
+
+
+  async function loadCommercialStrategyOpportunityV1() {
+
+    const params =
+      new URLSearchParams();
+
+
+    if (
+      commercialAudienceV1
+    ) {
+
+      params.set(
+        'segment',
+        commercialAudienceV1
+      );
+    }
+
+
+    if (
+      commercialMarketV1
+    ) {
+
+      params.set(
+        'location',
+        commercialMarketV1
+      );
+    }
+
+
+    try {
+
+      const response =
+        await fetch(
+          `/api/intelligence/opportunity?${params.toString()}`,
+          {
+            credentials:
+              'same-origin',
+
+            cache:
+              'no-store'
+          }
+        );
+
+
+      if (!response.ok) {
+
+        throw new Error(
+          `HTTP ${response.status}`
+        );
+      }
+
+
+      const data =
+        await response.json();
+
+
+      window
+        .airgestureRealtimeOpportunityV1 =
+        data;
+
+
+      if (
+        typeof renderRealtimeOpportunityV1
+          === 'function'
+      ) {
+
+        renderRealtimeOpportunityV1(
+          data
+        );
+      }
+
+
+      if (
+        typeof updateCommercialScenarioV1
+          === 'function'
+      ) {
+
+        updateCommercialScenarioV1();
+      }
+
+
+      if (
+        typeof renderProductExplorerGridV1
+          === 'function' &&
+        typeof productExplorerCategoryV1
+          !== 'undefined' &&
+        productExplorerCategoryV1
+      ) {
+
+        try {
+
+          renderProductExplorerGridV1();
+
+        } catch {}
+      }
+
+    } catch (error) {
+
+      console.warn(
+        'Commercial strategy scenario refresh failed:',
+        error
+      );
+    }
+  }
+
+
+  function commercialScenarioChangedV1() {
+
+    commercialAudienceV1 =
+      $('commercialAudienceFilterV1')
+        ?.value || '';
+
+
+    commercialMarketV1 =
+      $('commercialMarketFilterV1')
+        ?.value || '';
+
+
+    loadCommercialStrategyOpportunityV1();
+  }
+
+
+  document.addEventListener(
+    'change',
+    event => {
+
+      if (
+        event.target?.id ===
+          'commercialAudienceFilterV1'
+        ||
+        event.target?.id ===
+          'commercialMarketFilterV1'
+      ) {
+
+        commercialScenarioChangedV1();
+      }
+    }
+  );
+
+
+  document.addEventListener(
+    'click',
+    event => {
+
+      if (
+        event.target.closest(
+          '#commercialResetV1'
+        )
+      ) {
+
+        commercialAudienceV1 = '';
+        commercialMarketV1 = '';
+
+
+        const audience =
+          $('commercialAudienceFilterV1');
+
+        const market =
+          $('commercialMarketFilterV1');
+
+
+        if (audience) {
+          audience.value = '';
+        }
+
+        if (market) {
+          market.value = '';
+        }
+
+
+        loadCommercialStrategyOpportunityV1();
+      }
+    }
+  );
+
+
+  /*
+    Preserve existing dashboard rendering and only
+    repopulate these two local dropdowns afterward.
+  */
+
+  const previousRenderAllCommercialFiltersV1 =
+    renderAll;
+
+
+  renderAll =
+    function(snapshot) {
+
+      previousRenderAllCommercialFiltersV1(
+        snapshot
+      );
+
+      populateCommercialStrategyFiltersV1();
+    };
+
+
+  /*
+    Make the 20-second real-time refresh respect
+    the Commercial Strategy dropdowns.
+  */
+
+  if (
+    typeof loadRealtimeOpportunityV1
+      === 'function'
+  ) {
+
+    loadRealtimeOpportunityV1 =
+      loadCommercialStrategyOpportunityV1;
+  }
+
+
+  setTimeout(
+    () => {
+
+      populateCommercialStrategyFiltersV1();
+
+      loadCommercialStrategyOpportunityV1();
+
+    },
+    900
+  );
+
 })();

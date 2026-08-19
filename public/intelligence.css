@@ -726,3 +726,382 @@ button { cursor: pointer; }
   }
 }
 
+
+
+/* AIRGESTURE REALTIME OPPORTUNITY V1 */
+
+.realtime-opportunity-v1 {
+  margin: 0 0 20px;
+  padding: 18px;
+  border-radius: 18px;
+  border:
+    1px solid
+    rgba(73,220,255,.14);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(8,25,40,.96),
+      rgba(7,18,31,.96)
+    );
+}
+
+.realtime-opportunity-head-v1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.realtime-opportunity-head-v1 h3 {
+  margin: 4px 0 3px;
+  color: #eef8ff;
+  font-size: 18px;
+}
+
+.realtime-opportunity-head-v1 p {
+  margin: 0;
+  color: #8299ac;
+  font-size: 11px;
+}
+
+.realtime-live-badge-v1 {
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #71e8ff;
+  background:
+    rgba(73,220,255,.09);
+  border:
+    1px solid
+    rgba(73,220,255,.15);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .09em;
+}
+
+.realtime-scope-v1 {
+  display: grid;
+  grid-template-columns:
+    minmax(0,2fr)
+    minmax(100px,.6fr);
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.realtime-scope-v1 > div {
+  padding: 12px;
+  border-radius: 12px;
+  background:
+    rgba(255,255,255,.025);
+}
+
+.realtime-scope-v1 span,
+.realtime-metrics-v1 span,
+.realtime-explanation-v1 span {
+  display: block;
+  color: #6de3fc;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.realtime-scope-v1 strong {
+  display: block;
+  margin-top: 4px;
+  color: #e7f3fc;
+  font-size: 12px;
+}
+
+.realtime-metrics-v1 {
+  display: grid;
+  grid-template-columns:
+    repeat(4,minmax(0,1fr));
+  gap: 9px;
+  margin-top: 9px;
+}
+
+.realtime-metrics-v1 article {
+  padding: 13px;
+  border-radius: 12px;
+  background:
+    rgba(255,255,255,.025);
+  border:
+    1px solid
+    rgba(148,163,184,.06);
+}
+
+.realtime-metrics-v1 strong {
+  display: block;
+  margin-top: 5px;
+  color: #eff8ff;
+  font-size: 19px;
+}
+
+.realtime-metrics-v1 small {
+  display: block;
+  margin-top: 2px;
+  color: #70889c;
+  font-size: 9px;
+}
+
+.realtime-explanation-v1 {
+  display: grid;
+  grid-template-columns:
+    repeat(2,minmax(0,1fr));
+  gap: 9px;
+  margin-top: 9px;
+}
+
+.realtime-explanation-v1 > div {
+  padding: 13px;
+  border-radius: 12px;
+  background:
+    rgba(73,220,255,.035);
+}
+
+.realtime-explanation-v1 strong {
+  display: block;
+  margin-top: 5px;
+  color: #aec1d1;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.realtime-category-v1,
+.realtime-emerging-v1 {
+  margin-top: 16px;
+}
+
+.realtime-subhead-v1 {
+  margin-bottom: 8px;
+}
+
+.realtime-subhead-v1 span {
+  color: #7ae7ff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.realtime-subhead-v1 small {
+  margin-left: 8px;
+  color: #657d91;
+  font-size: 9px;
+}
+
+.realtime-category-grid-v1 {
+  display: grid;
+  grid-template-columns:
+    repeat(3,minmax(0,1fr));
+  gap: 8px;
+}
+
+.realtime-category-grid-v1 article {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  border-radius: 11px;
+  background:
+    rgba(255,255,255,.025);
+}
+
+.realtime-category-grid-v1 article > span {
+  color: #61def8;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.realtime-category-grid-v1 strong {
+  display: block;
+  color: #e6f2fb;
+  font-size: 11px;
+}
+
+.realtime-category-grid-v1 small {
+  display: block;
+  margin-top: 2px;
+  color: #71899c;
+  font-size: 9px;
+}
+
+.realtime-emerging-grid-v1 {
+  display: grid;
+  gap: 7px;
+}
+
+.realtime-emerging-grid-v1 article {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background:
+    rgba(255,255,255,.02);
+}
+
+.realtime-emerging-grid-v1 strong {
+  display: block;
+  color: #dcebf7;
+  font-size: 11px;
+}
+
+.realtime-emerging-grid-v1 small {
+  display: block;
+  margin-top: 2px;
+  color: #71899c;
+  font-size: 9px;
+}
+
+.realtime-emerging-grid-v1 article > span {
+  color: #6be4a6;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.realtime-disclaimer-v1 {
+  margin: 14px 0 0;
+  padding-top: 11px;
+  border-top:
+    1px solid
+    rgba(148,163,184,.08);
+  color: #647b8f;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.realtime-loading-v1 {
+  margin-top: 14px;
+  color: #8299ac;
+  font-size: 11px;
+}
+
+@media(max-width:800px) {
+
+  .realtime-metrics-v1 {
+    grid-template-columns:
+      repeat(2,minmax(0,1fr));
+  }
+
+  .realtime-category-grid-v1 {
+    grid-template-columns: 1fr;
+  }
+
+  .realtime-explanation-v1 {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+
+/* AIRGESTURE COMMERCIAL LOCAL FILTERS V1 */
+
+.commercial-strategy-controls-v1 {
+  display: grid;
+  grid-template-columns:
+    minmax(260px,1.4fr)
+    minmax(180px,.8fr)
+    minmax(220px,1fr)
+    auto;
+  gap: 12px;
+  align-items: end;
+  margin: 14px 0 14px;
+  padding: 15px 16px;
+  border-radius: 16px;
+  background:
+    rgba(255,255,255,.022);
+  border:
+    1px solid
+    rgba(148,163,184,.09);
+}
+
+.commercial-controls-title-v1 span {
+  display: block;
+  color: #67e1fb;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .09em;
+}
+
+.commercial-controls-title-v1 strong {
+  display: block;
+  margin-top: 3px;
+  color: #eef8ff;
+  font-size: 13px;
+}
+
+.commercial-controls-title-v1 p {
+  margin: 4px 0 0;
+  color: #7d95a9;
+  font-size: 10px;
+}
+
+.commercial-strategy-controls-v1 label {
+  display: grid;
+  gap: 6px;
+}
+
+.commercial-strategy-controls-v1 label > span {
+  color: #7e95aa;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .07em;
+}
+
+.commercial-strategy-controls-v1 select {
+  height: 42px;
+  width: 100%;
+  border-radius: 11px;
+  border:
+    1px solid
+    rgba(148,163,184,.13);
+  background: #071522;
+  color: #e5f1fa;
+  padding: 0 11px;
+  font-size: 11px;
+}
+
+#commercialResetV1 {
+  height: 42px;
+  padding: 0 15px;
+  border-radius: 11px;
+  border:
+    1px solid
+    rgba(148,163,184,.12);
+  background:
+    rgba(255,255,255,.025);
+  color: #a8bdcd;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+#commercialResetV1:hover {
+  border-color:
+    rgba(73,220,255,.24);
+  color: #73e5ff;
+}
+
+@media(max-width:900px) {
+
+  .commercial-strategy-controls-v1 {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .commercial-controls-title-v1 {
+    grid-column:
+      1 / -1;
+  }
+}
+
+@media(max-width:620px) {
+
+  .commercial-strategy-controls-v1 {
+    grid-template-columns: 1fr;
+  }
+
+  .commercial-controls-title-v1 {
+    grid-column: auto;
+  }
+}
+

@@ -10,6 +10,7 @@ const connectPgSimple = require('connect-pg-simple');
 const { createAuthRouter } = require('./auth');
 const { createDatabase } = require('./db');
 const { buildIntelligenceSnapshot } = require('./strategy-intelligence');
+const { buildRealtimeOpportunity } = require('./realtime-opportunity');
 const { answerAirGestureQuestion } = require('./airgesture-data-assistant');
 
 const PORT = Number(process.env.PORT || 3000);
@@ -2127,6 +2128,83 @@ function createServer() {
       intelligenceRowsCache.inFlight = null;
     }
   }
+
+
+
+  // ---------------------------------------------------------
+  // REAL-TIME COMMERCIAL OPPORTUNITY ENGINE
+  // ---------------------------------------------------------
+  //
+  // Uses the same normalized classroom rows as the main
+  // Intelligence dashboard. No external AI/API is used.
+  //
+  // Recent = latest 7 days in the dataset.
+  // Previous = preceding 7 days.
+  //
+  // Anchoring to the newest database record also makes this
+  // work correctly with classroom/demo datasets.
+  // ---------------------------------------------------------
+
+  app.get(
+    '/api/intelligence/opportunity',
+    requireAuth,
+    async (req, res) => {
+
+      try {
+
+        if (!database.enabled) {
+
+          return res.status(503).json({
+            error:
+              'PostgreSQL database is not configured.'
+          });
+        }
+
+        const rows =
+          await loadStrategicIntelligenceRows();
+
+        const result =
+          buildRealtimeOpportunity(
+            rows,
+            {
+              location:
+                String(
+                  req.query?.location ||
+                  ''
+                ).trim(),
+
+              segment:
+                String(
+                  req.query?.segment ||
+                  ''
+                ).trim()
+            }
+          );
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        return res.json({
+          ok: true,
+          ...result
+        });
+
+      } catch (error) {
+
+        console.error(
+          'Real-time opportunity error:',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not calculate real-time product opportunity.'
+        });
+      }
+    }
+  );
 
 
   app.get(
