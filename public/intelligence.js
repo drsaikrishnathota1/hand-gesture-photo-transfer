@@ -4944,3 +4944,1675 @@
   );
 
 })();
+
+
+// AIRGESTURE_VISUAL_ANALYTICS_V2
+(function () {
+  if (window.__AIRGESTURE_VISUAL_ANALYTICS_V2__) {
+    return;
+  }
+  window.__AIRGESTURE_VISUAL_ANALYTICS_V2__ = true;
+
+  const AIRV2_COLORS = [
+    '#4ddcff',
+    '#7d88ff',
+    '#40c4ff',
+    '#14e2c3',
+    '#ffd166',
+    '#ff8fab',
+    '#8dd3c7',
+    '#72f1b8'
+  ];
+
+  function airv2ById(id) {
+    return document.getElementById(id);
+  }
+
+  function airv2SafeArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function airv2Number(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function airv2FormatNumber(value) {
+    const n = airv2Number(value);
+    return n.toLocaleString();
+  }
+
+  function airv2FormatPct(value) {
+    const n = airv2Number(value);
+    return `${n.toFixed(1)}%`;
+  }
+
+  function airv2FormatBytes(bytes) {
+    const n = airv2Number(bytes);
+    if (!n) return '0 B';
+    const units = ['B','KB','MB','GB','TB'];
+    let idx = 0;
+    let size = n;
+    while (size >= 1024 && idx < units.length - 1) {
+      size /= 1024;
+      idx += 1;
+    }
+    return `${size >= 100 ? size.toFixed(0) : size >= 10 ? size.toFixed(1) : size.toFixed(2)} ${units[idx]}`;
+  }
+
+  function airv2Escape(value) {
+    return String(value ?? '')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#39;");
+  }
+
+  function airv2PrettySegment(value) {
+    try {
+      if (typeof prettySegment === 'function') {
+        return prettySegment(value);
+      }
+    } catch {}
+    return String(value ?? '');
+  }
+
+  function airv2PrettyLocation(value) {
+    try {
+      if (typeof prettyLocation === 'function') {
+        return prettyLocation(value);
+      }
+    } catch {}
+    return String(value ?? '');
+  }
+
+  function airv2GetSnapshot() {
+    try {
+      return state?.snapshot || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function airv2FindDimensionCandidates(snapshot, keys) {
+    const dims = snapshot?.dimensions || {};
+    for (const key of keys) {
+      const candidate = dims?.[key];
+      if (Array.isArray(candidate) && candidate.length) {
+        return candidate;
+      }
+    }
+    return [];
+  }
+
+  function airv2NormalizeItem(item) {
+    return {
+      name:
+        item?.name ??
+        item?.label ??
+        item?.segment ??
+        item?.location ??
+        item?.os ??
+        item?.browser ??
+        item?.fileType ??
+        'Unknown',
+      count:
+        airv2Number(
+          item?.count ??
+          item?.value ??
+          item?.events ??
+          item?.total
+        ),
+      users:
+        airv2Number(item?.users ?? item?.userCount),
+      volume:
+        airv2Number(item?.volume ?? item?.bytes ?? item?.fileSizeBytes),
+      engagement:
+        airv2Number(item?.engagement ?? item?.eventsPerUser ?? item?.avg)
+    };
+  }
+
+  function airv2Top(items, n) {
+    return airv2SafeArray(items)
+      .map(airv2NormalizeItem)
+      .filter(item => item.count > 0 || item.users > 0 || item.volume > 0)
+      .sort((a, b) => (b.count || b.users || b.volume) - (a.count || a.users || a.volume))
+      .slice(0, n);
+  }
+
+  function airv2DonutSVG(items, total) {
+    const radius = 78;
+    const circumference = 2 * Math.PI * radius;
+    let offset = 0;
+
+    const segments = items.map((item, index) => {
+      const share = total ? item.count / total : 0;
+      const length = circumference * share;
+      const dashArray = `${length} ${circumference - length}`;
+      const rotate = (offset / circumference) * 360 - 90;
+      offset += length;
+      return `
+        <circle
+          cx="100"
+          cy="100"
+          r="${radius}"
+          fill="none"
+          stroke="${AIRV2_COLORS[index % AIRV2_COLORS.length]}"
+          stroke-width="18"
+          stroke-linecap="round"
+          stroke-dasharray="${dashArray}"
+          transform="rotate(${rotate} 100 100)"
+        ></circle>
+      `;
+    }).join('');
+
+    return `
+      <svg viewBox="0 0 200 200" width="200" height="200" aria-hidden="true">
+        <circle cx="100" cy="100" r="${radius}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="18"></circle>
+        ${segments}
+      </svg>
+    `;
+  }
+
+  function airv2RenderLegend(items, total, prettyFn) {
+    if (!items.length) {
+      return `<div class="airv2-empty">No data available for this view.</div>`;
+    }
+    return `
+      <div class="airv2-legend">
+        ${items.map((item, index) => {
+          const pct = total ? (item.count / total) * 100 : 0;
+          return `
+            <div class="airv2-legend-item">
+              <span class="airv2-dot" style="background:${AIRV2_COLORS[index % AIRV2_COLORS.length]}"></span>
+              <span class="airv2-legend-name">${airv2Escape(prettyFn ? prettyFn(item.name) : item.name)}</span>
+              <span class="airv2-legend-count">${airv2FormatNumber(item.count)}</span>
+              <span class="airv2-legend-pct">${airv2FormatPct(pct)}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function airv2RenderBars(items, maxValue, labelMode) {
+    if (!items.length) {
+      return `<div class="airv2-empty">No data available for this view.</div>`;
+    }
+
+    return `
+      <div class="airv2-bars">
+        ${items.map(item => {
+          const value = labelMode === 'volume'
+            ? item.volume
+            : labelMode === 'users'
+            ? item.users
+            : item.count;
+          const width = maxValue ? Math.max(8, (value / maxValue) * 100) : 0;
+          const right = labelMode === 'volume'
+            ? airv2FormatBytes(value)
+            : labelMode === 'engagement'
+            ? value.toFixed(1)
+            : airv2FormatNumber(value);
+
+          return `
+            <div class="airv2-bar-item">
+              <div class="airv2-bar-top">
+                <span>${airv2Escape(item.name)}</span>
+                <span>${airv2Escape(right)}</span>
+              </div>
+              <div class="airv2-bar-track">
+                <div class="airv2-bar-fill" style="width:${width}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function airv2EnsureStudio() {
+    if (airv2ById('airv2VisualStudio')) {
+      return airv2ById('airv2VisualStudio');
+    }
+
+    const commercialAnchor =
+      document.getElementById('commercialStrategyControlsV1')?.closest('section, .intelligence-card, .panel, div') ||
+      [...document.querySelectorAll('h2,h3')].find(el =>
+        String(el.textContent || '').toLowerCase().includes('product opportunity marketplace')
+      )?.closest('section, .intelligence-card, .panel, div');
+
+    if (!commercialAnchor || !commercialAnchor.parentNode) {
+      return null;
+    }
+
+    const wrapper = document.createElement('section');
+    wrapper.id = 'airv2VisualStudio';
+    wrapper.className = 'airv2-visual-studio';
+    wrapper.innerHTML = `
+      <div class="airv2-headline">
+        <div class="airv2-headline-copy">
+          <small>DATA STORYTELLING STUDIO</small>
+          <h2>See the database before you decide the strategy</h2>
+          <p>
+            This section turns the loaded data into visual insight first—so students can immediately
+            understand audience behavior, market concentration, content patterns, platforms and business direction.
+          </p>
+        </div>
+        <div class="airv2-badge" id="airv2LiveBadge">Analysis loading…</div>
+      </div>
+
+      <div class="airv2-kpis" id="airv2Kpis"></div>
+
+      <div class="airv2-grid">
+        <div class="airv2-card">
+          <div class="airv2-card-head">
+            <div>
+              <small>Audience visual</small>
+              <h3>Audience mix</h3>
+              <p>Who is most active right now?</p>
+            </div>
+            <span class="airv2-chip">Donut</span>
+          </div>
+          <div class="airv2-donut-wrap">
+            <div class="airv2-donut-box" id="airv2AudienceDonut"></div>
+            <div id="airv2AudienceLegend"></div>
+          </div>
+        </div>
+
+        <div class="airv2-card">
+          <div class="airv2-card-head">
+            <div>
+              <small>Content visual</small>
+              <h3>Content mix</h3>
+              <p>Which file behaviors are shaping product hypotheses?</p>
+            </div>
+            <span class="airv2-chip">Donut</span>
+          </div>
+          <div class="airv2-donut-wrap">
+            <div class="airv2-donut-box" id="airv2ContentDonut"></div>
+            <div id="airv2ContentLegend"></div>
+          </div>
+        </div>
+
+        <div class="airv2-card">
+          <div class="airv2-card-head">
+            <div>
+              <small>Decision highlights</small>
+              <h3>Insight spotlight</h3>
+              <p>Best quick-take summaries for the audience.</p>
+            </div>
+            <span class="airv2-chip">Explain</span>
+          </div>
+          <div class="airv2-mini-list" id="airv2SpotlightList"></div>
+        </div>
+      </div>
+
+      <div class="airv2-grid">
+        <div class="airv2-card">
+          <div class="airv2-card-head">
+            <div>
+              <small>Market visual</small>
+              <h3>Top markets</h3>
+              <p>Where is observed activity strongest?</p>
+            </div>
+            <span class="airv2-chip">Bars</span>
+          </div>
+          <div id="airv2MarketBars"></div>
+        </div>
+
+        <div class="airv2-card">
+          <div class="airv2-card-head">
+            <div>
+              <small>Platform visual</small>
+              <h3>Platform mix</h3>
+              <p>Which operating environments dominate usage?</p>
+            </div>
+            <span class="airv2-chip">Bars</span>
+          </div>
+          <div id="airv2PlatformBars"></div>
+        </div>
+
+        <div class="airv2-card">
+          <div class="airv2-card-head">
+            <div>
+              <small>Volume visual</small>
+              <h3>Market volume</h3>
+              <p>Which markets carry the most data volume?</p>
+            </div>
+            <span class="airv2-chip">Bars</span>
+          </div>
+          <div id="airv2VolumeBars"></div>
+        </div>
+      </div>
+
+      <div class="airv2-spotlights" id="airv2Spotlights"></div>
+
+      <div class="airv2-mosaic">
+        <div class="airv2-card">
+          <div class="airv2-card-head">
+            <div>
+              <small>Market intelligence</small>
+              <h3>Reach · Engagement · Volume</h3>
+              <p>Top market cards without boring tables.</p>
+            </div>
+            <span class="airv2-chip">Cards</span>
+          </div>
+          <div class="airv2-mini-list" id="airv2MarketCards"></div>
+        </div>
+
+        <div class="airv2-card">
+          <div class="airv2-card-head">
+            <div>
+              <small>Audience intelligence</small>
+              <h3>Observed audience leaders</h3>
+              <p>Best audience candidates to explain in class.</p>
+            </div>
+            <span class="airv2-chip">Cards</span>
+          </div>
+          <div class="airv2-mini-list" id="airv2AudienceCards"></div>
+        </div>
+      </div>
+    `;
+
+    commercialAnchor.parentNode.insertBefore(wrapper, commercialAnchor);
+    return wrapper;
+  }
+
+  function airv2HideLegacyBlocks() {
+    const phrases = [
+      'Filter analysis',
+      'Audience ranking',
+      'Reach · Engagement · Volume',
+      'Market quality',
+      'Executive decision',
+      'Decision snapshot',
+      'Core analytics',
+      'Behavior'
+    ];
+
+    const nodes = [...document.querySelectorAll('h1,h2,h3,h4')];
+    nodes.forEach(node => {
+      const text = String(node.textContent || '').trim().toLowerCase();
+      if (!phrases.some(phrase => text.includes(phrase.toLowerCase()))) {
+        return;
+      }
+      const block = node.closest('section, .intelligence-card, .panel, article, .card, div');
+      if (block && !block.id?.startsWith('airv2') && !block.closest('#airv2VisualStudio')) {
+        block.classList.add('airv2-hidden');
+      }
+    });
+  }
+
+  function airv2Render(snapshot) {
+    const studio = airv2EnsureStudio();
+    if (!studio || !snapshot) {
+      return;
+    }
+
+    airv2HideLegacyBlocks();
+
+    const segments = airv2Top(
+      airv2FindDimensionCandidates(snapshot, ['segments', 'audiences', 'segmentMix']),
+      6
+    );
+
+    const locations = airv2Top(
+      airv2FindDimensionCandidates(snapshot, ['locations', 'markets', 'topMarkets']),
+      6
+    );
+
+    const fileTypes = airv2Top(
+      airv2FindDimensionCandidates(snapshot, ['fileTypes', 'contentTypes', 'content']),
+      6
+    );
+
+    const platforms = airv2Top(
+      airv2FindDimensionCandidates(snapshot, ['os', 'platforms', 'operatingSystems', 'browsers']),
+      6
+    );
+
+    const metrics = snapshot?.metrics || snapshot?.summary || {};
+    const totalEvents =
+      airv2Number(metrics?.eventCount ?? metrics?.events ?? snapshot?.recordCount ?? 0) ||
+      segments.reduce((sum, item) => sum + item.count, 0) ||
+      fileTypes.reduce((sum, item) => sum + item.count, 0);
+
+    const uniqueUsers =
+      airv2Number(metrics?.userCount ?? metrics?.users ?? snapshot?.uniqueUsers ?? 0) ||
+      Math.max(...segments.map(item => item.users || 0), 0);
+
+    const totalVolume =
+      airv2Number(metrics?.volumeBytes ?? metrics?.fileSizeBytes ?? metrics?.totalVolume ?? 0) ||
+      locations.reduce((sum, item) => sum + item.volume, 0);
+
+    const topAudience = segments[0] || null;
+    const topMarket = locations[0] || null;
+    const topContent = fileTypes[0] || null;
+    const topPlatform = platforms[0] || null;
+
+    const badge = airv2ById('airv2LiveBadge');
+    if (badge) {
+      badge.textContent = `LIVE VISUAL ANALYTICS · ${airv2FormatNumber(totalEvents)} events`;
+    }
+
+    const kpis = [
+      {
+        label: 'Recorded events',
+        value: airv2FormatNumber(totalEvents),
+        note: 'Total observed activity in current analysis'
+      },
+      {
+        label: 'Observed users',
+        value: airv2FormatNumber(uniqueUsers),
+        note: 'Unique visible users represented'
+      },
+      {
+        label: 'Markets',
+        value: airv2FormatNumber(locations.length),
+        note: 'Cities / locations with visible demand'
+      },
+      {
+        label: 'Volume',
+        value: airv2FormatBytes(totalVolume),
+        note: 'Total recorded transfer volume'
+      },
+      {
+        label: 'Leading audience',
+        value: topAudience ? airv2PrettySegment(topAudience.name) : '—',
+        note: topAudience ? `${airv2FormatNumber(topAudience.count)} observed events` : 'No audience signal'
+      },
+      {
+        label: 'Leading content',
+        value: topContent ? topContent.name : '—',
+        note: topContent ? `${airv2FormatPct((topContent.count / (totalEvents || 1)) * 100)} of observed activity` : 'No content signal'
+      }
+    ];
+
+    const kpisNode = airv2ById('airv2Kpis');
+    if (kpisNode) {
+      kpisNode.innerHTML = kpis.map(item => `
+        <div class="airv2-kpi">
+          <div class="airv2-kpi-label">${airv2Escape(item.label)}</div>
+          <div class="airv2-kpi-value">${airv2Escape(item.value)}</div>
+          <div class="airv2-kpi-note">${airv2Escape(item.note)}</div>
+        </div>
+      `).join('');
+    }
+
+    const audienceTotal = segments.reduce((sum, item) => sum + item.count, 0);
+    const contentTotal = fileTypes.reduce((sum, item) => sum + item.count, 0);
+
+    const audienceDonut = airv2ById('airv2AudienceDonut');
+    if (audienceDonut) {
+      audienceDonut.innerHTML = `
+        <div class="airv2-donut">
+          ${airv2DonutSVG(segments, audienceTotal)}
+          <div class="airv2-donut-center">
+            <strong>${airv2FormatNumber(audienceTotal)}</strong>
+            <span>audience events</span>
+          </div>
+        </div>
+      `;
+    }
+
+    const contentDonut = airv2ById('airv2ContentDonut');
+    if (contentDonut) {
+      contentDonut.innerHTML = `
+        <div class="airv2-donut">
+          ${airv2DonutSVG(fileTypes, contentTotal)}
+          <div class="airv2-donut-center">
+            <strong>${airv2FormatNumber(contentTotal)}</strong>
+            <span>content events</span>
+          </div>
+        </div>
+      `;
+    }
+
+    const audienceLegend = airv2ById('airv2AudienceLegend');
+    if (audienceLegend) {
+      audienceLegend.innerHTML = airv2RenderLegend(
+        segments,
+        audienceTotal,
+        airv2PrettySegment
+      );
+    }
+
+    const contentLegend = airv2ById('airv2ContentLegend');
+    if (contentLegend) {
+      contentLegend.innerHTML = airv2RenderLegend(
+        fileTypes,
+        contentTotal,
+        value => value
+      );
+    }
+
+    const spotlightList = airv2ById('airv2SpotlightList');
+    if (spotlightList) {
+      const items = [
+        {
+          left: 'Best market now',
+          right: topMarket ? airv2PrettyLocation(topMarket.name) : 'No signal'
+        },
+        {
+          left: 'Best audience now',
+          right: topAudience ? airv2PrettySegment(topAudience.name) : 'No signal'
+        },
+        {
+          left: 'Best content signal',
+          right: topContent ? topContent.name : 'No signal'
+        },
+        {
+          left: 'Platform leader',
+          right: topPlatform ? topPlatform.name : 'No signal'
+        },
+        {
+          left: 'Users per top market',
+          right: topMarket ? `${airv2FormatNumber(topMarket.users)} users` : '—'
+        },
+        {
+          left: 'Top market volume',
+          right: topMarket ? airv2FormatBytes(topMarket.volume) : '—'
+        }
+      ];
+      spotlightList.innerHTML = items.map(item => `
+        <div class="airv2-mini-row">
+          <span class="airv2-mini-left">${airv2Escape(item.left)}</span>
+          <span class="airv2-mini-right">${airv2Escape(item.right)}</span>
+        </div>
+      `).join('');
+    }
+
+    const marketBars = airv2ById('airv2MarketBars');
+    if (marketBars) {
+      const maxCount = Math.max(...locations.map(item => item.count), 1);
+      marketBars.innerHTML = airv2RenderBars(
+        locations.map(item => ({...item, name: airv2PrettyLocation(item.name)})),
+        maxCount,
+        'count'
+      );
+    }
+
+    const platformBars = airv2ById('airv2PlatformBars');
+    if (platformBars) {
+      const maxCount = Math.max(...platforms.map(item => item.count), 1);
+      platformBars.innerHTML = airv2RenderBars(
+        platforms,
+        maxCount,
+        'count'
+      );
+    }
+
+    const volumeBars = airv2ById('airv2VolumeBars');
+    if (volumeBars) {
+      const maxVolume = Math.max(...locations.map(item => item.volume), 1);
+      volumeBars.innerHTML = airv2RenderBars(
+        locations.map(item => ({...item, name: airv2PrettyLocation(item.name)})),
+        maxVolume,
+        'volume'
+      );
+    }
+
+    const spotlights = airv2ById('airv2Spotlights');
+    if (spotlights) {
+      const cards = [
+        {
+          title: topAudience ? airv2PrettySegment(topAudience.name) : 'No audience signal',
+          label: 'Audience leader',
+          text: topAudience
+            ? `${airv2FormatNumber(topAudience.count)} observed events suggest this is the easiest audience to explain first in class.`
+            : 'No audience signal available.'
+        },
+        {
+          title: topMarket ? airv2PrettyLocation(topMarket.name) : 'No market signal',
+          label: 'Market leader',
+          text: topMarket
+            ? `${airv2FormatNumber(topMarket.users)} users and ${airv2FormatBytes(topMarket.volume)} of volume make this the clearest market story.`
+            : 'No market signal available.'
+        },
+        {
+          title: topContent ? topContent.name : 'No content signal',
+          label: 'Content behavior',
+          text: topContent
+            ? `Observed content behavior currently leans toward ${topContent.name.toLowerCase()}, which helps explain product-fit hypotheses.`
+            : 'No content signal available.'
+        }
+      ];
+
+      spotlights.innerHTML = cards.map(card => `
+        <div class="airv2-spotlight">
+          <small>${airv2Escape(card.label)}</small>
+          <h4>${airv2Escape(card.title)}</h4>
+          <p>${airv2Escape(card.text)}</p>
+        </div>
+      `).join('');
+    }
+
+    const marketCards = airv2ById('airv2MarketCards');
+    if (marketCards) {
+      marketCards.innerHTML = locations.map(item => `
+        <div class="airv2-mini-row">
+          <div>
+            <div class="airv2-mini-left">${airv2Escape(airv2PrettyLocation(item.name))}</div>
+            <div style="color:#8ea6bc;font-size:12px;margin-top:4px;">
+              Reach ${airv2FormatNumber(item.users)} · Engagement ${item.engagement ? item.engagement.toFixed(1) : '—'} · Volume ${airv2FormatBytes(item.volume)}
+            </div>
+          </div>
+          <span class="airv2-mini-right">${airv2FormatNumber(item.count)} events</span>
+        </div>
+      `).join('');
+    }
+
+    const audienceCards = airv2ById('airv2AudienceCards');
+    if (audienceCards) {
+      audienceCards.innerHTML = segments.map(item => `
+        <div class="airv2-mini-row">
+          <div>
+            <div class="airv2-mini-left">${airv2Escape(airv2PrettySegment(item.name))}</div>
+            <div style="color:#8ea6bc;font-size:12px;margin-top:4px;">
+              ${airv2FormatNumber(item.users)} users represented
+            </div>
+          </div>
+          <span class="airv2-mini-right">${airv2FormatNumber(item.count)} events</span>
+        </div>
+      `).join('');
+    }
+  }
+
+  function airv2RenderFromState() {
+    const snapshot = airv2GetSnapshot();
+    if (snapshot) {
+      airv2Render(snapshot);
+    }
+  }
+
+  const __oldRenderAllAirV2 =
+    typeof renderAll === 'function'
+      ? renderAll
+      : null;
+
+  if (__oldRenderAllAirV2) {
+    renderAll = function (snapshot) {
+      __oldRenderAllAirV2(snapshot);
+      try {
+        airv2Render(snapshot || airv2GetSnapshot());
+      } catch (error) {
+        console.warn('AIRV2 render error:', error);
+      }
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(airv2RenderFromState, 700);
+    setTimeout(airv2RenderFromState, 1600);
+  });
+
+  window.addEventListener('load', () => {
+    setTimeout(airv2RenderFromState, 1200);
+  });
+})();
+
+
+// AIRGESTURE_VISUAL_ANALYTICS_PHASE2
+(function () {
+
+  if (
+    window.__AIRGESTURE_VISUAL_ANALYTICS_PHASE2__
+  ) {
+    return;
+  }
+
+  window
+    .__AIRGESTURE_VISUAL_ANALYTICS_PHASE2__ =
+    true;
+
+
+  function p2ById(id) {
+    return document.getElementById(id);
+  }
+
+
+  function p2Escape(value) {
+    return String(
+      value ?? ''
+    )
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#39;");
+  }
+
+
+  function p2Tooltip() {
+
+    let tip =
+      p2ById(
+        'airv2Tooltip'
+      );
+
+    if (tip) {
+      return tip;
+    }
+
+    tip =
+      document.createElement(
+        'div'
+      );
+
+    tip.id =
+      'airv2Tooltip';
+
+    tip.className =
+      'airv2-tooltip';
+
+    tip.hidden = true;
+
+    document.body
+      .appendChild(tip);
+
+    return tip;
+  }
+
+
+  function p2ShowTooltip(
+    event,
+    title,
+    body
+  ) {
+
+    const tip =
+      p2Tooltip();
+
+    tip.innerHTML = `
+      <strong>
+        ${p2Escape(title)}
+      </strong>
+      ${p2Escape(body)}
+    `;
+
+    tip.hidden = false;
+
+    const x =
+      event.clientX + 16;
+
+    const y =
+      event.clientY + 16;
+
+    tip.style.left =
+      `${x}px`;
+
+    tip.style.top =
+      `${y}px`;
+  }
+
+
+  function p2HideTooltip() {
+    const tip =
+      p2ById(
+        'airv2Tooltip'
+      );
+
+    if (tip) {
+      tip.hidden = true;
+    }
+  }
+
+
+  function p2Snapshot() {
+    try {
+      return state?.snapshot || null;
+    } catch {
+      return null;
+    }
+  }
+
+
+  function p2TopMarkets() {
+
+    const snapshot =
+      p2Snapshot();
+
+    const values =
+      snapshot
+        ?.dimensions
+        ?.locations || [];
+
+    return values
+      .filter(
+        item =>
+          item?.name &&
+          Number(
+            item?.count || 0
+          ) > 0
+      )
+      .sort(
+        (a,b) =>
+          Number(
+            b.count || 0
+          ) -
+          Number(
+            a.count || 0
+          )
+      )
+      .slice(0,6);
+  }
+
+
+  function p2PrettyLocation(
+    value
+  ) {
+    try {
+      return prettyLocation(
+        value
+      );
+    } catch {
+      return value;
+    }
+  }
+
+
+  function p2FormatBytes(
+    value
+  ) {
+
+    const bytes =
+      Number(value || 0);
+
+    if (!bytes) {
+      return '0 B';
+    }
+
+    const units =
+      [
+        'B',
+        'KB',
+        'MB',
+        'GB',
+        'TB'
+      ];
+
+    let size =
+      bytes;
+
+    let index = 0;
+
+    while (
+      size >= 1024 &&
+      index <
+        units.length - 1
+    ) {
+      size /= 1024;
+      index++;
+    }
+
+    return (
+      `${size.toFixed(
+        size >= 10 ? 1 : 2
+      )} ${units[index]}`
+    );
+  }
+
+
+  function p2EnsureHeatSection() {
+
+    if (
+      p2ById(
+        'airv2MarketHeat'
+      )
+    ) {
+      return;
+    }
+
+    const studio =
+      p2ById(
+        'airv2VisualStudio'
+      );
+
+    if (!studio) {
+      return;
+    }
+
+    const section =
+      document.createElement(
+        'div'
+      );
+
+    section.className =
+      'airv2-card';
+
+    section.innerHTML = `
+
+      <div class="airv2-card-head">
+
+        <div>
+          <small>
+            MARKET HEAT
+          </small>
+
+          <h3>
+            Geographic opportunity pulse
+          </h3>
+
+          <p>
+            Stronger observed markets receive greater visual intensity.
+          </p>
+        </div>
+
+        <span class="airv2-chip">
+          Heat View
+        </span>
+
+      </div>
+
+      <div
+        id="airv2MarketHeat"
+        class="airv2-market-heat">
+      </div>
+
+    `;
+
+    const mosaic =
+      studio.querySelector(
+        '.airv2-mosaic'
+      );
+
+    if (mosaic) {
+      studio.insertBefore(
+        section,
+        mosaic
+      );
+    }
+    else {
+      studio.appendChild(
+        section
+      );
+    }
+  }
+
+
+  function p2RenderHeat() {
+
+    p2EnsureHeatSection();
+
+    const target =
+      p2ById(
+        'airv2MarketHeat'
+      );
+
+    if (!target) {
+      return;
+    }
+
+    const markets =
+      p2TopMarkets();
+
+    if (!markets.length) {
+
+      target.innerHTML =
+        '<div class="airv2-empty">No market data available.</div>';
+
+      return;
+    }
+
+    const max =
+      Math.max(
+        ...markets.map(
+          item =>
+            Number(
+              item.count || 0
+            )
+        ),
+        1
+      );
+
+    target.innerHTML =
+      markets
+        .map(
+          (item,index) => {
+
+            const count =
+              Number(
+                item.count || 0
+              );
+
+            const heat =
+              Math.max(
+                .05,
+                Math.min(
+                  .22,
+                  (
+                    count /
+                    max
+                  ) * .22
+                )
+              );
+
+            const users =
+              Number(
+                item.users || 0
+              );
+
+            const engagement =
+              users
+                ? (
+                    count /
+                    users
+                  ).toFixed(1)
+                : '—';
+
+            return `
+
+              <article
+                class="airv2-heat-card"
+                style="--airv2-heat:${heat}">
+
+                <span
+                  class="airv2-heat-rank">
+                  #${index + 1}
+                </span>
+
+                <h4>
+                  ${p2Escape(
+                    p2PrettyLocation(
+                      item.name
+                    )
+                  )}
+                </h4>
+
+                <p>
+                  ${count.toLocaleString()}
+                  events ·
+                  ${users.toLocaleString()}
+                  users
+                </p>
+
+                <p>
+                  ${engagement}
+                  events/user ·
+                  ${p2FormatBytes(
+                    item.bytes ||
+                    item.volume ||
+                    0
+                  )}
+                </p>
+
+              </article>
+
+            `;
+          }
+        )
+        .join('');
+  }
+
+
+  function p2EnhanceDonuts() {
+
+    document
+      .querySelectorAll(
+        '.airv2-donut svg circle'
+      )
+      .forEach(
+        (circle,index) => {
+
+          if (
+            circle.dataset
+              .airv2Bound
+          ) {
+            return;
+          }
+
+          /*
+            Skip the background circle.
+          */
+
+          if (
+            !circle.getAttribute(
+              'stroke-dasharray'
+            )
+          ) {
+            return;
+          }
+
+          circle.dataset
+            .airv2Bound =
+            '1';
+
+          circle.dataset
+            .airv2Segment =
+            String(index);
+
+
+          circle.addEventListener(
+            'mouseenter',
+            event => {
+
+              const parent =
+                circle.closest(
+                  '.airv2-card'
+                );
+
+              const legend =
+                parent
+                  ?.querySelectorAll(
+                    '.airv2-legend-item'
+                  )
+                  ?.[
+                    index - 1
+                  ];
+
+              const name =
+                legend
+                  ?.querySelector(
+                    '.airv2-legend-name'
+                  )
+                  ?.textContent
+                  ?.trim()
+                ||
+                'Segment';
+
+              const pct =
+                legend
+                  ?.querySelector(
+                    '.airv2-legend-pct'
+                  )
+                  ?.textContent
+                  ?.trim()
+                ||
+                '';
+
+              p2ShowTooltip(
+                event,
+                name,
+                `${pct} of the current observed activity`
+              );
+            }
+          );
+
+
+          circle.addEventListener(
+            'mousemove',
+            event => {
+
+              const tip =
+                p2ById(
+                  'airv2Tooltip'
+                );
+
+              if (!tip) {
+                return;
+              }
+
+              tip.style.left =
+                `${event.clientX + 16}px`;
+
+              tip.style.top =
+                `${event.clientY + 16}px`;
+            }
+          );
+
+
+          circle.addEventListener(
+            'mouseleave',
+            p2HideTooltip
+          );
+
+
+          circle.addEventListener(
+            'click',
+            () => {
+
+              const donut =
+                circle.closest(
+                  '.airv2-donut'
+                );
+
+              if (!donut) {
+                return;
+              }
+
+              const wasActive =
+                circle.classList
+                  .contains(
+                    'active'
+                  );
+
+              donut
+                .querySelectorAll(
+                  'circle'
+                )
+                .forEach(
+                  c =>
+                    c.classList
+                      .remove(
+                        'active'
+                      )
+                );
+
+              donut.classList
+                .toggle(
+                  'is-dimmed',
+                  !wasActive
+                );
+
+              if (!wasActive) {
+
+                circle.classList
+                  .add(
+                    'active'
+                  );
+              }
+            }
+          );
+        }
+      );
+  }
+
+
+  function p2EnsureStoryMode() {
+
+    if (
+      p2ById(
+        'airv2StoryMode'
+      )
+    ) {
+      return;
+    }
+
+    const studio =
+      p2ById(
+        'airv2VisualStudio'
+      );
+
+    const headline =
+      studio
+        ?.querySelector(
+          '.airv2-headline'
+        );
+
+    if (
+      !studio ||
+      !headline
+    ) {
+      return;
+    }
+
+    const controls =
+      document.createElement(
+        'div'
+      );
+
+    controls.id =
+      'airv2StoryMode';
+
+    controls.className =
+      'airv2-story-control';
+
+    controls.innerHTML = `
+
+      <button
+        type="button"
+        data-airv2-story="overview"
+        class="active">
+
+        Overview
+
+      </button>
+
+      <button
+        type="button"
+        data-airv2-story="audience">
+
+        Audience Story
+
+      </button>
+
+      <button
+        type="button"
+        data-airv2-story="market">
+
+        Market Story
+
+      </button>
+
+      <button
+        type="button"
+        data-airv2-story="content">
+
+        Content Story
+
+      </button>
+
+      <button
+        type="button"
+        data-airv2-story="decision">
+
+        Decision Story
+
+      </button>
+
+    `;
+
+    headline
+      .querySelector(
+        '.airv2-headline-copy'
+      )
+      ?.appendChild(
+        controls
+      );
+
+    const banner =
+      document.createElement(
+        'div'
+      );
+
+    banner.id =
+      'airv2StoryBanner';
+
+    banner.className =
+      'airv2-story-banner';
+
+    banner.innerHTML = `
+
+      <span>
+        CLASSROOM STORY MODE
+      </span>
+
+      <strong>
+        Start with the overall data picture
+      </strong>
+
+      <p>
+        Move from evidence to a business decision one story at a time.
+      </p>
+
+    `;
+
+    headline
+      .insertAdjacentElement(
+        'afterend',
+        banner
+      );
+  }
+
+
+  function p2UpdateStory(
+    mode
+  ) {
+
+    const studio =
+      p2ById(
+        'airv2VisualStudio'
+      );
+
+    const banner =
+      p2ById(
+        'airv2StoryBanner'
+      );
+
+    if (
+      !studio ||
+      !banner
+    ) {
+      return;
+    }
+
+    const audience =
+      studio.querySelectorAll(
+        '.airv2-card'
+      )[0];
+
+    const content =
+      studio.querySelectorAll(
+        '.airv2-card'
+      )[1];
+
+    const marketBars =
+      p2ById(
+        'airv2MarketBars'
+      )
+        ?.closest(
+          '.airv2-card'
+        );
+
+    const heat =
+      p2ById(
+        'airv2MarketHeat'
+      )
+        ?.closest(
+          '.airv2-card'
+        );
+
+    const spotlights =
+      p2ById(
+        'airv2Spotlights'
+      );
+
+
+    [
+      audience,
+      content,
+      marketBars,
+      heat,
+      spotlights
+    ]
+      .filter(Boolean)
+      .forEach(
+        el =>
+          el.classList
+            .remove(
+              'airv2-highlight'
+            )
+      );
+
+
+    const stories = {
+
+      overview: {
+        title:
+          'Start with the overall data picture',
+
+        text:
+          'Review audience, market, content and platform behavior before making a strategic recommendation.',
+
+        target: null
+      },
+
+      audience: {
+        title:
+          'Who is using AirGesture most?',
+
+        text:
+          'Use the audience mix to identify the strongest observed technology segment before selecting a product test.',
+
+        target:
+          audience
+      },
+
+      market: {
+        title:
+          'Where is activity strongest?',
+
+        text:
+          'Use market strength, reach and engagement to identify geographic areas worth testing—not to assume purchase demand.',
+
+        target:
+          heat ||
+          marketBars
+      },
+
+      content: {
+        title:
+          'What behavior is driving usage?',
+
+        text:
+          'File-type behavior helps connect observed usage with possible storage, PDF, creative, backup or productivity experiments.',
+
+        target:
+          content
+      },
+
+      decision: {
+        title:
+          'Turn the evidence into one controlled business experiment',
+
+        text:
+          'After understanding the visual analytics, use the Commercial Strategy section below to select an Audience + Market and explore product opportunities.',
+
+        target:
+          spotlights
+      }
+    };
+
+
+    const story =
+      stories[mode] ||
+      stories.overview;
+
+
+    banner.innerHTML = `
+
+      <span>
+        CLASSROOM STORY MODE
+      </span>
+
+      <strong>
+        ${p2Escape(
+          story.title
+        )}
+      </strong>
+
+      <p>
+        ${p2Escape(
+          story.text
+        )}
+      </p>
+
+    `;
+
+
+    if (
+      story.target
+    ) {
+
+      story.target
+        .classList
+        .add(
+          'airv2-highlight'
+        );
+
+      story.target
+        .scrollIntoView({
+          behavior:
+            'smooth',
+          block:
+            'center'
+        });
+    }
+  }
+
+
+  document.addEventListener(
+    'click',
+    event => {
+
+      const button =
+        event.target.closest(
+          '[data-airv2-story]'
+        );
+
+      if (!button) {
+        return;
+      }
+
+      document
+        .querySelectorAll(
+          '[data-airv2-story]'
+        )
+        .forEach(
+          item =>
+            item.classList
+              .remove(
+                'active'
+              )
+        );
+
+      button.classList
+        .add(
+          'active'
+        );
+
+      p2UpdateStory(
+        button.dataset
+          .airv2Story
+      );
+    }
+  );
+
+
+  function p2Refresh() {
+
+    p2EnsureHeatSection();
+
+    p2RenderHeat();
+
+    p2EnsureStoryMode();
+
+    p2EnhanceDonuts();
+  }
+
+
+  const originalRenderAllP2 =
+    typeof renderAll ===
+      'function'
+        ? renderAll
+        : null;
+
+
+  if (originalRenderAllP2) {
+
+    renderAll =
+      function(snapshot) {
+
+        originalRenderAllP2(
+          snapshot
+        );
+
+        setTimeout(
+          p2Refresh,
+          80
+        );
+      };
+  }
+
+
+  document.addEventListener(
+    'DOMContentLoaded',
+    () => {
+
+      setTimeout(
+        p2Refresh,
+        1200
+      );
+
+      setTimeout(
+        p2Refresh,
+        2200
+      );
+    }
+  );
+
+
+  window.addEventListener(
+    'load',
+    () => {
+
+      setTimeout(
+        p2Refresh,
+        1400
+      );
+    }
+  );
+
+})();
