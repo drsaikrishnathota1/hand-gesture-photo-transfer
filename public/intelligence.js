@@ -1656,4 +1656,402 @@
     }
   );
 
+
+
+  // AIRGESTURE_BRANDED_PRODUCTS_V3
+
+  const BRANDED_PRODUCT_CATALOG_V3 = {
+    'Antivirus & Security Software': [
+      ['Norton 360 Deluxe','best'],
+      ['Bitdefender Total Security','best'],
+      ['McAfee+ Premium','best'],
+      ['ESET HOME Security Premium','best'],
+      ['Malwarebytes Premium Security','best'],
+      ['Avast Premium Security','best'],
+
+      ['Trend Micro Maximum Security','emerging'],
+      ['AVG Internet Security','emerging'],
+      ['Microsoft Defender','emerging'],
+      ['1Password','emerging'],
+      ['Bitwarden Premium','emerging'],
+      ['Dashlane Premium','emerging'],
+
+      ['YubiKey 5 NFC','unexpected'],
+      ['Cloudflare Zero Trust','unexpected'],
+      ['Cisco Umbrella','unexpected'],
+      ['Proton VPN Plus','unexpected'],
+      ['NordVPN','unexpected'],
+      ['Keeper Security','unexpected'],
+      ['Aura Identity Protection','unexpected'],
+      ['NordPass','unexpected']
+    ]
+  };
+
+
+  const PRODUCT_BRANDS_V3 = {
+
+    'Norton 360 Deluxe': {
+      company: 'Norton',
+      domain: 'norton.com'
+    },
+
+    'Bitdefender Total Security': {
+      company: 'Bitdefender',
+      domain: 'bitdefender.com'
+    },
+
+    'McAfee+ Premium': {
+      company: 'McAfee',
+      domain: 'mcafee.com'
+    },
+
+    'ESET HOME Security Premium': {
+      company: 'ESET',
+      domain: 'eset.com'
+    },
+
+    'Malwarebytes Premium Security': {
+      company: 'Malwarebytes',
+      domain: 'malwarebytes.com'
+    },
+
+    'Avast Premium Security': {
+      company: 'Avast',
+      domain: 'avast.com'
+    },
+
+    'Trend Micro Maximum Security': {
+      company: 'Trend Micro',
+      domain: 'trendmicro.com'
+    },
+
+    'AVG Internet Security': {
+      company: 'AVG',
+      domain: 'avg.com'
+    },
+
+    'Microsoft Defender': {
+      company: 'Microsoft',
+      domain: 'microsoft.com'
+    },
+
+    '1Password': {
+      company: '1Password',
+      domain: '1password.com'
+    },
+
+    'Bitwarden Premium': {
+      company: 'Bitwarden',
+      domain: 'bitwarden.com'
+    },
+
+    'Dashlane Premium': {
+      company: 'Dashlane',
+      domain: 'dashlane.com'
+    },
+
+    'YubiKey 5 NFC': {
+      company: 'Yubico',
+      domain: 'yubico.com'
+    },
+
+    'Cloudflare Zero Trust': {
+      company: 'Cloudflare',
+      domain: 'cloudflare.com'
+    },
+
+    'Cisco Umbrella': {
+      company: 'Cisco',
+      domain: 'cisco.com'
+    },
+
+    'Proton VPN Plus': {
+      company: 'Proton',
+      domain: 'proton.me'
+    },
+
+    'NordVPN': {
+      company: 'Nord Security',
+      domain: 'nordvpn.com'
+    },
+
+    'Keeper Security': {
+      company: 'Keeper',
+      domain: 'keepersecurity.com'
+    },
+
+    'Aura Identity Protection': {
+      company: 'Aura',
+      domain: 'aura.com'
+    },
+
+    'NordPass': {
+      company: 'Nord Security',
+      domain: 'nordpass.com'
+    }
+  };
+
+
+  const originalCatalogForOpportunityV3 =
+    catalogForOpportunityV1;
+
+
+  catalogForOpportunityV1 = function(title) {
+
+    if (
+      BRANDED_PRODUCT_CATALOG_V3[title]
+    ) {
+
+      return BRANDED_PRODUCT_CATALOG_V3[
+        title
+      ];
+    }
+
+    return originalCatalogForOpportunityV3(
+      title
+    );
+  };
+
+
+  productBrandV2 = function(name) {
+
+    const v3 =
+      PRODUCT_BRANDS_V3[name];
+
+    if (v3) {
+
+      return {
+        domain: v3.domain,
+        label: v3.company,
+        company: v3.company
+      };
+    }
+
+    const old =
+      PRODUCT_BRANDS_V2?.[name];
+
+    if (old) {
+
+      return {
+        domain: old[0],
+        label: old[1],
+        company: old[1]
+      };
+    }
+
+    return null;
+  };
+
+
+  function companyNameV3(name) {
+
+    return (
+      PRODUCT_BRANDS_V3[name]?.company ||
+      productBrandV2(name)?.company ||
+      'Product Brand'
+    );
+  }
+
+
+  renderProductExplorerGridV1 = function() {
+
+    const grid =
+      $('productExplorerGridV1');
+
+    if (
+      !grid ||
+      !productExplorerCategoryV1
+    ) return;
+
+
+    const context =
+      marketplaceContextV2();
+
+
+    const tierText =
+      tier =>
+        tier === 'best'
+          ? 'Best Fit'
+          : tier === 'emerging'
+            ? 'Emerging'
+            : 'Unexpected';
+
+
+    let products =
+      catalogForOpportunityV1(
+        productExplorerCategoryV1
+      )
+      .map(p => ({
+        name: p[0],
+        tier: p[1],
+        kind: productKindV2(p[0])
+      }));
+
+
+    products =
+      products.filter(p =>
+        productExplorerTierV1 === 'all' ||
+        p.tier === productExplorerTierV1
+      );
+
+
+    products =
+      products.filter(p =>
+        productExplorerKindV2 === 'all' ||
+        p.kind === productExplorerKindV2
+      );
+
+
+    products =
+      products.filter(p =>
+        !productExplorerSearchV2 ||
+        p.name
+          .toLowerCase()
+          .includes(productExplorerSearchV2)
+      );
+
+
+    grid.innerHTML =
+      products.map((p,index) => {
+
+        const score =
+          productFitV2(p.tier);
+
+        const brand =
+          productBrandV2(p.name);
+
+        const company =
+          companyNameV3(p.name);
+
+        const why =
+          p.tier === 'best'
+            ? `Strong commercial test candidate for the observed ${context.audience} audience in ${context.market}.`
+            : p.tier === 'emerging'
+              ? `Adjacent branded product worth testing against the stronger candidates in ${context.market}.`
+              : `An unconventional branded opportunity to test—not evidence of purchase intent.`;
+
+
+        const logo =
+          brand
+            ? `
+              <div class="product-logo-wrap-v2">
+                <img
+                  class="product-logo-v2 product-logo-large-v3"
+                  src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(brand.domain)}&sz=128"
+                  alt="${escapeHtml(company)} logo"
+                  loading="lazy">
+              </div>
+            `
+            : productLogoV2(p.name);
+
+
+        return `
+
+          <article
+            class="product-card-v1 branded-product-card-v3"
+            data-product-card="${escapeHtml(p.name)}">
+
+            <div class="product-card-top-v1">
+
+              <span class="product-number-v1">
+                ${String(index + 1).padStart(2,'0')}
+              </span>
+
+              <span
+                class="product-tier-v1 ${escapeHtml(p.tier)}">
+
+                ${escapeHtml(
+                  tierText(p.tier)
+                )}
+
+              </span>
+
+            </div>
+
+
+            ${logo}
+
+
+            <div class="product-company-v3">
+              ${escapeHtml(company)}
+            </div>
+
+
+            <h3 class="product-name-v3">
+              ${escapeHtml(p.name)}
+            </h3>
+
+
+            <p>
+              ${escapeHtml(why)}
+            </p>
+
+
+            <div class="product-fit-meter-v2">
+
+              <div>
+                <i style="width:${score}%"></i>
+              </div>
+
+              <span>
+                Test priority:
+                ${score}/100 · hypothesis score
+              </span>
+
+            </div>
+
+
+            <div class="product-test-v1">
+
+              <strong>HOW TO TEST:</strong>
+
+              Run a small
+              ${escapeHtml(context.market)}
+              campaign and compare actual
+              response with another branded
+              product in this category.
+
+            </div>
+
+
+            <div class="product-card-actions-v2">
+
+              <button
+                data-compare-product="${escapeHtml(p.name)}"
+                data-tier="${escapeHtml(tierText(p.tier))}"
+                data-kind="${escapeHtml(p.kind)}"
+                type="button">
+
+                + Compare
+
+              </button>
+
+
+              ${
+                brand
+                  ? `
+                    <a
+                      href="https://${escapeHtml(brand.domain)}"
+                      target="_blank"
+                      rel="noopener noreferrer">
+
+                      Visit ${escapeHtml(company)} ↗
+
+                    </a>
+                  `
+                  : ''
+              }
+
+            </div>
+
+          </article>
+
+        `;
+
+      }).join('');
+
+
+    updateCompareV2();
+  };
+
 })();
