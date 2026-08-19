@@ -2428,7 +2428,11 @@ body,
 /* Every analytical visualization is read-only. */
 #dashboardView .chart-stage,
 #dashboardView .chart-stage canvas {
-  pointer-events: none !important;
+  /*
+    Hover is allowed only for read-only explanatory
+    tooltips. No chart click handlers exist.
+  */
+  pointer-events: auto !important;
   cursor: default !important;
   user-select: none !important;
 }

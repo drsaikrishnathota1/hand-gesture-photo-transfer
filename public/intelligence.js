@@ -156,8 +156,19 @@
       responsive: true,
       maintainAspectRatio: false,
 
-      // Analytics charts are presentation-only.
-      events: [],
+      // AIRGESTURE_HOVER_ONLY_CHARTS_V1
+      //
+      // Charts remain presentation-only.
+      // Mouse/touch movement is allowed ONLY so Chart.js
+      // can show explanatory tooltips.
+      //
+      // No click event is registered here.
+      events: [
+        'mousemove',
+        'mouseout',
+        'touchstart',
+        'touchmove'
+      ],
 
       plugins: {
         legend: {
@@ -173,7 +184,7 @@
           }
         },
         tooltip: {
-          enabled: false,
+          enabled: true,
           backgroundColor: colors.tooltip,
           borderColor: 'rgba(56,217,255,.18)',
           borderWidth: 1,
@@ -215,11 +226,52 @@
             ...baseChartOptions().plugins.tooltip,
             callbacks: {
               label: (ctx) => {
-                const item = safe[ctx.dataIndex];
-                const metric = valueField === 'users' ? `${formatNumber(item.users)} users` : `${formatNumber(item.count)} events`;
-                return ` ${metric}${item.share !== undefined ? ` · ${item.share}%` : ''}`;
+
+                const item =
+                  safe[ctx.dataIndex];
+
+                const raw =
+                  Number(
+                    item?.[valueField] || 0
+                  );
+
+                const total =
+                  safe.reduce(
+                    (sum, row) =>
+                      sum +
+                      Number(
+                        row?.[valueField] || 0
+                      ),
+                    0
+                  );
+
+                const percentage =
+                  total > 0
+                    ? (
+                        Math.round(
+                          (raw / total) *
+                          1000
+                        ) / 10
+                      )
+                    : 0;
+
+                const metric =
+                  valueField === 'users'
+                    ? `${formatNumber(raw)} users`
+                    : `${formatNumber(raw)} events`;
+
+                return ` ${metric} · ${percentage}%`;
               },
-              afterLabel: (ctx) => safe[ctx.dataIndex]?.bytes ? `Recorded volume: ${formatBytes(safe[ctx.dataIndex].bytes)}` : ''
+
+              afterLabel: (ctx) => {
+
+                const item =
+                  safe[ctx.dataIndex];
+
+                return item?.bytes
+                  ? `Recorded volume: ${formatBytes(item.bytes)}`
+                  : '';
+              }
             }
           }
         },
@@ -279,12 +331,70 @@
           tooltip: {
             ...baseChartOptions().plugins.tooltip,
             callbacks: {
-              label: (ctx) => options.formatValue === 'bytes'
-                ? ` ${formatBytes(ctx.raw)}`
-                : ` ${formatNumber(ctx.raw)} ${options.valueSuffix || ''}`.trimEnd(),
+              label: (ctx) => {
+
+                const raw =
+                  Number(ctx.raw || 0);
+
+                if (
+                  options.formatValue ===
+                  'bytes'
+                ) {
+                  return ` ${formatBytes(raw)}`;
+                }
+
+                return ` ${formatNumber(raw)} ${options.valueSuffix || ''}`.trimEnd();
+              },
+
               afterLabel: (ctx) => {
-                const item = safe[ctx.dataIndex];
-                return item?.users !== undefined && valueField !== 'users' ? `${formatNumber(item.users)} users` : '';
+
+                const item =
+                  safe[ctx.dataIndex];
+
+                const lines = [];
+
+                if (
+                  item?.users !== undefined &&
+                  valueField !== 'users'
+                ) {
+
+                  lines.push(
+                    `${formatNumber(item.users)} users`
+                  );
+                }
+
+                const total =
+                  safe.reduce(
+                    (sum, row) =>
+                      sum +
+                      Number(
+                        row?.[valueField] || 0
+                      ),
+                    0
+                  );
+
+                const raw =
+                  Number(
+                    item?.[valueField] || 0
+                  );
+
+                if (
+                  total > 0 &&
+                  options.formatValue !== 'bytes'
+                ) {
+
+                  const share =
+                    Math.round(
+                      (raw / total) *
+                      1000
+                    ) / 10;
+
+                  lines.push(
+                    `${share}% of displayed total`
+                  );
+                }
+
+                return lines;
               }
             }
           }
@@ -324,8 +434,31 @@
           x: { grid: { color: 'transparent' }, ticks: { color: colors.text, autoSkip: true, maxTicksLimit: 12, maxRotation: 0, font: { size: 9 } } },
           y: { beginAtZero: true, grid: { color: colors.grid }, ticks: { color: colors.text, callback: (v) => formatNumber(v) } }
         },
-        plugins: { ...baseChartOptions().plugins, legend: { display: false } },
-        // Presentation-only chart: no hover or click action.
+        plugins: {
+          ...baseChartOptions().plugins,
+
+          legend: {
+            display: false
+          },
+
+          tooltip: {
+            ...baseChartOptions().plugins.tooltip,
+
+            callbacks: {
+
+              title: (items) =>
+                items?.[0]?.label
+                  ? `Activity · ${items[0].label}`
+                  : 'Activity',
+
+              label: (ctx) =>
+                ` ${formatNumber(ctx.raw)} events`
+            }
+          }
+        },
+
+        // Hover explains the data.
+        // There is deliberately NO click action.
       }
     });
     state.charts.set(id, chart);
