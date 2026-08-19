@@ -3659,6 +3659,749 @@
   }
 
 
+
+  // =======================================================
+  // AIRGESTURE_PLATFORM_PRODUCT_COMPATIBILITY_V2
+  //
+  // PRODUCT RANKING PRIORITY:
+  //
+  // 1. PLATFORM COMPATIBILITY
+  // 2. CATEGORY / PRODUCT FIT
+  // 3. OBSERVED AIRGESTURE SIGNAL
+  // 4. GEOGRAPHY AS SMALL TIE-BREAKER ONLY
+  //
+  // Geography must never make an incompatible platform
+  // product become a top recommendation.
+  // =======================================================
+
+
+  function normalizedAudiencePlatformV2(
+    audience
+  ) {
+
+    const value =
+      String(audience || '')
+        .toLowerCase()
+        .trim();
+
+
+    if (
+      value.includes('windows')
+    ) {
+      return 'windows';
+    }
+
+
+    if (
+      value.includes('apple desktop')
+      ||
+      value.includes('mac')
+    ) {
+      return 'mac';
+    }
+
+
+    if (
+      value.includes('apple mobile')
+      ||
+      value.includes('iphone')
+      ||
+      value.includes('ipad')
+    ) {
+      return 'ios';
+    }
+
+
+    if (
+      value.includes('android')
+    ) {
+      return 'android';
+    }
+
+
+    if (
+      value.includes('linux')
+    ) {
+      return 'linux';
+    }
+
+
+    if (
+      value.includes('tablet')
+    ) {
+      return 'tablet';
+    }
+
+
+    if (
+      value.includes('general desktop')
+    ) {
+      return 'desktop';
+    }
+
+
+    return 'all';
+  }
+
+
+  function productIdentityTextV2(
+    productName
+  ) {
+
+    const name =
+      String(productName || '');
+
+    let company = '';
+    let description = '';
+
+
+    try {
+      company =
+        String(
+          companyNameV3(name) || ''
+        );
+    } catch {}
+
+
+    try {
+      description =
+        String(
+          productDescriptionV4(name) || ''
+        );
+    } catch {}
+
+
+    return (
+      `${name} ${company} ${description}`
+    )
+      .toLowerCase();
+  }
+
+
+  /*
+    Hard incompatibility means:
+    do not recommend this product for that selected platform.
+
+    We intentionally keep this conservative.
+    Cross-platform products remain eligible.
+  */
+
+  function productHardIncompatibleV2(
+    productName,
+    platform
+  ) {
+
+    if (
+      !platform ||
+      platform === 'all' ||
+      platform === 'tablet' ||
+      platform === 'desktop'
+    ) {
+      return false;
+    }
+
+
+    const text =
+      productIdentityTextV2(
+        productName
+      );
+
+
+    const isAppleExclusive =
+      (
+        text.includes('final cut pro')
+        ||
+        text.includes('procreate')
+        ||
+        text.includes('pdf expert')
+        ||
+        text.includes('icloud+')
+        ||
+        text.includes('icloud ')
+        ||
+        text.includes('apple cloud service')
+      );
+
+
+    const isWindowsExclusive =
+      (
+        text.includes('macrium reflect')
+        ||
+        text.includes('pdf-xchange editor')
+        ||
+        text.includes('paintshop pro')
+      );
+
+
+    /*
+      Android should never be presented with
+      Apple ecosystem-only products.
+    */
+
+    if (
+      platform === 'android' &&
+      isAppleExclusive
+    ) {
+      return true;
+    }
+
+
+    /*
+      Linux should not receive products that are clearly
+      tied to Apple-only or Windows-only desktop software.
+    */
+
+    if (
+      platform === 'linux' &&
+      (
+        isAppleExclusive ||
+        isWindowsExclusive
+      )
+    ) {
+      return true;
+    }
+
+
+    /*
+      iPhone/iPad should not receive Windows-only
+      desktop applications as product recommendations.
+    */
+
+    if (
+      platform === 'ios' &&
+      isWindowsExclusive
+    ) {
+      return true;
+    }
+
+
+    /*
+      macOS should not receive clearly Windows-only tools.
+    */
+
+    if (
+      platform === 'mac' &&
+      isWindowsExclusive
+    ) {
+      return true;
+    }
+
+
+    /*
+      Windows should not receive products that require
+      Apple's native ecosystem.
+    */
+
+    if (
+      platform === 'windows' &&
+      (
+        text.includes('final cut pro')
+        ||
+        text.includes('procreate')
+        ||
+        text.includes('pdf expert')
+      )
+    ) {
+      return true;
+    }
+
+
+    return false;
+  }
+
+
+  /*
+    Strong positive compatibility.
+
+    This does NOT claim purchasing intent.
+    It simply prevents obviously mismatched platform
+    suggestions and prioritizes products that technically
+    fit the selected device ecosystem.
+  */
+
+  function productPlatformCompatibilityV2(
+    productName,
+    platform
+  ) {
+
+    if (
+      platform === 'all'
+    ) {
+      return 0;
+    }
+
+
+    const text =
+      productIdentityTextV2(
+        productName
+      );
+
+
+    let score = 0;
+
+
+    // -----------------------------------------------------
+    // WINDOWS
+    // -----------------------------------------------------
+
+    if (
+      platform === 'windows'
+    ) {
+
+      if (
+        /microsoft|windows|onedrive|office|365|defender|edge/.test(
+          text
+        )
+      ) {
+        score += 90;
+      }
+
+
+      if (
+        /adobe|dropbox|google|box|idrive|backblaze|acronis|norton|bitdefender|malwarebytes|avast|eset|foxit|nitro|canva|zoom|slack/.test(
+          text
+        )
+      ) {
+        score += 45;
+      }
+
+
+      if (
+        /mac|iphone|ipad|apple-only|ios-only/.test(
+          text
+        )
+      ) {
+        score -= 35;
+      }
+    }
+
+
+    // -----------------------------------------------------
+    // macOS / APPLE DESKTOP
+    // -----------------------------------------------------
+
+    if (
+      platform === 'mac'
+    ) {
+
+      if (
+        /apple|icloud|mac|final cut|affinity|capture one|adobe|lightroom|photoshop/.test(
+          text
+        )
+      ) {
+        score += 90;
+      }
+
+
+      if (
+        /dropbox|google drive|box|idrive|backblaze|proton|canva|zoom|slack|notion/.test(
+          text
+        )
+      ) {
+        score += 45;
+      }
+
+
+      if (
+        /windows-only|pc-only/.test(
+          text
+        )
+      ) {
+        score -= 70;
+      }
+    }
+
+
+    // -----------------------------------------------------
+    // iOS / APPLE MOBILE
+    // -----------------------------------------------------
+
+    if (
+      platform === 'ios'
+    ) {
+
+      if (
+        /apple|icloud|iphone|ipad|ios|procreate|pdf expert|adobe scan|camscanner|lightroom|photoshop|canva/.test(
+          text
+        )
+      ) {
+        score += 100;
+      }
+
+
+      if (
+        /google drive|dropbox|onedrive|box|idrive|proton|nordvpn|1password|bitwarden|malwarebytes/.test(
+          text
+        )
+      ) {
+        score += 50;
+      }
+    }
+
+
+    // -----------------------------------------------------
+    // ANDROID
+    // -----------------------------------------------------
+
+    if (
+      platform === 'android'
+    ) {
+
+      if (
+        /google|android|drive|photos|workspace|chrome/.test(
+          text
+        )
+      ) {
+        score += 110;
+      }
+
+
+      if (
+        /onedrive|dropbox|box|idrive|proton|mega|sync\.com|canva|adobe|camscanner|nordvpn|bitwarden|1password|malwarebytes|avast|bitdefender|eset/.test(
+          text
+        )
+      ) {
+        score += 55;
+      }
+
+
+      if (
+        /apple|icloud|iphone|ipad|final cut|procreate|pdf expert/.test(
+          text
+        )
+      ) {
+        score -= 150;
+      }
+    }
+
+
+    // -----------------------------------------------------
+    // LINUX
+    // -----------------------------------------------------
+
+    if (
+      platform === 'linux'
+    ) {
+
+      if (
+        /linux|proton|bitwarden|cloudflare|zero trust|vpn|encrypted|mega|sync\.com|tresorit|filen|dropbox|google drive/.test(
+          text
+        )
+      ) {
+        score += 90;
+      }
+
+
+      if (
+        /apple|icloud|final cut|procreate|windows-only/.test(
+          text
+        )
+      ) {
+        score -= 120;
+      }
+    }
+
+
+    // -----------------------------------------------------
+    // GENERIC TABLET
+    // -----------------------------------------------------
+
+    if (
+      platform === 'tablet'
+    ) {
+
+      if (
+        /mobile|tablet|document|pdf|scan|note|photo|creative|cloud|drive|dropbox|canva|adobe/.test(
+          text
+        )
+      ) {
+        score += 65;
+      }
+    }
+
+
+    // -----------------------------------------------------
+    // GENERAL DESKTOP
+    // -----------------------------------------------------
+
+    if (
+      platform === 'desktop'
+    ) {
+
+      if (
+        /desktop|business|productivity|cloud|backup|security|pdf|document|adobe|microsoft|google|dropbox/.test(
+          text
+        )
+      ) {
+        score += 45;
+      }
+    }
+
+
+    return score;
+  }
+
+
+  /*
+    Category-specific compatibility can further improve
+    recommendations without inventing demographic data.
+  */
+
+  function categoryPlatformBonusV2(
+    productName,
+    category,
+    platform
+  ) {
+
+    const text =
+      productIdentityTextV2(
+        productName
+      );
+
+    const c =
+      String(category || '')
+        .toLowerCase();
+
+
+    let score = 0;
+
+
+    if (
+      c.includes('cloud')
+    ) {
+
+      if (
+        platform === 'android' &&
+        /google drive|google|dropbox|onedrive|idrive|box|proton drive|mega|sync\.com/.test(
+          text
+        )
+      ) {
+        score += 70;
+      }
+
+
+      if (
+        platform === 'ios' &&
+        /icloud|apple|dropbox|google drive|onedrive|idrive|box/.test(
+          text
+        )
+      ) {
+        score += 70;
+      }
+
+
+      if (
+        platform === 'windows' &&
+        /onedrive|microsoft|google drive|dropbox|idrive|box/.test(
+          text
+        )
+      ) {
+        score += 70;
+      }
+
+
+      if (
+        platform === 'mac' &&
+        /icloud|dropbox|google drive|idrive|box|proton drive/.test(
+          text
+        )
+      ) {
+        score += 70;
+      }
+    }
+
+
+    if (
+      c.includes('security')
+    ) {
+
+      if (
+        /bitdefender|malwarebytes|avast|eset|norton|mcafee|proton vpn|nordvpn|1password|bitwarden/.test(
+          text
+        )
+      ) {
+        score += 35;
+      }
+
+
+      if (
+        platform === 'windows' &&
+        /microsoft defender/.test(
+          text
+        )
+      ) {
+        score += 80;
+      }
+    }
+
+
+    if (
+      c.includes('business')
+    ) {
+
+      if (
+        platform === 'windows' &&
+        /microsoft 365|onedrive|teams|office/.test(
+          text
+        )
+      ) {
+        score += 65;
+      }
+
+
+      if (
+        platform === 'android' &&
+        /google workspace|google|notion|slack|zoom|trello|asana|monday|clickup/.test(
+          text
+        )
+      ) {
+        score += 55;
+      }
+
+
+      if (
+        platform === 'mac' ||
+        platform === 'ios'
+      ) {
+
+        if (
+          /notion|slack|zoom|google workspace|microsoft 365|dropbox|canva/.test(
+            text
+          )
+        ) {
+          score += 45;
+        }
+      }
+    }
+
+
+    if (
+      c.includes('pdf')
+    ) {
+
+      if (
+        platform === 'ios' &&
+        /pdf expert|adobe acrobat|adobe scan|camscanner|pdfelement/.test(
+          text
+        )
+      ) {
+        score += 70;
+      }
+
+
+      if (
+        platform === 'android' &&
+        /adobe acrobat|adobe scan|camscanner|pdfelement|smallpdf|ilovepdf/.test(
+          text
+        )
+      ) {
+        score += 65;
+      }
+
+
+      if (
+        platform === 'windows' &&
+        /adobe acrobat|foxit|nitro|pdf-xchange|pdfelement/.test(
+          text
+        )
+      ) {
+        score += 65;
+      }
+    }
+
+
+    if (
+      c.includes('photo')
+    ) {
+
+      if (
+        platform === 'ios' &&
+        /lightroom|photoshop|canva|procreate|adobe express|picsart/.test(
+          text
+        )
+      ) {
+        score += 70;
+      }
+
+
+      if (
+        platform === 'android' &&
+        /lightroom|photoshop|canva|adobe express|picsart|capcut/.test(
+          text
+        )
+      ) {
+        score += 65;
+      }
+
+
+      if (
+        platform === 'mac' &&
+        /final cut|photoshop|lightroom|capture one|affinity|davinci/.test(
+          text
+        )
+      ) {
+        score += 70;
+      }
+    }
+
+
+    if (
+      c.includes('backup')
+    ) {
+
+      if (
+        /backblaze|idrive|acronis|dropbox backup|carbonite|crashplan|synology/.test(
+          text
+        )
+      ) {
+        score += 45;
+      }
+
+
+      if (
+        platform === 'windows' &&
+        /macrium|easeus|aomei/.test(
+          text
+        )
+      ) {
+        score += 55;
+      }
+    }
+
+
+    return score;
+  }
+
+
+  /*
+    Geography only resolves close calls among products
+    that already fit the selected platform.
+
+    It must NEVER overpower platform compatibility.
+  */
+
+  function geoTieBreakV2(
+    market,
+    audience,
+    productName
+  ) {
+
+    if (
+      !market ||
+      market === 'All markets'
+    ) {
+      return 0;
+    }
+
+
+    return (
+      scenarioSeedV1(
+        `${market}|${audience}|${productName}`
+      ) % 7
+    );
+  }
+
+
   function scenarioProductScoreV1(
     product,
     index,
@@ -3679,13 +4422,52 @@
       String(product[1] || '');
 
 
-    let score =
-      tier === 'best'
-        ? 100
-        : tier === 'emerging'
-          ? 70
-          : 45;
+    const platform =
+      normalizedAudiencePlatformV2(
+        audience
+      );
 
+
+    /*
+      PLATFORM FIT dominates everything.
+    */
+
+    let score =
+      productPlatformCompatibilityV2(
+        name,
+        platform
+      );
+
+
+    /*
+      Existing catalog tier remains meaningful,
+      but it can no longer override incompatibility.
+    */
+
+    score +=
+      tier === 'best'
+        ? 55
+        : tier === 'emerging'
+          ? 32
+          : 18;
+
+
+    /*
+      Product/category relevance.
+    */
+
+    score +=
+      categoryPlatformBonusV2(
+        name,
+        category,
+        platform
+      );
+
+
+    /*
+      Existing scenario keywords still contribute,
+      but at a smaller weight.
+    */
 
     const keywords =
       scenarioKeywordsV1(
@@ -3698,51 +4480,46 @@
       name.toLowerCase();
 
 
-    keywords.forEach(
-      keyword => {
+    for (
+      const keyword
+      of keywords
+    ) {
 
-        if (
-          lower.includes(
-            keyword.toLowerCase()
-          )
-        ) {
-          score += 12;
-        }
+      if (
+        lower.includes(
+          keyword.toLowerCase()
+        )
+      ) {
+        score += 6;
       }
-    );
-
-
-    /*
-      Market variation is only a tie-breaker.
-      It creates a visibly different classroom scenario
-      without pretending the city itself proves demand.
-    */
-
-    if (market !== 'All markets') {
-
-      const seed =
-        scenarioSeedV1(
-          `${market}|${audience}|${name}`
-        );
-
-      score += seed % 21;
     }
 
 
     /*
-      Stable index tie-breaker prevents random flickering.
+      Geography is intentionally tiny.
+    */
+
+    score +=
+      geoTieBreakV2(
+        market,
+        audience,
+        name
+      );
+
+
+    /*
+      Stable ordering only.
     */
 
     score +=
       Math.max(
         0,
-        5 - (index % 5)
+        3 - (index % 4)
       );
 
 
     return score;
   }
-
 
   const previousCatalogScenarioV1 =
     catalogForOpportunityV1;
@@ -3762,7 +4539,29 @@
       }
 
 
+      const audience =
+        selectedAudienceScenarioV1();
+
+      const platform =
+        normalizedAudiencePlatformV2(
+          audience
+        );
+
+
       return base
+
+        /*
+          Remove only clearly incompatible products.
+          Cross-platform products remain available.
+        */
+        .filter(
+          product =>
+            !productHardIncompatibleV2(
+              product?.[0],
+              platform
+            )
+        )
+
         .map(
           (product,index) => ({
             product,
@@ -3774,10 +4573,12 @@
               )
           })
         )
+
         .sort(
           (a,b) =>
             b.score - a.score
         )
+
         .map(
           item => item.product
         );
