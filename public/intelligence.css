@@ -641,3 +641,88 @@ button { cursor: pointer; }
   min-height: 440px;
 }
 
+
+
+/* AIRGESTURE COMMERCIAL SCENARIO V1 */
+
+.commercial-scenario-v1 {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+  margin: 14px 0 18px;
+  padding: 15px 17px;
+  border-radius: 15px;
+  border: 1px solid rgba(73,220,255,.15);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(73,220,255,.07),
+      rgba(109,149,255,.035)
+    );
+}
+
+.commercial-scenario-icon-v1 {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(73,220,255,.09);
+  color: #68e5ff;
+  font-size: 22px;
+}
+
+.commercial-scenario-v1 span {
+  display: block;
+  color: #66def8;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+
+.commercial-scenario-v1 strong {
+  display: block;
+  margin-top: 3px;
+  color: #eef8ff;
+  font-size: 14px;
+}
+
+.commercial-scenario-v1 p {
+  margin: 4px 0 0;
+  color: #93aabd;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.commercial-scenario-status-v1 {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(73,220,255,.09);
+  color: #67e4ff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.scenario-match-v1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 7px 0 1px;
+  color: #72e5ff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .05em;
+}
+
+@media(max-width:700px) {
+  .commercial-scenario-v1 {
+    grid-template-columns: auto 1fr;
+  }
+
+  .commercial-scenario-status-v1 {
+    display: none;
+  }
+}
+

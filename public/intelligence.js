@@ -3303,4 +3303,496 @@
       return previousCompanyNameV5(name);
     };
 
+
+
+  // AIRGESTURE_SCENARIO_PRODUCTS_V1
+
+  function selectedAudienceScenarioV1() {
+    const el = $('segmentFilter');
+
+    if (!el || !el.value) {
+      return 'All audiences';
+    }
+
+    const option =
+      el.options[
+        el.selectedIndex
+      ];
+
+    return (
+      option?.textContent?.trim()
+      || el.value
+    );
+  }
+
+
+  function selectedMarketScenarioV1() {
+    const el = $('locationFilter');
+
+    if (!el || !el.value) {
+      return 'All markets';
+    }
+
+    const option =
+      el.options[
+        el.selectedIndex
+      ];
+
+    if (!option) return el.value;
+
+    return option.textContent
+      .replace(/\s*\(\d+\)\s*$/, '')
+      .trim();
+  }
+
+
+  function scenarioSeedV1(text) {
+    let h = 2166136261;
+
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+
+    return Math.abs(h >>> 0);
+  }
+
+
+  function scenarioKeywordsV1(
+    audience,
+    category
+  ) {
+
+    const a =
+      audience.toLowerCase();
+
+    const map = [];
+
+
+    if (a.includes('windows')) {
+      map.push(
+        'microsoft',
+        'security',
+        'backup',
+        'pdf',
+        'document',
+        'business',
+        'endpoint',
+        'drive'
+      );
+    }
+
+
+    if (
+      a.includes('apple desktop')
+      || a.includes('mac')
+    ) {
+      map.push(
+        'adobe',
+        'creative',
+        'photo',
+        'icloud',
+        'dropbox',
+        'pdf',
+        'design',
+        'backup'
+      );
+    }
+
+
+    if (
+      a.includes('apple mobile')
+      || a.includes('iphone')
+    ) {
+      map.push(
+        'icloud',
+        'photo',
+        'creative',
+        'mobile',
+        'video',
+        'storage',
+        'password',
+        'vpn'
+      );
+    }
+
+
+    if (a.includes('android')) {
+      map.push(
+        'google',
+        'drive',
+        'photo',
+        'mobile',
+        'backup',
+        'security',
+        'vpn',
+        'password'
+      );
+    }
+
+
+    if (a.includes('linux')) {
+      map.push(
+        'cloud',
+        'security',
+        'vpn',
+        'backup',
+        'encrypted',
+        'password',
+        'zero trust'
+      );
+    }
+
+
+    if (a.includes('tablet')) {
+      map.push(
+        'document',
+        'pdf',
+        'photo',
+        'creative',
+        'cloud',
+        'note',
+        'sign'
+      );
+    }
+
+
+    const c =
+      String(category || '')
+      .toLowerCase();
+
+
+    if (c.includes('security')) {
+      map.push(
+        'security',
+        'vpn',
+        'password',
+        'identity',
+        'defender',
+        'protection'
+      );
+    }
+
+
+    if (c.includes('cloud')) {
+      map.push(
+        'drive',
+        'cloud',
+        'storage',
+        'dropbox',
+        'onedrive',
+        'icloud'
+      );
+    }
+
+
+    if (c.includes('photo')) {
+      map.push(
+        'photo',
+        'adobe',
+        'creative',
+        'video',
+        'design',
+        'canva'
+      );
+    }
+
+
+    if (c.includes('pdf')) {
+      map.push(
+        'pdf',
+        'acrobat',
+        'document',
+        'scan',
+        'sign'
+      );
+    }
+
+
+    if (c.includes('backup')) {
+      map.push(
+        'backup',
+        'recovery',
+        'drive',
+        'storage',
+        'ssd'
+      );
+    }
+
+
+    if (c.includes('business')) {
+      map.push(
+        'microsoft',
+        'google',
+        'workspace',
+        'slack',
+        'project',
+        'crm'
+      );
+    }
+
+
+    return [...new Set(map)];
+  }
+
+
+  function scenarioProductScoreV1(
+    product,
+    index,
+    category
+  ) {
+
+    const audience =
+      selectedAudienceScenarioV1();
+
+    const market =
+      selectedMarketScenarioV1();
+
+
+    const name =
+      String(product[0] || '');
+
+    const tier =
+      String(product[1] || '');
+
+
+    let score =
+      tier === 'best'
+        ? 100
+        : tier === 'emerging'
+          ? 70
+          : 45;
+
+
+    const keywords =
+      scenarioKeywordsV1(
+        audience,
+        category
+      );
+
+
+    const lower =
+      name.toLowerCase();
+
+
+    keywords.forEach(
+      keyword => {
+
+        if (
+          lower.includes(
+            keyword.toLowerCase()
+          )
+        ) {
+          score += 12;
+        }
+      }
+    );
+
+
+    /*
+      Market variation is only a tie-breaker.
+      It creates a visibly different classroom scenario
+      without pretending the city itself proves demand.
+    */
+
+    if (market !== 'All markets') {
+
+      const seed =
+        scenarioSeedV1(
+          `${market}|${audience}|${name}`
+        );
+
+      score += seed % 21;
+    }
+
+
+    /*
+      Stable index tie-breaker prevents random flickering.
+    */
+
+    score +=
+      Math.max(
+        0,
+        5 - (index % 5)
+      );
+
+
+    return score;
+  }
+
+
+  const previousCatalogScenarioV1 =
+    catalogForOpportunityV1;
+
+
+  catalogForOpportunityV1 =
+    function(category) {
+
+      const base =
+        previousCatalogScenarioV1(
+          category
+        );
+
+
+      if (!Array.isArray(base)) {
+        return base;
+      }
+
+
+      return base
+        .map(
+          (product,index) => ({
+            product,
+            score:
+              scenarioProductScoreV1(
+                product,
+                index,
+                category
+              )
+          })
+        )
+        .sort(
+          (a,b) =>
+            b.score - a.score
+        )
+        .map(
+          item => item.product
+        );
+    };
+
+
+  function updateCommercialScenarioV1() {
+
+    const title =
+      $('commercialScenarioTitleV1');
+
+    const text =
+      $('commercialScenarioTextV1');
+
+
+    if (!title || !text) return;
+
+
+    const audience =
+      selectedAudienceScenarioV1();
+
+    const market =
+      selectedMarketScenarioV1();
+
+
+    title.textContent =
+      `${audience} · ${market}`;
+
+
+    if (
+      audience === 'All audiences'
+      && market === 'All markets'
+    ) {
+
+      text.textContent =
+        'Select an Audience and Market above. Product opportunities will automatically reorganize around that specific scenario.';
+
+      return;
+    }
+
+
+    if (
+      audience !== 'All audiences'
+      && market !== 'All markets'
+    ) {
+
+      text.textContent =
+        `Showing a different product priority for ${audience} activity observed in ${market}. This is a testable business hypothesis, not a prediction that users will purchase.`;
+
+      return;
+    }
+
+
+    if (
+      audience !== 'All audiences'
+    ) {
+
+      text.textContent =
+        `Products are prioritized for the selected ${audience} technology segment. Choose a Market to make the scenario more specific.`;
+
+      return;
+    }
+
+
+    text.textContent =
+      `Products are reorganized for the selected ${market} market scenario. Choose an Audience to make the recommendation more specific.`;
+  }
+
+
+  function refreshMarketplaceScenarioV1() {
+
+    updateCommercialScenarioV1();
+
+
+    /*
+      If marketplace is open, redraw it using
+      the newly selected scenario.
+    */
+
+    if (
+      typeof renderProductExplorerGridV1
+      === 'function'
+      && productExplorerCategoryV1
+    ) {
+
+      try {
+        renderProductExplorerGridV1();
+      }
+      catch (e) {
+        console.warn(
+          'Scenario marketplace refresh skipped:',
+          e
+        );
+      }
+    }
+  }
+
+
+  document.addEventListener(
+    'change',
+    event => {
+
+      if (
+        event.target?.id
+          === 'segmentFilter'
+        ||
+        event.target?.id
+          === 'locationFilter'
+      ) {
+
+        setTimeout(
+          refreshMarketplaceScenarioV1,
+          80
+        );
+      }
+    }
+  );
+
+
+  /*
+    Also refresh when dashboard itself rerenders.
+  */
+
+  const previousRenderAllScenarioV1 =
+    renderAll;
+
+
+  renderAll =
+    function(snapshot) {
+
+      previousRenderAllScenarioV1(
+        snapshot
+      );
+
+      updateCommercialScenarioV1();
+    };
+
+
+  updateCommercialScenarioV1();
+
 })();
