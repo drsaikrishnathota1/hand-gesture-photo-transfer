@@ -155,8 +155,15 @@
     return {
       responsive: true,
       maintainAspectRatio: false,
+
+      // Analytics charts are presentation-only.
+      events: [],
+
       plugins: {
         legend: {
+          onClick: () => {},
+          onHover: () => {},
+          onLeave: () => {},
           labels: {
             color: colors.text,
             usePointStyle: true,
@@ -166,6 +173,7 @@
           }
         },
         tooltip: {
+          enabled: false,
           backgroundColor: colors.tooltip,
           borderColor: 'rgba(56,217,255,.18)',
           borderWidth: 1,
@@ -193,7 +201,7 @@
           backgroundColor: safe.map((_, i) => palette[i % palette.length]),
           borderColor: '#081524',
           borderWidth: 3,
-          hoverOffset: 7
+          hoverOffset: 0
         }]
       },
       options: {
@@ -215,13 +223,7 @@
             }
           }
         },
-        onHover: (event, elements) => {
-          if (event?.native?.target) event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
-        },
-        onClick: (_event, elements) => {
-          if (!elements.length || !options.onSelect) return;
-          options.onSelect(safe[elements[0].index]);
-        }
+        // Presentation-only chart: no hover or click action.
       }
     });
     state.charts.set(id, chart);
@@ -287,13 +289,7 @@
             }
           }
         },
-        onHover: (event, elements) => {
-          if (event?.native?.target) event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
-        },
-        onClick: (_event, elements) => {
-          if (!elements.length || !options.onSelect) return;
-          options.onSelect(safe[elements[0].index]);
-        }
+        // Presentation-only chart: no hover or click action.
       }
     });
     state.charts.set(id, chart);
@@ -316,7 +312,7 @@
           backgroundColor: 'rgba(57,216,255,.08)',
           borderWidth: 2,
           pointRadius: 2,
-          pointHoverRadius: 5,
+          pointHoverRadius: 2,
           tension: .3,
           fill: true
         }]
@@ -329,13 +325,7 @@
           y: { beginAtZero: true, grid: { color: colors.grid }, ticks: { color: colors.text, callback: (v) => formatNumber(v) } }
         },
         plugins: { ...baseChartOptions().plugins, legend: { display: false } },
-        onHover: (event, elements) => {
-          if (event?.native?.target) event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
-        },
-        onClick: (_event, elements) => {
-          if (!elements.length || !options.onSelect) return;
-          options.onSelect(safe[elements[0].index]);
-        }
+        // Presentation-only chart: no hover or click action.
       }
     });
     state.charts.set(id, chart);

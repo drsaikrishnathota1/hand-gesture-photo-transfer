@@ -2421,3 +2421,51 @@ body,
   }
 }
 
+
+
+/* AIRGESTURE_PASSIVE_CHARTS_FINAL_V3 */
+
+/* Every analytical visualization is read-only. */
+#dashboardView .chart-stage,
+#dashboardView .chart-stage canvas {
+  pointer-events: none !important;
+  cursor: default !important;
+  user-select: none !important;
+}
+
+/* No chart action buttons. */
+#dashboardView .chart-card .card-actions {
+  display: none !important;
+}
+
+/* Top Markets metric selector is also presentation interaction. */
+#marketMetricToggle {
+  display: none !important;
+}
+
+/* Remove Usage Intensity completely. */
+#dashboardView [data-panel="usage"] {
+  display: none !important;
+}
+
+/* Activity by hour occupies the full behavior row. */
+#dashboardView .behavior-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+#dashboardView [data-panel="timing"] {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Remove redundant Usage explanation. */
+#dashboardView .behavior-block .plain-note {
+  display: none !important;
+}
+
+/* Keep product strategy controlled only by local dropdowns. */
+#commercialScenarioV1,
+#realtimeOpportunityV1 {
+  display: none !important;
+}
+
