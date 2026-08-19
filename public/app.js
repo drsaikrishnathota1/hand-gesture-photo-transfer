@@ -45,6 +45,11 @@ const state = {
   broadcastHostToken: "",
   broadcastClientId: "",
   broadcastFileId: "",
+  broadcastFileSignature: "",
+
+  // Public event-level SEND Transfer ID.
+  // This is NOT the shared broadcast file ID.
+  senderTransferId: "",
   broadcastUploadInProgress: false,
   broadcastDownloadInProgress: false,
   broadcastXHR: null,
@@ -52,8 +57,32 @@ const state = {
   broadcastStats: { connected: 0, accepted: 0, completed: 0, failed: 0, waiting: 0, completionRate: 0 },
   networkLatencyMs: 0,
   lastGestureConfidence: 0,
+
+  lastHandAnchor: {
+    x: 0.5,
+    y: 0.5
+  },
   ownNetwork: {},
   receiverIntelligence: [],
+  authUser: null,
+  myTransfer: null,
+
+  commercialConsent: {
+    analyticsConsent: false,
+    personalizationConsent: false,
+    marketingConsent: false
+  },
+
+  commercialProfileSynced: false,
+
+  // Coarse IP-derived location only.
+  // Never stores precise GPS coordinates or the provider's IP field.
+  clientGeo: null,
+  clientGeoPromise: null,
+
+  adminDatabaseLoaded: false,
+  adminDatabaseDenied: false,
+  adminDatabase: null,
 
   charts: { trend: null, type: null }
 };
@@ -70,6 +99,106 @@ function toast(message) {
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => el.classList.remove("show"), 2600);
 }
+
+
+async function copyTransferIdValue(value) {
+  const id =
+    String(value || '').trim();
+
+  if (!id) return;
+
+  try {
+    if (
+      navigator.clipboard &&
+      navigator.clipboard.writeText
+    ) {
+      await navigator.clipboard
+        .writeText(id);
+    } else {
+      const temporary =
+        document.createElement('textarea');
+
+      temporary.value = id;
+      temporary.setAttribute(
+        'readonly',
+        ''
+      );
+
+      temporary.style.position =
+        'fixed';
+
+      temporary.style.opacity =
+        '0';
+
+      document.body.appendChild(
+        temporary
+      );
+
+      temporary.select();
+
+      document.execCommand(
+        'copy'
+      );
+
+      temporary.remove();
+    }
+
+    toast(
+      'Transfer ID copied'
+    );
+
+  } catch (error) {
+    console.error(
+      'Transfer ID copy failed:',
+      error
+    );
+
+    toast(
+      'Could not copy Transfer ID'
+    );
+  }
+}
+
+
+function renderSenderTransferId() {
+  const panel =
+    $('senderTransferIdPanel');
+
+  const value =
+    $('senderTransferIdValue');
+
+  const copyButton =
+    $('copySenderTransferIdBtn');
+
+  if (
+    !panel ||
+    !value
+  ) {
+    return;
+  }
+
+  const id =
+    String(
+      state.senderTransferId || ''
+    );
+
+  const visible =
+    state.role === 'sender' &&
+    Boolean(id);
+
+  panel.hidden =
+    !visible;
+
+  value.textContent =
+    id || '--';
+
+  if (copyButton) {
+    copyButton.onclick =
+      () =>
+        copyTransferIdValue(id);
+  }
+}
+
 
 function status(message, mode = "info") {
   $("statusText").textContent = message;
@@ -138,6 +267,884 @@ function collectClientInfo() {
   };
 }
 
+
+
+
+const BROWSER_GEO_CACHE_KEY =
+  'airgesture.network-geo.v3';
+
+const BROWSER_GEO_CACHE_TTL_MS =
+  30 * 60 * 1000;
+
+
+function normalizeBrowserGeo(
+  data = {},
+  source = ''
+) {
+  if (
+    !data ||
+    data.success === false ||
+    data.error === true
+  ) {
+    return null;
+  }
+
+  const city =
+    String(
+      data.city ||
+      data.locality ||
+      ''
+    )
+      .trim()
+      .slice(0, 80);
+
+  const region =
+    String(
+      data.principalSubdivision ||
+      data.region ||
+      data.region_name ||
+      data.regionName ||
+      data.state ||
+      ''
+    )
+      .trim()
+      .slice(0, 120);
+
+  const country =
+    String(
+      data.countryName ||
+      data.country_name ||
+      data.country ||
+      ''
+    )
+      .trim()
+      .slice(0, 80);
+
+  if (
+    !city ||
+    !region ||
+    !country
+  ) {
+    return null;
+  }
+
+  return {
+    city,
+    region,
+    country,
+
+    location:
+      `${city}, ${region}, ${country}`,
+
+    source:
+      String(source || 'browser-ip')
+        .slice(0, 40)
+  };
+}
+
+
+async function fetchBrowserGeo(
+  url,
+  source,
+  timeoutMs = 3500
+) {
+  const controller =
+    new AbortController();
+
+  const timer =
+    setTimeout(
+      () =>
+        controller.abort(),
+      timeoutMs
+    );
+
+  try {
+    const response =
+      await fetch(
+        url,
+        {
+          signal:
+            controller.signal,
+
+          cache:
+            'no-store',
+
+          headers: {
+            Accept:
+              'application/json'
+          }
+        }
+      );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data =
+      await response.json();
+
+    // Important:
+    // The provider response may contain an IP field.
+    // We deliberately ignore it and retain ONLY
+    // city, region and country.
+    return normalizeBrowserGeo(
+      data,
+      source
+    );
+
+  } catch {
+    return null;
+
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+
+function readCachedBrowserGeo() {
+  try {
+    const raw =
+      localStorage.getItem(
+        BROWSER_GEO_CACHE_KEY
+      );
+
+    if (!raw) {
+      return null;
+    }
+
+    const cached =
+      JSON.parse(raw);
+
+    if (
+      !cached ||
+      !cached.savedAt ||
+      (
+        Date.now() -
+        Number(cached.savedAt)
+      ) >
+        BROWSER_GEO_CACHE_TTL_MS
+    ) {
+      localStorage.removeItem(
+        BROWSER_GEO_CACHE_KEY
+      );
+
+      return null;
+    }
+
+    return normalizeBrowserGeo(
+      cached,
+      cached.source ||
+      'browser-cache'
+    );
+
+  } catch {
+    return null;
+  }
+}
+
+
+function cacheBrowserGeo(geo) {
+  if (!geo) {
+    return;
+  }
+
+  try {
+    // Only coarse geography is cached.
+    // No IP and no latitude/longitude.
+    localStorage.setItem(
+      BROWSER_GEO_CACHE_KEY,
+      JSON.stringify({
+        city:
+          geo.city,
+
+        region:
+          geo.region,
+
+        country:
+          geo.country,
+
+        source:
+          geo.source,
+
+        savedAt:
+          Date.now()
+      })
+    );
+  } catch {}
+}
+
+
+
+
+function requestDevicePosition() {
+  return new Promise(
+    (resolve) => {
+      if (
+        !window.isSecureContext ||
+        !navigator.geolocation
+      ) {
+        resolve(null);
+        return;
+      }
+
+      navigator.geolocation
+        .getCurrentPosition(
+          (position) => {
+            const latitude =
+              Number(
+                position?.coords
+                  ?.latitude
+              );
+
+            const longitude =
+              Number(
+                position?.coords
+                  ?.longitude
+              );
+
+            if (
+              !Number.isFinite(latitude) ||
+              !Number.isFinite(longitude)
+            ) {
+              resolve(null);
+              return;
+            }
+
+            resolve({
+              latitude,
+              longitude
+            });
+          },
+
+          () => {
+            // Permission denied/unavailable:
+            // continue with IP-based coarse fallback.
+            resolve(null);
+          },
+
+          {
+            enableHighAccuracy:
+              true,
+
+            timeout:
+              10000,
+
+            maximumAge:
+              5 * 60 * 1000
+          }
+        );
+    }
+  );
+}
+
+
+async function reverseDevicePosition(
+  position
+) {
+  if (!position) {
+    return null;
+  }
+
+  const url =
+    new URL(
+      'https://api.bigdatacloud.net/data/reverse-geocode-client'
+    );
+
+  url.searchParams.set(
+    'latitude',
+    String(position.latitude)
+  );
+
+  url.searchParams.set(
+    'longitude',
+    String(position.longitude)
+  );
+
+  url.searchParams.set(
+    'localityLanguage',
+    'en'
+  );
+
+  return fetchBrowserGeo(
+    url.toString(),
+    'device-location',
+    6000
+  );
+}
+
+
+async function syncResolvedLocation(
+  geo
+) {
+  if (!geo) {
+    return null;
+  }
+
+  try {
+    const response =
+      await fetch(
+        '/api/network/location',
+        {
+          method:
+            'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          credentials:
+            'same-origin',
+
+          body:
+            JSON.stringify({
+              clientGeo:
+                geo
+            })
+        }
+      );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data =
+      await response.json();
+
+    if (
+      data?.complete &&
+      data?.location
+    ) {
+      renderOwnNetwork(
+        data
+      );
+    }
+
+    return data;
+
+  } catch {
+    return null;
+  }
+}
+
+
+async function resolveBrowserCoarseGeo() {
+  if (state.clientGeo) {
+    return state.clientGeo;
+  }
+
+  if (state.clientGeoPromise) {
+    return state.clientGeoPromise;
+  }
+
+  const cached =
+    readCachedBrowserGeo();
+
+  if (cached) {
+    state.clientGeo =
+      cached;
+
+    return cached;
+  }
+
+  state.clientGeoPromise =
+    (async () => {
+
+      // ==================================================
+      // CANONICAL AIRGESTURE BUSINESS LOCATION
+      //
+      // Use network/IP-derived city, state and country
+      // consistently for ALL Senders and Receivers.
+      //
+      // Do not mix device/GPS administrative locality
+      // with network market locality.
+      // ==================================================
+
+      let geo =
+        await fetchBrowserGeo(
+          'https://ipapi.co/json/',
+          'ipapi-browser',
+          6000
+        );
+
+
+      if (!geo) {
+        geo =
+          await fetchBrowserGeo(
+            'https://ipwho.is/?fields=success,country,region,city',
+            'ipwhois-browser',
+            6000
+          );
+      }
+
+
+      if (!geo) {
+        geo =
+          await fetchBrowserGeo(
+            'https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en',
+            'bigdatacloud-ip',
+            6000
+          );
+      }
+
+
+      if (!geo) {
+        return null;
+      }
+
+
+      state.clientGeo =
+        geo;
+
+      cacheBrowserGeo(
+        geo
+      );
+
+
+      // Synchronize the canonical location with the
+      // authenticated AirGesture server session.
+      await syncResolvedLocation(
+        geo
+      );
+
+
+      return geo;
+    })();
+
+
+  try {
+    return await state.clientGeoPromise;
+
+  } finally {
+    state.clientGeoPromise =
+      null;
+  }
+}
+
+
+function commercialDeviceSegment(client) {
+  const os =
+    String(client.os || '');
+
+  const device =
+    String(client.deviceType || '');
+
+  if (
+    os === 'macOS' &&
+    device === 'Laptop/Desktop'
+  ) {
+    return 'APPLE_DESKTOP';
+  }
+
+  if (os === 'iOS/iPadOS') {
+    return 'APPLE_MOBILE';
+  }
+
+  if (
+    os === 'Windows' &&
+    device === 'Laptop/Desktop'
+  ) {
+    return 'WINDOWS_DESKTOP';
+  }
+
+  if (os === 'Android') {
+    return 'ANDROID_MOBILE';
+  }
+
+  if (
+    os === 'Linux' &&
+    device === 'Laptop/Desktop'
+  ) {
+    return 'LINUX_DESKTOP';
+  }
+
+  if (device === 'Mobile') {
+    return 'MOBILE_USER';
+  }
+
+  if (device === 'Tablet') {
+    return 'TABLET_USER';
+  }
+
+  return 'GENERAL_DESKTOP';
+}
+
+
+function commercialSignals() {
+  const client =
+    collectClientInfo();
+
+  const width =
+    Math.max(
+      Number(screen.width) || 0,
+      Number(screen.height) || 0
+    );
+
+  let screenCategory =
+    'UNKNOWN';
+
+  if (width > 0 && width < 768) {
+    screenCategory =
+      'SMALL';
+  } else if (width < 1200) {
+    screenCategory =
+      'MEDIUM';
+  } else if (width < 1800) {
+    screenCategory =
+      'LARGE';
+  } else if (width >= 1800) {
+    screenCategory =
+      'XLARGE';
+  }
+
+
+  const memory =
+    Number(client.memoryGB) || 0;
+
+  let memoryTier =
+    'UNKNOWN';
+
+  if (memory >= 16) {
+    memoryTier = 'HIGH';
+  } else if (memory >= 8) {
+    memoryTier = 'STANDARD';
+  } else if (memory > 0) {
+    memoryTier = 'BASIC';
+  }
+
+
+  const cores =
+    Number(client.cpuCores) || 0;
+
+  let cpuTier =
+    'UNKNOWN';
+
+  if (cores >= 12) {
+    cpuTier = 'HIGH';
+  } else if (cores >= 6) {
+    cpuTier = 'STANDARD';
+  } else if (cores > 0) {
+    cpuTier = 'BASIC';
+  }
+
+
+  let referrerHost = '';
+
+  if (document.referrer) {
+    try {
+      referrerHost =
+        new URL(
+          document.referrer
+        ).hostname;
+    } catch {}
+  }
+
+
+  const params =
+    new URLSearchParams(
+      window.location.search
+    );
+
+
+  return {
+    clientInfo: client,
+
+    screenCategory,
+
+    touchCapable:
+      Number(
+        navigator.maxTouchPoints
+      ) > 0,
+
+    memoryTier,
+
+    cpuTier,
+
+    deviceSegment:
+      commercialDeviceSegment(
+        client
+      ),
+
+    acquisition: {
+      referrerHost,
+
+      landingPath:
+        window.location.pathname,
+
+      utmSource:
+        params.get(
+          'utm_source'
+        ) || '',
+
+      utmMedium:
+        params.get(
+          'utm_medium'
+        ) || '',
+
+      utmCampaign:
+        params.get(
+          'utm_campaign'
+        ) || ''
+    }
+  };
+}
+
+
+function renderCommercialConsent() {
+  const consent =
+    state.commercialConsent || {};
+
+  if ($('analyticsConsent')) {
+    $('analyticsConsent').checked =
+      Boolean(
+        consent.analyticsConsent
+      );
+  }
+
+  if ($('personalizationConsent')) {
+    $('personalizationConsent').checked =
+      Boolean(
+        consent.personalizationConsent
+      );
+  }
+
+  if ($('marketingConsent')) {
+    $('marketingConsent').checked =
+      Boolean(
+        consent.marketingConsent
+      );
+  }
+
+  if ($('consentStatus')) {
+    $('consentStatus').textContent =
+      consent.analyticsConsent
+        ? 'Commercial analytics collection enabled'
+        : 'Commercial analytics collection disabled';
+  }
+}
+
+
+async function syncCommercialProfile() {
+  if (
+    state.commercialProfileSynced
+  ) {
+    return;
+  }
+
+  try {
+    const signals =
+      commercialSignals();
+
+    signals.clientGeo =
+      await resolveBrowserCoarseGeo();
+
+    const response =
+      await fetch(
+        '/api/commercial/profile',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body:
+            JSON.stringify(
+              signals
+            )
+        }
+      );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data =
+      await response.json();
+
+    if (data.collected) {
+      state.commercialProfileSynced =
+        true;
+
+      if ($('consentStatus')) {
+        $('consentStatus').textContent =
+          'Commercial analytics profile active';
+      }
+    }
+  } catch (error) {
+    console.error(
+      'Commercial profile sync failed:',
+      error
+    );
+  }
+}
+
+
+async function loadCommercialConsent() {
+  if (
+    !state.authUser &&
+    !window.AirGestureAuthUser
+  ) {
+    return;
+  }
+
+  try {
+    const response =
+      await fetch(
+        '/api/commercial/consent',
+        {
+          cache: 'no-store'
+        }
+      );
+
+    if (!response.ok) {
+      await syncCommercialProfile();
+      return;
+    }
+
+    const data =
+      await response.json();
+
+    state.commercialConsent = {
+      analyticsConsent:
+        Boolean(
+          data.analyticsConsent
+        ),
+
+      personalizationConsent:
+        Boolean(
+          data.personalizationConsent
+        ),
+
+      marketingConsent:
+        Boolean(
+          data.marketingConsent
+        )
+    };
+
+    renderCommercialConsent();
+
+    await syncCommercialProfile();
+  } catch (error) {
+    console.error(
+      'Could not load data preferences:',
+      error
+    );
+  }
+}
+
+
+async function saveCommercialConsent() {
+  const button =
+    $('saveConsentBtn');
+
+  if (button) {
+    button.disabled = true;
+  }
+
+  try {
+    const preferences = {
+      analyticsConsent:
+        Boolean(
+          $('analyticsConsent')
+            ?.checked
+        ),
+
+      personalizationConsent:
+        Boolean(
+          $('personalizationConsent')
+            ?.checked
+        ),
+
+      marketingConsent:
+        Boolean(
+          $('marketingConsent')
+            ?.checked
+        )
+    };
+
+    const response =
+      await fetch(
+        '/api/commercial/consent',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body:
+            JSON.stringify(
+              preferences
+            )
+        }
+      );
+
+    const data =
+      await response
+        .json()
+        .catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        'Could not save preferences.'
+      );
+    }
+
+    state.commercialConsent = {
+      analyticsConsent:
+        Boolean(
+          data.analyticsConsent
+        ),
+
+      personalizationConsent:
+        Boolean(
+          data.personalizationConsent
+        ),
+
+      marketingConsent:
+        Boolean(
+          data.marketingConsent
+        )
+    };
+
+    renderCommercialConsent();
+
+    if (
+      state.commercialConsent
+        .analyticsConsent
+    ) {
+      await syncCommercialProfile();
+    }
+
+    toast(
+      'Data preferences saved'
+    );
+  } catch (error) {
+    console.error(
+      'Consent save failed:',
+      error
+    );
+
+    if ($('consentStatus')) {
+      $('consentStatus').textContent =
+        'Could not save preferences';
+    }
+
+    toast(
+      'Could not save data preferences'
+    );
+  } finally {
+    if (button) {
+      button.disabled = false;
+    }
+  }
+}
+
+
 async function measureServerLatency(samples = 3) {
   const values = [];
   for (let i = 0; i < samples; i += 1) {
@@ -160,11 +1167,282 @@ function networkQuality(latencyMs, speedMbps) {
 
 function renderOwnNetwork(network = {}) {
   state.ownNetwork = network || {};
+
   if ($('ownNetworkIp')) $('ownNetworkIp').textContent = network.maskedIp || 'Unavailable';
   if ($('ownNetworkLocation')) $('ownNetworkLocation').textContent = network.location || 'Unavailable';
   if ($('ownNetworkProvider')) $('ownNetworkProvider').textContent = network.provider || 'Unavailable';
   if ($('ownNetworkDevice')) $('ownNetworkDevice').textContent = `${detectDeviceType()} · ${detectBrowser()} · ${detectOS()}`;
-  if ($('ownNetworkLatency')) $('ownNetworkLatency').textContent = state.networkLatencyMs ? `${state.networkLatencyMs.toFixed(1)} ms` : 'Measuring…';
+  if ($('ownNetworkLatency')) $('ownNetworkLatency').textContent =
+    state.networkLatencyMs ? `${state.networkLatencyMs.toFixed(1)} ms` : 'Measuring…';
+
+  if (state.role === 'receiver') renderMyIntelligence();
+}
+
+function setText(id, value) {
+  const el = $(id);
+  if (el) el.textContent = value;
+}
+
+function setStatusPill(id, text, tone = 'neutral') {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = `status-badge ${tone}`;
+}
+
+function currentAuthUser() {
+  const user = state.authUser || window.AirGestureAuthUser || {};
+
+  return {
+    name: String(user.name || 'Signed-in participant'),
+    email: String(user.email || ''),
+    picture: String(user.picture || '')
+  };
+}
+
+function receiverDisplayId() {
+  if (!state.broadcastClientId) return 'Not joined';
+
+  const compact = String(state.broadcastClientId)
+    .replace(/-/g, '')
+    .slice(0, 6)
+    .toUpperCase();
+
+  return compact ? `RCV-${compact}` : 'Receiver';
+}
+
+function personalRecommendation(result, quality) {
+  if (result === 'SUCCESS') {
+    if (quality === 'EXCELLENT' || quality === 'GOOD') {
+      return 'Transfer verified successfully. Your current conditions are ready for normal AirGesture use.';
+    }
+
+    return 'Transfer succeeded, but network performance could be improved for a faster experience.';
+  }
+
+  if (result === 'FAILED') {
+    return 'Retry Air Paste. If the problem continues, change network conditions or reconnect to the room.';
+  }
+
+  if (result === 'CANCELLED') {
+    return 'The transfer was cancelled. Air Paste again when you are ready.';
+  }
+
+  if (result === 'RECEIVING') {
+    return 'Keep this tab open until byte-count and SHA-256 verification complete.';
+  }
+
+  if (result === 'READY') {
+    return 'The Sender file is ready. Use ✋ → ✊ or the Air Paste button to receive it.';
+  }
+
+  return 'Join the Sender room and complete an Air Paste to generate your evidence.';
+}
+
+function renderMyIntelligence() {
+  if (state.role !== 'receiver') return;
+
+  const user = currentAuthUser();
+  const network = state.ownNetwork || {};
+  const transfer = state.myTransfer || {};
+  const client = collectClientInfo();
+
+  const latencyMs =
+    Number(transfer.latencyMs) ||
+    Number(state.networkLatencyMs) ||
+    0;
+
+  const speedMbps = Number(transfer.speedMbps) || 0;
+  const quality = networkQuality(latencyMs, speedMbps);
+
+  const result =
+    transfer.result ||
+    (state.pendingRequest ? 'READY' : 'WAITING');
+
+  const transferSize =
+    Number(transfer.fileSize) ||
+    Number(state.pendingRequest?.size) ||
+    0;
+
+  const transferName =
+    transfer.fileName ||
+    state.pendingRequest?.name ||
+    'Waiting for Sender';
+
+  const gestureConfidence =
+    Number(transfer.gestureConfidence) ||
+    Number(state.lastGestureConfidence) ||
+    0;
+
+  const trigger = transfer.trigger || '';
+
+  setText('myIdentityName', user.name);
+  setText('myIdentityEmail', user.email || 'Google account');
+  setText('myReceiverId', receiverDisplayId());
+  setText('myRoomCode', state.room || 'Not joined');
+
+  const picture = $('myProfilePicture');
+  if (picture) {
+    if (user.picture) {
+      picture.src = user.picture;
+      picture.hidden = false;
+    } else {
+      picture.hidden = true;
+    }
+  }
+
+  setText(
+    'myDevice',
+    `${client.deviceType} · ${client.browser} · ${client.os}`
+  );
+
+  setText('myMaskedIp', network.maskedIp || 'Unavailable');
+  setText('myLocation', network.location || 'Unavailable');
+  setText('myProvider', network.provider || 'Unavailable');
+  setText(
+    'myLatency',
+    latencyMs ? `${latencyMs.toFixed(1)} ms` : 'Measuring…'
+  );
+
+  setText(
+    'myTransferFile',
+    transferName
+  );
+
+  setText(
+    'myTransferId',
+    transfer.transferId ||
+      (
+        result === 'SUCCESS'
+          ? 'Saving…'
+          : '--'
+      )
+  );
+
+  setText('myTransferSize', transferSize ? formatBytes(transferSize) : '--');
+  setText(
+    'myTransferSpeed',
+    speedMbps ? `${speedMbps.toFixed(2)} Mbps` : '--'
+  );
+  setText(
+    'myTransferDuration',
+    Number(transfer.durationSec)
+      ? `${Number(transfer.durationSec).toFixed(2)} s`
+      : '--'
+  );
+
+  setText(
+    'myTransferIntegrity',
+    transfer.integrityVerified === true
+      ? 'SHA-256 VERIFIED'
+      : result === 'FAILED'
+        ? 'NOT VERIFIED'
+        : 'WAITING'
+  );
+
+  setText(
+    'myGestureAction',
+    trigger === 'gesture'
+      ? 'Air Paste · Gesture'
+      : trigger === 'manual'
+        ? 'Air Paste · Manual'
+        : 'Waiting for Air Paste'
+  );
+
+  setText(
+    'myGestureConfidence',
+    trigger === 'gesture' && gestureConfidence
+      ? `${(gestureConfidence * 100).toFixed(1)}%`
+      : trigger === 'manual'
+        ? 'Manual control'
+        : '--'
+  );
+
+  setText('myNetworkQuality', quality);
+
+  const dataQuality =
+    result === 'SUCCESS' && transfer.integrityVerified
+      ? 'COMPLETE'
+      : result === 'FAILED'
+        ? 'ATTENTION'
+        : result === 'CANCELLED'
+          ? 'INCOMPLETE'
+          : result === 'RECEIVING' || result === 'READY'
+            ? 'COLLECTING'
+            : 'WAITING';
+
+  setText('myDataQuality', dataQuality);
+
+  if (result === 'SUCCESS') {
+    setText(
+      'myDescriptiveInsight',
+      `${transferName} was received in ${
+        Number(transfer.durationSec || 0).toFixed(2)
+      } s at ${
+        speedMbps.toFixed(2)
+      } Mbps with SHA-256 integrity verified.`
+    );
+  } else if (result === 'FAILED') {
+    setText(
+      'myDescriptiveInsight',
+      `Your transfer failed${
+        transfer.failureReason ? `: ${transfer.failureReason}` : '.'
+      }`
+    );
+  } else if (result === 'RECEIVING') {
+    setText(
+      'myDescriptiveInsight',
+      `${transferName} is currently being received and verified.`
+    );
+  } else if (result === 'READY') {
+    setText(
+      'myDescriptiveInsight',
+      `${transferName} is available from the Sender and waiting for your Air Paste.`
+    );
+  } else {
+    setText(
+      'myDescriptiveInsight',
+      'Complete an Air Paste to generate your personal transfer evidence.'
+    );
+  }
+
+  setText(
+    'myRecommendation',
+    personalRecommendation(result, quality)
+  );
+
+  const tone =
+    result === 'SUCCESS'
+      ? 'good'
+      : result === 'FAILED'
+        ? 'warn'
+        : result === 'RECEIVING' || result === 'READY'
+          ? 'warn'
+          : 'neutral';
+
+  setStatusPill('myTransferResult', result, tone);
+}
+
+function renderRoleIntelligence() {
+  const isReceiver = state.role === 'receiver';
+
+  if ($('myIntelligencePanel')) {
+    $('myIntelligencePanel').hidden = !isReceiver;
+  }
+
+  if ($('senderIntelligencePanel')) {
+    $('senderIntelligencePanel').hidden = isReceiver;
+  }
+
+  // Receiver does not need classroom-wide completion counters.
+  if ($('broadcastStatsPanel')) {
+    $('broadcastStatsPanel').hidden = isReceiver;
+  }
+
+  document.body.classList.toggle('receiver-role', isReceiver);
+  document.body.classList.toggle('sender-role', !isReceiver);
+
+  if (isReceiver) renderMyIntelligence();
 }
 
 function renderReceiverIntelligence(receivers = []) {
@@ -174,7 +1452,7 @@ function renderReceiverIntelligence(receivers = []) {
   if (count) count.textContent = String(state.receiverIntelligence.length);
   if (!body) return;
   if (!state.receiverIntelligence.length) {
-    body.innerHTML = '<tr><td colspan="9" class="table-empty">No receiver network evidence yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="table-empty">No authenticated receiver evidence yet.</td></tr>';
     return;
   }
   body.innerHTML = '';
@@ -182,7 +1460,13 @@ function renderReceiverIntelligence(receivers = []) {
     const tr = document.createElement('tr');
     const quality = networkQuality(Number(row.latencyMs) || Number(row.browserRttMs) || 0, Number(row.transferSpeedMbps) || 0);
     const result = row.result || 'WAITING';
+
+    const participant = row.participantEmail
+      ? `${row.participantName || 'Signed-in participant'} · ${row.participantEmail}`
+      : (row.participantName || 'Signed-in participant');
+
     const values = [
+      participant,
       row.receiverId || 'Receiver',
       row.maskedIp || 'Unavailable',
       row.location || 'Unavailable',
@@ -196,7 +1480,7 @@ function renderReceiverIntelligence(receivers = []) {
     values.forEach((value, index) => {
       const td = document.createElement('td');
       td.textContent = value;
-      if (index === 8) td.className = `network-result ${String(result).toLowerCase()}`;
+      if (index === 9) td.className = `network-result ${String(result).toLowerCase()}`;
       tr.appendChild(td);
     });
     body.appendChild(tr);
@@ -255,10 +1539,457 @@ function updateActionButtons() {
     : !(state.pendingRequest || state.acceptedTransferId || state.received);
 }
 
+function gestureExperienceFile() {
+  if (state.role === 'sender') {
+    return state.selectedFile
+      ? {
+          name:
+            state.selectedFile.name,
+
+          type:
+            state.selectedFile.type || '',
+
+          size:
+            state.selectedFile.size || 0
+        }
+      : null;
+  }
+
+  return state.pendingRequest
+    ? {
+        name:
+          state.pendingRequest.name,
+
+        type:
+          state.pendingRequest.mime || '',
+
+        size:
+          state.pendingRequest.size || 0
+      }
+    : null;
+}
+
+
+function gestureFileIcon(file = {}) {
+  const type =
+    String(
+      file.type || ''
+    ).toLowerCase();
+
+  const name =
+    String(
+      file.name || ''
+    ).toLowerCase();
+
+  if (
+    type.startsWith('image/') ||
+    /\.(png|jpg|jpeg|gif|webp|heic)$/i.test(
+      name
+    )
+  ) {
+    return '🖼️';
+  }
+
+  if (
+    type.startsWith('video/') ||
+    /\.(mp4|mov|webm)$/i.test(
+      name
+    )
+  ) {
+    return '🎬';
+  }
+
+  if (
+    type === 'application/pdf' ||
+    name.endsWith('.pdf')
+  ) {
+    return '📕';
+  }
+
+  return '📄';
+}
+
+
+function setGestureExperience(
+  mode,
+  title,
+  hint,
+  hand
+) {
+  const root =
+    $('gestureExperience');
+
+  if (!root) return;
+
+  root.className =
+    `gesture-experience ${mode}`;
+
+  setText(
+    'gestureExperienceTitle',
+    title
+  );
+
+  setText(
+    'gestureExperienceHint',
+    hint
+  );
+
+  setText(
+    'gestureExperienceHand',
+    hand
+  );
+
+  const file =
+    gestureExperienceFile();
+
+  setText(
+    'gestureFileName',
+    file?.name ||
+      (
+        state.role === 'sender'
+          ? 'No file selected'
+          : 'Waiting for Sender'
+      )
+  );
+
+  setText(
+    'gestureFileLabel',
+    file?.size
+      ? formatBytes(
+          Number(file.size)
+        )
+      : 'AIR FILE'
+  );
+
+  setText(
+    'gestureFileIcon',
+    gestureFileIcon(
+      file || {}
+    )
+  );
+}
+
+
+function syncGestureExperience() {
+  if (
+    state.role === 'receiver'
+  ) {
+    if (state.pendingRequest) {
+      setGestureExperience(
+        'incoming',
+        'INCOMING AIR FILE',
+        'Make a fist ✊ to catch the file.',
+        '✊'
+      );
+    } else {
+      setGestureExperience(
+        'waiting',
+        'WAITING FOR FILE',
+        'Stay connected. The screen will pulse when a file arrives.',
+        '✋'
+      );
+    }
+
+    return;
+  }
+
+
+  if (state.selectedFile) {
+    setGestureExperience(
+      'ready',
+      'READY TO GRAB',
+      'Show your open palm ✋, then close your fist.',
+      '✋'
+    );
+  } else {
+    setGestureExperience(
+      'idle',
+      'CHOOSE A FILE',
+      'Select a file, connect the room and start Vision AI.',
+      '✋'
+    );
+  }
+}
+
+
+function updateGestureHandAnchor(
+  landmarks = []
+) {
+  if (!landmarks.length) return;
+
+  const average =
+    landmarks.reduce(
+      (result, point) => ({
+        x:
+          result.x +
+          Number(point.x || 0),
+
+        y:
+          result.y +
+          Number(point.y || 0)
+      }),
+      {
+        x: 0,
+        y: 0
+      }
+    );
+
+  const count =
+    landmarks.length || 1;
+
+  state.lastHandAnchor = {
+    // Front-facing webcam feels natural
+    // when the interaction follows the mirror.
+    x:
+      Math.max(
+        0,
+        Math.min(
+          1,
+          1 -
+            average.x /
+              count
+        )
+      ),
+
+    y:
+      Math.max(
+        0,
+        Math.min(
+          1,
+          average.y /
+            count
+        )
+      )
+  };
+
+
+  const root =
+    $('gestureExperience');
+
+  if (!root) return;
+
+  root.style.setProperty(
+    '--hand-x',
+    `${
+      state.lastHandAnchor.x *
+      100
+    }%`
+  );
+
+  root.style.setProperty(
+    '--hand-y',
+    `${
+      state.lastHandAnchor.y *
+      100
+    }%`
+  );
+}
+
+
+function animateAirFile(
+  direction = 'grab'
+) {
+  const card =
+    $('gestureFileCard');
+
+  const stage =
+    card?.closest(
+      '.camera-stage'
+    );
+
+  if (
+    !card ||
+    !stage ||
+    typeof card.animate !==
+      'function'
+  ) {
+    return Promise.resolve();
+  }
+
+  const stageRect =
+    stage.getBoundingClientRect();
+
+  const cardRect =
+    card.getBoundingClientRect();
+
+  const anchor =
+    state.lastHandAnchor || {
+      x: 0.5,
+      y: 0.5
+    };
+
+  const targetX =
+    stageRect.left +
+    stageRect.width *
+      anchor.x;
+
+  const targetY =
+    stageRect.top +
+    stageRect.height *
+      anchor.y;
+
+  const cardX =
+    cardRect.left +
+    cardRect.width / 2;
+
+  const cardY =
+    cardRect.top +
+    cardRect.height / 2;
+
+  const dx =
+    targetX - cardX;
+
+  const dy =
+    targetY - cardY;
+
+
+  const grabFrames = [
+    {
+      transform:
+        'translate(0, 0) scale(1)',
+      opacity: 1,
+      filter:
+        'blur(0px)'
+    },
+
+    {
+      transform:
+        `translate(${dx * 0.65}px, ${dy * 0.65}px) scale(.45)`,
+      opacity: 0.9,
+      filter:
+        'blur(0px)',
+      offset: 0.72
+    },
+
+    {
+      transform:
+        `translate(${dx}px, ${dy}px) scale(.05)`,
+      opacity: 0,
+      filter:
+        'blur(3px)'
+    }
+  ];
+
+
+  const releaseFrames = [
+    {
+      transform:
+        `translate(${dx}px, ${dy}px) scale(.05)`,
+      opacity: 0,
+      filter:
+        'blur(3px)'
+    },
+
+    {
+      transform:
+        `translate(${dx * 0.42}px, ${dy * 0.42}px) scale(.58)`,
+      opacity: 0.9,
+      filter:
+        'blur(0px)',
+      offset: 0.55
+    },
+
+    {
+      transform:
+        'translate(0, 0) scale(1)',
+      opacity: 1,
+      filter:
+        'blur(0px)'
+    }
+  ];
+
+
+  const animation =
+    card.animate(
+      direction === 'release'
+        ? releaseFrames
+        : grabFrames,
+      {
+        duration: 560,
+
+        easing:
+          'cubic-bezier(.2,.8,.2,1)',
+
+        fill:
+          'both'
+      }
+    );
+
+
+  return new Promise(
+    (resolve) => {
+      const done = () => {
+        try {
+          animation.cancel();
+        } catch {}
+
+        resolve();
+      };
+
+      animation.addEventListener(
+        'finish',
+        done,
+        {
+          once: true
+        }
+      );
+
+      animation.addEventListener(
+        'cancel',
+        resolve,
+        {
+          once: true
+        }
+      );
+    }
+  );
+}
+
+
+async function playGestureSuccessAnimation(
+  role
+) {
+  if (role === 'sender') {
+
+    setGestureExperience(
+      'grabbed',
+      'COPIED',
+      'File grabbed. Sending through AirGesture…',
+      '✊'
+    );
+
+    await animateAirFile(
+      'grab'
+    );
+
+    return;
+  }
+
+
+  setGestureExperience(
+    'released',
+    'RELEASED',
+    'File released from your hand. Receiving now…',
+    '✋'
+  );
+
+  await animateAirFile(
+    'release'
+  );
+}
+
+
 function resetGestureSequence() {
-  state.gestureSequencePhase = "waiting-open";
-  state.gestureSequenceExpiresAt = 0;
-  state.gestureOpenConfidence = 0;
+  state.gestureSequencePhase =
+    state.role === 'receiver'
+      ? 'waiting-fist'
+      : 'waiting-open';
+
+  state.gestureSequenceExpiresAt =
+    0;
+
+  state.gestureOpenConfidence =
+    0;
 }
 
 function renderRoleFilePanel() {
@@ -273,15 +2004,15 @@ function renderRoleFilePanel() {
     } else {
       $("fileTitle").textContent = broadcast ? "Choose a file to Air Send" : "Choose a file to Air Copy";
       $("fileMeta").textContent = broadcast
-        ? "Upload once · up to 100 MB · distribute to all receivers in the room"
-        : "Click or drag & drop · up to 100 MB";
+        ? "Supported: PDF, Word, Excel, CSV, TXT, images, videos & other files · Maximum 100 MB per file"
+        : "Supported: PDF, Word, Excel, CSV, TXT, images, videos & other files · Maximum 100 MB per file";
     }
   } else {
     $("dropZone").style.opacity = ".75";
     $("dropZone").style.pointerEvents = "none";
     if (state.pendingRequest) {
       $("fileTitle").textContent = `Incoming: ${state.pendingRequest.name}`;
-      $("fileMeta").textContent = `${formatBytes(state.pendingRequest.size)} · show ✋ → ✊ to Air Paste`;
+      $("fileMeta").textContent = `${formatBytes(state.pendingRequest.size)} · show ✊ → ✋ to Air Paste`;
     } else {
       $("fileTitle").textContent = broadcast ? "Waiting for the universal room file" : "Waiting for an incoming Air Copy";
       $("fileMeta").textContent = broadcast
@@ -314,10 +2045,15 @@ function resetBroadcastState({ keepStats = false } = {}) {
   state.broadcastHostToken = "";
   state.broadcastClientId = "";
   state.broadcastFileId = "";
+  state.broadcastFileSignature = "";
+  state.senderTransferId = "";
   state.broadcastUploadInProgress = false;
   state.broadcastDownloadInProgress = false;
   state.broadcastXHR = null;
   state.broadcastAbortController = null;
+
+  renderSenderTransferId();
+
   if (!keepStats) renderBroadcastStats({});
 }
 
@@ -327,11 +2063,12 @@ function setMode() {
   state.mode = "broadcast";
   $("connectionTitle").textContent = "Universal Room";
   $("connectionKicker").textContent = "02 · UNIVERSAL CONNECTION";
-  $("broadcastStatsPanel").hidden = false;
+  $("broadcastStatsPanel").hidden = state.role === "receiver";
   $("modeHint").textContent = "1 Sender uploads once · Receivers join the same room code · no fixed application participant cap.";
 
   resetGestureSequence();
   renderRoleFilePanel();
+  syncGestureExperience();
   updateActionButtons();
   status(state.role === "sender"
     ? "Sender ready. Join a universal room, choose a file, then show ✋ → ✊ to Air Send it to every connected Receiver."
@@ -343,6 +2080,10 @@ function setRole(role) {
   const changed = state.role !== role;
   state.role = role;
   document.querySelectorAll(".role-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.role === role));
+
+  if (changed) state.myTransfer = null;
+  renderRoleIntelligence();
+  renderSenderTransferId();
 
   if (changed && state.ws?.readyState === WebSocket.OPEN) {
     try { state.ws.close(); } catch {}
@@ -357,6 +2098,7 @@ function setRole(role) {
 
   resetGestureSequence();
   renderRoleFilePanel();
+  syncGestureExperience();
   $("startCameraBtn").disabled = state.cameraRunning || state.aiLoading;
   $("stopCameraBtn").disabled = !state.cameraRunning;
 
@@ -367,7 +2109,7 @@ function setRole(role) {
   } else {
     status(role === "sender"
       ? "Sender ready. Choose a file, connect the Receiver, then show ✋ Open Hand → ✊ Closed Fist to Air Copy."
-      : "Receiver ready. Connect to the same room, start Vision AI, then use ✋ Open Hand → ✊ Closed Fist when an incoming file appears.");
+      : "Receiver ready. Connect to the same room, start Vision AI, then use ✊ Closed Fist → ✋ Open Hand when an incoming file appears.");
   }
   updateActionButtons();
 }
@@ -379,6 +2121,13 @@ function selectFile(file) {
     return;
   }
   state.selectedFile = file;
+
+  // Selecting a document is not yet a SEND transaction.
+  // Remove the previous SEND ID until Air Copy succeeds.
+  state.senderTransferId = "";
+  renderSenderTransferId();
+
+  syncGestureExperience();
   $("fileTitle").textContent = file.name;
   $("fileMeta").textContent = `${formatBytes(file.size)} · ${file.type || "unknown type"}`;
   state.senderWaitingAcceptance = false;
@@ -417,6 +2166,7 @@ function applyBroadcastFile(file) {
     state.broadcastFileId = "";
     state.pendingRequest = null;
     renderRoleFilePanel();
+    syncGestureExperience();
     return;
   }
 
@@ -431,11 +2181,31 @@ function applyBroadcastFile(file) {
       sha256: file.sha256 || "",
       requestedAt: performance.now()
     };
+
+    state.myTransfer = {
+      result: 'READY',
+      fileName: state.pendingRequest.name,
+      fileSize: state.pendingRequest.size,
+      latencyMs: state.networkLatencyMs,
+      integrityVerified: false
+    };
+
     renderRoleFilePanel();
+    renderMyIntelligence();
+
+    resetGestureSequence();
+    syncGestureExperience();
+
     setTransferState("incoming broadcast");
     setProgress(0);
-    status(`Universal room file ready: ${state.pendingRequest.name}. Show ✋ → ✊ to Air Paste and receive it.`);
-    toast("File ready — use ✋ → ✊ to receive");
+
+    status(
+      `Incoming Air File: ${state.pendingRequest.name}. Make a fist ✊ to catch it, then open your hand ✋ to receive.`
+    );
+
+    toast(
+      "Incoming Air File — make a fist ✊"
+    );
   }
 }
 
@@ -459,8 +2229,48 @@ function connectBroadcastRoom() {
   state.ws = ws;
 
   ws.onopen = async () => {
-    state.networkLatencyMs = await measureServerLatency();
-    ws.send(JSON.stringify({ type: "join", room, role: state.role, mode: "universal", clientInfo: collectClientInfo() }));
+    state.networkLatencyMs =
+      await measureServerLatency();
+
+    ws.send(
+      JSON.stringify({
+        type: "join",
+        room,
+        role:
+          state.role,
+        mode:
+          "universal",
+        clientInfo:
+          collectClientInfo()
+      })
+    );
+
+    // A room join is an explicit user action.
+    // If IP locality is incomplete, the browser may request
+    // location permission for city-level accuracy.
+    void resolveBrowserCoarseGeo({
+      allowDevicePrompt:
+        true
+    })
+      .then(
+        (clientGeo) => {
+          if (
+            clientGeo &&
+            ws.readyState ===
+              WebSocket.OPEN
+          ) {
+            ws.send(
+              JSON.stringify({
+                type:
+                  "client-geo",
+
+                clientGeo
+              })
+            );
+          }
+        }
+      )
+      .catch(() => {});
   };
 
   ws.onmessage = async (event) => {
@@ -473,11 +2283,23 @@ function connectBroadcastRoom() {
       renderOwnNetwork(msg.network || {});
       renderBroadcastStats(msg.stats || {});
       applyBroadcastFile(msg.file);
+      renderRoleIntelligence();
       setBadge($("peerBadge"), state.role === "sender" ? "Sender Ready" : "Room Joined", "good");
       status(state.role === "sender"
         ? `Universal room ${msg.room} ready. ${msg.stats?.connected || 0} receiver(s) connected. Choose a file and use ✋ → ✊ to Air Send.`
         : `Joined universal room ${msg.room}. Waiting for the Sender file.`);
       updateActionButtons();
+      return;
+    }
+
+    if (
+      msg.type ===
+      "network-location-update"
+    ) {
+      renderOwnNetwork(
+        msg.network || {}
+      );
+
       return;
     }
 
@@ -500,7 +2322,7 @@ function connectBroadcastRoom() {
       applyBroadcastFile(msg.file);
       if (state.role === "sender") {
         setTransferState("waiting receivers");
-        status(`File uploaded once. ${state.broadcastStats.connected} receiver(s) can now use ✋ → ✊ to Air Paste.`);
+        status(`File uploaded once. ${state.broadcastStats.connected} receiver(s) can now use ✊ → ✋ to Air Paste.`);
       }
       updateActionButtons();
       return;
@@ -883,23 +2705,133 @@ async function handleDataMessage(event) {
   }
 }
 
-function addReceivedFile(name, size, url) {
+function addReceivedFile(
+  name,
+  size,
+  url,
+  transferId = ''
+) {
   state.receivedFiles += 1;
-  $("receivedCount").textContent = String(state.receivedFiles);
-  const list = $("receivedFiles");
-  if (list.classList.contains("empty-state")) {
-    list.className = "received-list";
-    list.innerHTML = "";
+
+  $('receivedCount').textContent =
+    String(state.receivedFiles);
+
+  const list =
+    $('receivedFiles');
+
+  if (
+    list.classList.contains(
+      'empty-state'
+    )
+  ) {
+    list.className =
+      'received-list';
+
+    list.innerHTML = '';
   }
-  const item = document.createElement("div");
-  item.className = "received-item";
-  const ext = (name.split(".").pop() || "FILE").slice(0, 4).toUpperCase();
-  item.innerHTML = `<span class="file-token">${ext}</span><div><strong></strong><small>${formatBytes(size)} · received now</small></div><a class="download-link" download>Download</a>`;
-  item.querySelector("strong").textContent = name;
-  const link = item.querySelector("a");
-  link.href = url;
-  link.download = name;
-  list.prepend(item);
+
+  const item =
+    document.createElement(
+      'div'
+    );
+
+  item.className =
+    'received-item';
+
+  const ext =
+    (
+      name.split('.').pop() ||
+      'FILE'
+    )
+      .slice(0, 4)
+      .toUpperCase();
+
+  const id =
+    String(
+      transferId || ''
+    );
+
+  item.innerHTML = `
+    <span class="file-token"></span>
+
+    <div class="received-file-details">
+      <strong class="received-file-name"></strong>
+
+      <small class="received-file-meta"></small>
+
+      <div class="received-transfer-id">
+        <span>TRANSFER ID</span>
+
+        <code></code>
+
+        <button
+          class="transfer-id-copy-btn received-copy-btn"
+          type="button"
+        >
+          Copy
+        </button>
+      </div>
+    </div>
+
+    <a
+      class="download-link"
+      download
+    >
+      Download
+    </a>
+  `;
+
+  item.querySelector(
+    '.file-token'
+  ).textContent =
+    ext;
+
+  item.querySelector(
+    '.received-file-name'
+  ).textContent =
+    name;
+
+  item.querySelector(
+    '.received-file-meta'
+  ).textContent =
+    `${formatBytes(size)} · received now`;
+
+  const code =
+    item.querySelector(
+      '.received-transfer-id code'
+    );
+
+  code.textContent =
+    id || 'Unavailable';
+
+  const copyButton =
+    item.querySelector(
+      '.received-copy-btn'
+    );
+
+  copyButton.disabled =
+    !id;
+
+  copyButton.addEventListener(
+    'click',
+    () =>
+      copyTransferIdValue(id)
+  );
+
+  const link =
+    item.querySelector(
+      '.download-link'
+    );
+
+  link.href =
+    url;
+
+  link.download =
+    name;
+
+  list.prepend(
+    item
+  );
 }
 
 async function failActiveTransfer(reason) {
@@ -936,11 +2868,42 @@ function uploadBroadcastFile(file) {
     state.broadcastXHR = xhr;
     xhr.open("POST", `/api/broadcast/${encodeURIComponent(state.room)}/upload`);
     xhr.responseType = "json";
+
+    // Capture the actual Sender device at the moment
+    // this file is uploaded. Do not depend only on the
+    // WebSocket copy of the client telemetry.
+    const senderClientInfo = collectClientInfo();
+
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
     xhr.setRequestHeader("X-AirGesture-Host-Token", state.broadcastHostToken);
     xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
     xhr.setRequestHeader("X-File-Size", String(file.size));
     xhr.setRequestHeader("X-File-Type", file.type || "application/octet-stream");
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-Browser",
+      encodeURIComponent(senderClientInfo.browser || "")
+    );
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-OS",
+      encodeURIComponent(senderClientInfo.os || "")
+    );
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-Device",
+      encodeURIComponent(senderClientInfo.deviceType || "")
+    );
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-Timezone",
+      encodeURIComponent(senderClientInfo.timezone || "")
+    );
+
+    xhr.setRequestHeader(
+      "X-AirGesture-Client-Language",
+      encodeURIComponent(senderClientInfo.language || "")
+    );
 
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return;
@@ -979,6 +2942,23 @@ async function prepareBroadcastAirCopy(trigger = "manual") {
   }
   if (state.broadcastUploadInProgress) return;
 
+  const fileSignature = [
+    state.selectedFile.name,
+    state.selectedFile.size,
+    state.selectedFile.lastModified || 0
+  ].join(":");
+
+  // One logical broadcast = one SEND database record.
+  // Ignore repeated hand gestures/manual clicks for the
+  // same file while that file is already active.
+  if (
+    state.broadcastFileId &&
+    state.broadcastFileSignature === fileSignature
+  ) {
+    toast("This file is already sent and waiting for receivers.");
+    return;
+  }
+
   state.transferTrigger = trigger;
   state.broadcastUploadInProgress = true;
   state.transferStart = performance.now();
@@ -989,12 +2969,34 @@ async function prepareBroadcastAirCopy(trigger = "manual") {
 
   try {
     const result = await uploadBroadcastFile(state.selectedFile);
-    state.broadcastFileId = result.file?.id || "";
-    renderBroadcastStats(result.stats || {});
+    state.broadcastFileId =
+      result.file?.id || "";
+
+    state.broadcastFileSignature =
+      fileSignature;
+
+    // Unique SEND event UUID returned by the server.
+    state.senderTransferId =
+      String(
+        result.transferId || ''
+      );
+
+    renderSenderTransferId();
+
+    renderBroadcastStats(
+      result.stats || {}
+    );
     setProgress(100);
     setTransferState("waiting receivers");
-    status(`Broadcast ready. ${state.broadcastStats.connected} receiver(s) can now show ✋ → ✊ to Air Paste ${state.selectedFile.name}.`);
+    status(`Broadcast ready. ${state.broadcastStats.connected} receiver(s) can now show ✊ → ✋ to Air Paste ${state.selectedFile.name}.`);
     toast("Air Send ready for the classroom");
+
+    setGestureExperience(
+      'sent',
+      'SENT',
+      'File is in the AirGesture room and ready for receivers.',
+      '✓'
+    );
   } catch (error) {
     if (error?.name === "AbortError") {
       setTransferState("cancelled");
@@ -1046,6 +3048,19 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
     gestureConfidence: state.lastGestureConfidence,
     clientInfo: collectClientInfo()
   }));
+  state.myTransfer = {
+    result: 'RECEIVING',
+    fileName: request.name,
+    fileSize: request.size,
+    trigger,
+    gestureConfidence: state.lastGestureConfidence,
+    acceptanceLatencySec,
+    latencyMs: state.networkLatencyMs,
+    integrityVerified: false
+  };
+
+  renderMyIntelligence();
+
   setTransferState("receiving broadcast");
   setProgress(0);
   status(`Air Paste accepted. Downloading ${request.name} from the universal room…`);
@@ -1100,8 +3115,89 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
 
     const durationSec = (performance.now() - started) / 1000;
     const speedMbps = durationSec > 0 ? (receivedBytes * 8) / 1_000_000 / durationSec : 0;
-    const url = URL.createObjectURL(blob);
-    addReceivedFile(request.name, blob.size, url);
+    const url =
+      URL.createObjectURL(blob);
+
+    state.myTransfer = {
+      result: 'SUCCESS',
+      fileName: request.name,
+      fileSize: blob.size,
+      trigger,
+      gestureConfidence: state.lastGestureConfidence,
+      acceptanceLatencySec,
+      latencyMs: state.networkLatencyMs,
+      speedMbps: Math.round(speedMbps * 100) / 100,
+      durationSec: Math.round(durationSec * 100) / 100,
+      integrityVerified: true
+    };
+
+    renderMyIntelligence();
+
+    const persistenceResponse = await fetch(
+      "/api/persistence/transfer",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          room: state.room,
+          fileId: request.fileId,
+          fileName: request.name,
+          fileSize: request.size,
+          fileType:
+            request.mime ||
+            "application/octet-stream",
+          result: "SUCCESS",
+          trigger,
+          latencyMs: state.networkLatencyMs,
+          speedMbps:
+            Math.round(speedMbps * 100) / 100,
+          durationSec:
+            Math.round(durationSec * 100) / 100,
+          acceptanceLatencySec,
+          gestureConfidence:
+            state.lastGestureConfidence,
+          integrityVerified: true,
+          retries: 0
+        })
+      }
+    );
+
+    const persistenceData =
+      await persistenceResponse
+        .json()
+        .catch(() => ({}));
+
+    let receiverTransferId = '';
+
+    if (!persistenceResponse.ok) {
+      console.error(
+        "PostgreSQL persistence failed:",
+        persistenceData
+      );
+
+    } else {
+      receiverTransferId =
+        String(
+          persistenceData
+            .transferId || ''
+        );
+    }
+
+    // The ID shown beside the received document is the
+    // exact classroom_data_events.id returned by PostgreSQL.
+    state.myTransfer.transferId =
+      receiverTransferId;
+
+    renderMyIntelligence();
+
+    addReceivedFile(
+      request.name,
+      blob.size,
+      url,
+      receiverTransferId
+    );
 
     state.ws.send(JSON.stringify({
       type: "broadcast-complete",
@@ -1119,6 +3215,13 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
     setTransferState("received");
     status(`${request.name} received from the universal room and integrity verified.`);
     toast("Classroom file received successfully");
+
+    setGestureExperience(
+      'received',
+      'RECEIVED',
+      'Transfer complete ✓',
+      '✓'
+    );
 
     await logEvent({
       type: "transfer",
@@ -1153,6 +3256,25 @@ async function acceptBroadcastAirPaste(trigger = "manual") {
         }));
       }
     } catch {}
+
+    state.myTransfer = {
+      result: cancelled ? 'CANCELLED' : 'FAILED',
+      fileName: request.name,
+      fileSize: request.size,
+      trigger,
+      gestureConfidence: state.lastGestureConfidence,
+      acceptanceLatencySec,
+      latencyMs: state.networkLatencyMs,
+      durationSec: Math.round(
+        ((performance.now() - started) / 1000) * 100
+      ) / 100,
+      integrityVerified: false,
+      failureReason: cancelled
+        ? 'Transfer cancelled'
+        : String(error.message || 'Download failed').slice(0, 160)
+    };
+
+    renderMyIntelligence();
 
     setProgress(0);
     setTransferState(cancelled ? "cancelled" : "failed");
@@ -1191,6 +3313,7 @@ async function cancelBroadcastTransfer() {
       state.ws.send(JSON.stringify({ type: "broadcast-cancel", fileId: state.broadcastFileId }));
     }
     state.broadcastFileId = "";
+    state.broadcastFileSignature = "";
     state.broadcastUploadInProgress = false;
     setProgress(0);
     setTransferState("cancelled");
@@ -1481,7 +3604,13 @@ async function loadVisionAI(startToken) {
     state.drawingUtils = new vision.DrawingUtils($('overlay').getContext('2d'));
     state.aiReady = true;
     setBadge($('cameraBadge'), `Vision AI Live · ${delegate}`, 'good');
-    status(state.role === 'sender' ? 'Vision AI is live. Show ✋ Open Hand → ✊ Closed Fist to Air Copy.' : 'Vision AI is live. Wait for an incoming file, then show ✋ Open Hand → ✊ Closed Fist to Air Paste.');
+    status(
+      state.role === 'sender'
+        ? 'Vision AI is live. Show ✋ Open Palm, then close to ✊ to grab and Air Copy.'
+        : 'Vision AI is live. Wait for the incoming pulse. Make ✊ to catch, then open ✋ to Air Paste.'
+    );
+
+    syncGestureExperience();
     if (!state.animationFrameId) state.animationFrameId = requestAnimationFrame(predictGesture);
   } catch (error) {
     if (startToken !== state.cameraStartToken) return;
@@ -1594,46 +3723,264 @@ function updateGestureHUD(name, score) {
   $("heroConfidence").textContent = pct ? `${pct}%` : "--";
 }
 
-async function fireAirGestureSequence(confidence) {
-  state.lastGestureConfidence = Number(confidence) || 0;
-  const action = state.role === "sender" ? "Air_Copy" : "Air_Paste";
-  await logEvent({ type: "gesture", gesture: action, confidence, role: state.role, action, mode: state.mode });
-  if (state.role === "sender") return prepareAirCopy("gesture");
-  return acceptAirPaste("gesture");
-}
+async function fireAirGestureSequence(
+  confidence
+) {
+  state.lastGestureConfidence =
+    Number(confidence) || 0;
 
-async function handleStableGesture(name, confidence) {
-  const now = performance.now();
-  if (state.gestureSequencePhase === "waiting-close" && now > state.gestureSequenceExpiresAt) {
-    resetGestureSequence();
-    status(state.role === "sender"
-      ? (state.mode === "broadcast"
-        ? "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Send."
-        : "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Copy.")
-      : "Gesture reset. Show ✋ once, then close naturally to ✊ for Air Paste.");
+  await playGestureSuccessAnimation(
+    state.role
+  );
+
+  if (
+    state.role === 'receiver'
+  ) {
+    renderMyIntelligence();
   }
 
-  if (name === "Open_Palm") {
-    if (state.gestureSequencePhase === "waiting-open") {
-      state.gestureSequencePhase = "waiting-close";
-      state.gestureSequenceExpiresAt = now + GESTURE_SEQUENCE_TIMEOUT_MS;
-      state.gestureOpenConfidence = confidence;
-      status(state.role === "sender"
-        ? (state.mode === "broadcast"
-          ? "Open Hand ✓ — close to ✊ to Air Send this file to the classroom."
-          : "Open Hand ✓ — simply close your hand to ✊ for Air Copy.")
-        : (state.mode === "broadcast"
-          ? "Open Hand ✓ — close to ✊ to Air Paste the room file."
-          : "Open Hand ✓ — simply close your hand to ✊ for Air Paste."));
-      toast("Open Hand ✓ — now close your hand");
+  const action =
+    state.role === 'sender'
+      ? 'Air_Copy'
+      : 'Air_Paste';
+
+  await logEvent({
+    type:
+      'gesture',
+
+    gesture:
+      action,
+
+    confidence,
+
+    role:
+      state.role,
+
+    action,
+
+    mode:
+      state.mode
+  });
+
+
+  if (
+    state.role === 'sender'
+  ) {
+    return prepareAirCopy(
+      'gesture'
+    );
+  }
+
+  return acceptAirPaste(
+    'gesture'
+  );
+}
+
+async function handleStableGesture(
+  name,
+  confidence
+) {
+  const now =
+    performance.now();
+
+
+  // ---------------------------------
+  // RECEIVER
+  // ✊ CATCH -> ✋ RELEASE
+  // ---------------------------------
+  if (
+    state.role === 'receiver'
+  ) {
+
+    if (!state.pendingRequest) {
+      syncGestureExperience();
+
+      return;
     }
+
+
+    if (
+      state.gestureSequencePhase ===
+        'waiting-release' &&
+      now >
+        state.gestureSequenceExpiresAt
+    ) {
+      resetGestureSequence();
+      syncGestureExperience();
+
+      status(
+        'Catch reset. Make a fist ✊ again, then open your hand ✋.'
+      );
+
+      return;
+    }
+
+
+    if (
+      name === 'Closed_Fist' &&
+      state.gestureSequencePhase ===
+        'waiting-fist'
+    ) {
+      state.gestureSequencePhase =
+        'waiting-release';
+
+      state.gestureSequenceExpiresAt =
+        now +
+        GESTURE_SEQUENCE_TIMEOUT_MS;
+
+      state.gestureOpenConfidence =
+        confidence;
+
+
+      setGestureExperience(
+        'caught',
+        'CAUGHT',
+        'Great. Now open your hand ✋ to release and receive.',
+        '✊'
+      );
+
+
+      status(
+        'File caught ✓ — open your hand ✋ to Air Paste.'
+      );
+
+      toast(
+        'Caught ✓ — now open your hand ✋'
+      );
+
+
+      await animateAirFile(
+        'grab'
+      );
+
+      return;
+    }
+
+
+    if (
+      name === 'Open_Palm' &&
+      state.gestureSequencePhase ===
+        'waiting-release' &&
+      now <=
+        state.gestureSequenceExpiresAt
+    ) {
+      const combinedConfidence =
+        Math.min(
+          1,
+          (
+            state.gestureOpenConfidence +
+            confidence
+          ) / 2
+        );
+
+      resetGestureSequence();
+
+      await fireAirGestureSequence(
+        combinedConfidence
+      );
+
+      state.gestureCooldownUntil =
+        performance.now() +
+        GESTURE_COOLDOWN_MS;
+
+      return;
+    }
+
+
     return;
   }
 
-  if (name === "Closed_Fist" && state.gestureSequencePhase === "waiting-close" && now <= state.gestureSequenceExpiresAt) {
-    const combinedConfidence = Math.min(1, (state.gestureOpenConfidence + confidence) / 2);
+
+  // ---------------------------------
+  // SENDER
+  // ✋ ARM -> ✊ GRAB
+  // ---------------------------------
+
+  if (!state.selectedFile) {
+    syncGestureExperience();
+
+    return;
+  }
+
+
+  if (
+    state.gestureSequencePhase ===
+      'waiting-close' &&
+    now >
+      state.gestureSequenceExpiresAt
+  ) {
     resetGestureSequence();
-    await fireAirGestureSequence(combinedConfidence);
+    syncGestureExperience();
+
+    status(
+      'Grab reset. Show your open palm ✋ again, then close your fist ✊.'
+    );
+
+    return;
+  }
+
+
+  if (
+    name === 'Open_Palm' &&
+    state.gestureSequencePhase ===
+      'waiting-open'
+  ) {
+    state.gestureSequencePhase =
+      'waiting-close';
+
+    state.gestureSequenceExpiresAt =
+      now +
+      GESTURE_SEQUENCE_TIMEOUT_MS;
+
+    state.gestureOpenConfidence =
+      confidence;
+
+
+    setGestureExperience(
+      'armed',
+      'READY TO GRAB',
+      'Open Palm detected ✓ — close your fist ✊ to grab the file.',
+      '✋'
+    );
+
+
+    status(
+      'Open Palm ✓ — close your fist ✊ to grab and Air Copy.'
+    );
+
+    toast(
+      'Ready to grab — close your fist ✊'
+    );
+
+    return;
+  }
+
+
+  if (
+    name === 'Closed_Fist' &&
+    state.gestureSequencePhase ===
+      'waiting-close' &&
+    now <=
+      state.gestureSequenceExpiresAt
+  ) {
+    const combinedConfidence =
+      Math.min(
+        1,
+        (
+          state.gestureOpenConfidence +
+          confidence
+        ) / 2
+      );
+
+    resetGestureSequence();
+
+    await fireAirGestureSequence(
+      combinedConfidence
+    );
+
+    state.gestureCooldownUntil =
+      performance.now() +
+      GESTURE_COOLDOWN_MS;
   }
 }
 
@@ -1656,7 +4003,15 @@ async function predictGesture() {
         }
       }
 
-      // ULTRA-EASY GESTURE MODE:
+      if (
+        result.landmarks?.[0]?.length
+      ) {
+        updateGestureHandAnchor(
+          result.landmarks[0]
+        );
+      }
+
+      // AIRGESTURE GRAB / RELEASE MODE:
       // A single accepted Open Palm frame latches OPEN.
       // A single accepted Closed Fist frame after that completes Air Copy/Air Paste.
       // No hold, no repeated-frame confirmation, and intermediate motion is ignored.
@@ -1665,20 +4020,79 @@ async function predictGesture() {
       const rawScore = simple.score;
       updateGestureHUD(name, rawScore);
 
-      const now = performance.now();
-      if (state.gestureSequencePhase === 'waiting-close' && now > state.gestureSequenceExpiresAt) {
+      const now =
+        performance.now();
+
+      const expired =
+        (
+          state.gestureSequencePhase ===
+            'waiting-close' ||
+          state.gestureSequencePhase ===
+            'waiting-release'
+        ) &&
+        now >
+          state.gestureSequenceExpiresAt;
+
+      if (expired) {
         resetGestureSequence();
-        status(state.role === 'sender'
-          ? 'Ready. Show ✋ once, then simply close to ✊ for Air Copy.'
-          : 'Ready. Show ✋ once, then simply close to ✊ for Air Paste.');
+        syncGestureExperience();
       }
 
-      if (now >= state.gestureCooldownUntil) {
-        if (name === 'Open_Palm' && state.gestureSequencePhase === 'waiting-open') {
-          await handleStableGesture('Open_Palm', rawScore);
-        } else if (name === 'Closed_Fist' && state.gestureSequencePhase === 'waiting-close') {
-          await handleStableGesture('Closed_Fist', rawScore);
-          state.gestureCooldownUntil = performance.now() + GESTURE_COOLDOWN_MS;
+
+      if (
+        now >=
+        state.gestureCooldownUntil
+      ) {
+
+        if (
+          state.role === 'sender'
+        ) {
+
+          if (
+            name === 'Open_Palm' &&
+            state.gestureSequencePhase ===
+              'waiting-open'
+          ) {
+            await handleStableGesture(
+              'Open_Palm',
+              rawScore
+            );
+
+          } else if (
+            name === 'Closed_Fist' &&
+            state.gestureSequencePhase ===
+              'waiting-close'
+          ) {
+            await handleStableGesture(
+              'Closed_Fist',
+              rawScore
+            );
+          }
+
+        } else if (
+          state.pendingRequest
+        ) {
+
+          if (
+            name === 'Closed_Fist' &&
+            state.gestureSequencePhase ===
+              'waiting-fist'
+          ) {
+            await handleStableGesture(
+              'Closed_Fist',
+              rawScore
+            );
+
+          } else if (
+            name === 'Open_Palm' &&
+            state.gestureSequencePhase ===
+              'waiting-release'
+          ) {
+            await handleStableGesture(
+              'Open_Palm',
+              rawScore
+            );
+          }
         }
       }
     } catch (error) {
@@ -1707,6 +4121,11 @@ function chartColors() {
 
 async function refreshAnalytics() {
   const response = await fetch("/api/analytics");
+
+  // During a first-time Google login the application script can initialize
+  // before the authenticated session has been established.
+  if (!response.ok) return;
+
   const data = await response.json();
   const { kpis } = data;
   $("kpiSuccess").textContent = `${kpis.successRate}%`;
@@ -1831,10 +4250,487 @@ async function clearAnalytics() {
   toast("Evidence cleared");
 }
 
+
+function formatDatabaseDate(value) {
+  if (!value) return '—';
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '—';
+  }
+
+  return date.toLocaleString();
+}
+
+
+function yesNo(value) {
+  return value ? 'YES' : 'NO';
+}
+
+
+function renderDatabaseTable(
+  bodyId,
+  rows,
+  columns,
+  emptyText = 'No records yet.'
+) {
+  const body =
+    $(bodyId);
+
+  if (!body) return;
+
+  body.innerHTML = '';
+
+  if (!Array.isArray(rows) || !rows.length) {
+    const tr =
+      document.createElement('tr');
+
+    const td =
+      document.createElement('td');
+
+    td.colSpan =
+      columns.length;
+
+    td.className =
+      'table-empty';
+
+    td.textContent =
+      emptyText;
+
+    tr.appendChild(td);
+    body.appendChild(tr);
+    return;
+  }
+
+  for (const row of rows) {
+    const tr =
+      document.createElement('tr');
+
+    for (const column of columns) {
+      const td =
+        document.createElement('td');
+
+      const value =
+        typeof column === 'function'
+          ? column(row)
+          : row?.[column];
+
+      td.textContent =
+        value === null ||
+        value === undefined ||
+        value === ''
+          ? '—'
+          : String(value);
+
+      tr.appendChild(td);
+    }
+
+    body.appendChild(tr);
+  }
+}
+
+
+function renderAdminDatabase(data = {}) {
+  const summary =
+    data.summary || {};
+
+  setText(
+    'dbUsers',
+    summary.users ?? 0
+  );
+
+  setText(
+    'dbClassSessions',
+    summary.classSessions ?? 0
+  );
+
+  setText(
+    'dbParticipants',
+    summary.participants ?? 0
+  );
+
+  setText(
+    'dbTransferEvents',
+    summary.transferEvents ?? 0
+  );
+
+  setText(
+    'dbCommercialProfiles',
+    summary.commercialProfiles ?? 0
+  );
+
+  setText(
+    'dbConsentEvents',
+    summary.consentEvents ?? 0
+  );
+
+  setText(
+    'dbRecommendations',
+    summary.recommendationEvents ?? 0
+  );
+
+  setText(
+    'dbConversions',
+    summary.conversionEvents ?? 0
+  );
+
+
+  setText(
+    'dbGeneratedAt',
+    data.generatedAt
+      ? `Updated ${formatDatabaseDate(data.generatedAt)}`
+      : 'Database connected'
+  );
+
+
+  renderDatabaseTable(
+    'dbUsersBody',
+    data.users,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        ),
+      (r) =>
+        formatDatabaseDate(
+          r.last_login_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbProfilesBody',
+    data.commercialProfiles,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) => r.browser,
+      (r) => r.os,
+      (r) => r.device_type,
+      (r) => r.device_segment,
+      (r) =>
+        [r.country, r.region]
+          .filter(Boolean)
+          .join(' · ') || '—',
+      (r) => r.visit_count,
+      (r) => r.total_transfers,
+      (r) =>
+        formatBytes(
+          Number(r.total_bytes) || 0
+        ),
+      (r) => r.image_transfers,
+      (r) => r.pdf_transfers,
+      (r) => r.video_transfers,
+      (r) => r.document_transfers,
+      (r) => r.usage_segment,
+      (r) =>
+        formatDatabaseDate(
+          r.updated_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbConsentBody',
+    data.consentPreferences,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        yesNo(
+          r.analytics_consent
+        ),
+      (r) =>
+        yesNo(
+          r.personalization_consent
+        ),
+      (r) =>
+        yesNo(
+          r.marketing_consent
+        ),
+      (r) => r.policy_version,
+      (r) =>
+        formatDatabaseDate(
+          r.updated_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbConsentEventsBody',
+    data.consentEvents,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        yesNo(
+          r.analytics_consent
+        ),
+      (r) =>
+        yesNo(
+          r.personalization_consent
+        ),
+      (r) =>
+        yesNo(
+          r.marketing_consent
+        ),
+      (r) => r.source,
+      (r) => r.policy_version,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbTransfersBody',
+    data.transferEvents,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) => r.room_code,
+      (r) => r.result,
+      (r) => r.file_name,
+      (r) => r.file_type,
+      (r) =>
+        formatBytes(
+          Number(
+            r.file_size_bytes
+          ) || 0
+        ),
+      (r) =>
+        `${Number(r.speed_mbps || 0).toFixed(2)} Mbps`,
+      (r) =>
+        `${Number(r.duration_sec || 0).toFixed(2)} sec`,
+      (r) =>
+        yesNo(
+          r.integrity_verified
+        ),
+      (r) =>
+        [
+          r.browser,
+          r.os,
+          r.device_type
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      (r) => r.location,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        )
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbGovernanceBody',
+    data.governanceRegistry,
+    [
+      (r) => r.data_field,
+      (r) => r.purpose,
+      (r) => r.source,
+      (r) => r.data_owner,
+      (r) => r.sensitivity,
+      (r) =>
+        `${r.retention_days} days`,
+      (r) =>
+        yesNo(
+          r.commercial_allowed
+        ),
+      (r) => r.notes
+    ]
+  );
+
+
+  renderDatabaseTable(
+    'dbRecommendationsBody',
+    data.recommendationEvents,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        r.commercial_segment,
+      (r) =>
+        r.recommendation_category,
+      (r) => r.campaign_id,
+      (r) => r.action,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        )
+    ],
+    'No recommendation records yet.'
+  );
+
+
+  renderDatabaseTable(
+    'dbConversionsBody',
+    data.conversionEvents,
+    [
+      (r) => r.name,
+      (r) => r.email,
+      (r) =>
+        r.conversion_type,
+      (r) =>
+        `${r.currency || 'USD'} ${Number(
+          r.value_amount || 0
+        ).toFixed(2)}`,
+      (r) =>
+        formatDatabaseDate(
+          r.created_at
+        )
+    ],
+    'No conversion records yet.'
+  );
+}
+
+
+async function loadAdminDatabase(
+  force = false
+) {
+  if (
+    state.adminDatabaseDenied &&
+    !force
+  ) {
+    return;
+  }
+
+  if (
+    state.adminDatabaseLoaded &&
+    !force
+  ) {
+    return;
+  }
+
+  const panel =
+    $('databaseIntelligencePanel');
+
+  const statusBadge =
+    $('dbDashboardStatus');
+
+  try {
+    if (statusBadge) {
+      statusBadge.textContent =
+        'Loading PostgreSQL…';
+    }
+
+    const response =
+      await fetch(
+        '/api/admin/database?limit=250',
+        {
+          cache: 'no-store'
+        }
+      );
+
+    if (
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      state.adminDatabaseDenied =
+        response.status === 403;
+
+      if (panel) {
+        panel.hidden = true;
+      }
+
+      return;
+    }
+
+    const data =
+      await response
+        .json()
+        .catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        'Database dashboard unavailable.'
+      );
+    }
+
+    state.adminDatabase =
+      data;
+
+    state.adminDatabaseLoaded =
+      true;
+
+    if (panel) {
+      panel.hidden = false;
+    }
+
+    if (statusBadge) {
+      statusBadge.textContent =
+        'PostgreSQL Live';
+
+      statusBadge.className =
+        'status-badge good';
+    }
+
+    renderAdminDatabase(data);
+  } catch (error) {
+    console.error(
+      'Database dashboard load failed:',
+      error
+    );
+
+    if (panel) {
+      panel.hidden = false;
+    }
+
+    if (statusBadge) {
+      statusBadge.textContent =
+        'Database unavailable';
+
+      statusBadge.className =
+        'status-badge warn';
+    }
+
+    setText(
+      'dbGeneratedAt',
+      error.message ||
+      'Could not load database intelligence.'
+    );
+  }
+}
+
+
+
+
+
+
+function openLiveDataWindow() {
+  window.open(
+    '/live-data.html',
+    '_blank',
+    'noopener'
+  );
+}
+
+
 function switchView(id) {
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === id));
   document.querySelectorAll(".nav-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === id));
-  if (id === "analyticsView") setTimeout(refreshAnalytics, 50);
+
+  if (id === "analyticsView") {
+    setTimeout(() => {
+      refreshAnalytics();
+      loadAdminDatabase();
+    }, 50);
+  }
 }
 
 function bindEvents() {
@@ -1856,7 +4752,36 @@ function bindEvents() {
   $("refreshAnalyticsBtn").addEventListener("click", refreshAnalytics);
   $("demoDataBtn").addEventListener("click", loadDemoData);
   $("clearDataBtn").addEventListener("click", clearAnalytics);
+  $('refreshDatabaseBtn')?.addEventListener(
+    'click',
+    () => {
+      state.adminDatabaseLoaded = false;
+      loadAdminDatabase(true);
+    }
+  );
   $("themeBtn").addEventListener("click", () => { document.body.classList.toggle("light"); if ($("analyticsView").classList.contains("active")) refreshAnalytics(); });
+
+  $('openLiveDataBtn')
+    ?.addEventListener(
+      'click',
+      openLiveDataWindow
+    );
+
+  window.addEventListener('airgesture-auth-user', (event) => {
+    state.authUser = event.detail || null;
+
+    if (state.role === 'receiver') {
+      renderMyIntelligence();
+    }
+
+    loadCommercialConsent();
+  });
+
+  $('saveConsentBtn')?.addEventListener(
+    'click',
+    saveCommercialConsent
+  );
+
   window.addEventListener("resize", () => state.cameraRunning && resizeOverlay());
   window.addEventListener("beforeunload", () => { state.ws?.close(); stopCamera(); });
 }
@@ -1869,6 +4794,17 @@ function init() {
   setProgress(0);
   renderBroadcastStats({});
   refreshAnalytics();
+
+  setTimeout(() => {
+    if (
+      window.AirGestureAuthUser
+    ) {
+      state.authUser =
+        window.AirGestureAuthUser;
+
+      loadCommercialConsent();
+    }
+  }, 100);
 }
 
 init();

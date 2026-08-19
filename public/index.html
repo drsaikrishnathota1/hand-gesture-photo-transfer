@@ -11,7 +11,51 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="classroom-simplified">
+  <section id="authGate" class="auth-gate">
+    <div class="auth-card glass">
+      <div class="auth-logo">✋</div>
+
+      <div class="eyebrow">DBA 802 · DECISION INTELLIGENCE LAB</div>
+
+      <h1>
+        Welcome to
+        <span>AirGesture</span>
+      </h1>
+
+      <p>
+        Sign in with your Google account to enter the live
+        Data Analytics & Decision Intelligence laboratory.
+      </p>
+
+      <div class="auth-purpose">
+        <div>
+          <strong>IDENTITY</strong>
+          <span>Your Google account identifies your classroom session.</span>
+        </div>
+
+        <div>
+          <strong>PRIVACY</strong>
+          <span>AirGesture never receives or stores your Google password.</span>
+        </div>
+
+        <div>
+          <strong>EVIDENCE</strong>
+          <span>Your interactions will later become your personal analytics dataset.</span>
+        </div>
+      </div>
+
+      <div id="googleSignInButton" class="google-signin"></div>
+      <p id="authMessage" class="auth-message">Loading secure sign-in…</p>
+
+      <small class="auth-footnote">
+        Authentication is provided by Google. By entering the DBA 802 lab,
+        classroom transfer and device analytics are recorded for teaching and
+        aggregate product analysis. Passwords, file contents, camera frames,
+        and full IP addresses are not collected.
+      </small>
+    </div>
+  </section>
   <div class="ambient ambient-one"></div>
   <div class="ambient ambient-two"></div>
   <div class="grid-bg"></div>
@@ -28,13 +72,45 @@
         </span>
       </a>
 
-      <nav class="nav-tabs" aria-label="Primary navigation">
-        <button class="nav-tab active" data-view="transferView">Transfer Lab</button>
-        <button class="nav-tab" data-view="analyticsView">Executive Analytics</button>
+      <nav
+        class="classroom-top-tabs"
+        aria-label="AirGesture classroom views"
+      >
+        <span
+          class="classroom-main-tab active"
+        >
+          Transfer
+        </span>
+
+        <button
+          id="openLiveDataBtn"
+          class="classroom-main-tab database"
+          type="button"
+        >
+          Database ↗
+        </button>
+
+        <a
+          href="/intelligence.html"
+          class="classroom-main-tab database"
+          style="text-decoration: none;"
+        >
+          Intelligence ✦
+        </a>
       </nav>
 
       <div class="top-actions">
         <span class="system-pill"><i class="pulse-dot"></i><span id="systemStatus">System Ready</span></span>
+
+        <div id="authUser" class="auth-user" hidden>
+          <img id="authUserPicture" alt="" hidden />
+          <div>
+            <strong id="authUserName">Signed In</strong>
+            <small id="authUserEmail"></small>
+          </div>
+          <button id="logoutBtn" class="mini-btn" type="button">Sign out</button>
+        </div>
+
         <button id="themeBtn" class="icon-btn" title="Toggle visual mode" aria-label="Toggle visual mode">◐</button>
       </div>
     </header>
@@ -44,11 +120,11 @@
         <div class="hero-grid">
           <div class="hero-copy">
             <div class="eyebrow">DBA 802 · WEEK 1 · DATA → INSIGHT → DECISION</div>
-            <h1>Move files with a gesture.<br><span>Measure every decision.</span></h1>
+            <h1>Grab. Send. Catch.<br><span>Watch data become insight.</span></h1>
             <p>AirGesture turns touchless interaction into a measurable executive experiment: one Sender joins a universal room, uploads once, and any number of Receivers supported by the deployed server can join the same code, Air Paste, and generate decision-ready analytics.</p>
             <div class="hero-badges">
               <span>Sender: ✋ → ✊ Air Copy</span>
-              <span>Receiver: ✋ → ✊ Air Paste</span>
+              <span>Receiver: ✊ → ✋ Air Paste</span>
               <span>Easy Gesture Mode · no long hold</span>
             </div>
           </div>
@@ -80,6 +156,78 @@
                 <div class="confidence-track"><span id="confidenceBar"></span></div>
                 <span id="confidenceText">0%</span>
               </div>
+
+              <div
+                id="gestureExperience"
+                class="gesture-experience idle"
+                aria-live="polite"
+              >
+
+                <div
+                  id="gestureHandAnchor"
+                  class="gesture-hand-anchor"
+                ></div>
+
+                <div class="gesture-experience-shell">
+
+                  <div
+                    id="gestureFileCard"
+                    class="air-file-card"
+                  >
+                    <span
+                      id="gestureFileIcon"
+                      class="air-file-icon"
+                    >
+                      📄
+                    </span>
+
+                    <div>
+                      <small id="gestureFileLabel">
+                        AIR FILE
+                      </small>
+
+                      <strong id="gestureFileName">
+                        No file selected
+                      </strong>
+                    </div>
+                  </div>
+
+
+                  <div class="gesture-action-content">
+
+                    <span
+                      id="gestureExperienceEyebrow"
+                      class="gesture-experience-eyebrow"
+                    >
+                      AIRGESTURE
+                    </span>
+
+                    <strong
+                      id="gestureExperienceTitle"
+                      class="gesture-experience-title"
+                    >
+                      READY
+                    </strong>
+
+                    <div
+                      id="gestureExperienceHand"
+                      class="gesture-big-hand"
+                    >
+                      ✋
+                    </div>
+
+                    <p
+                      id="gestureExperienceHint"
+                      class="gesture-experience-hint"
+                    >
+                      Choose a file and start Vision AI.
+                    </p>
+
+                  </div>
+
+                </div>
+              </div>
+
             </div>
 
             <div class="gesture-controls">
@@ -128,8 +276,34 @@
               <input id="fileInput" type="file" hidden />
               <div class="drop-icon">⇧</div>
               <strong id="fileTitle">Choose a file to transfer</strong>
-              <p id="fileMeta">Click or drag & drop · up to 100 MB</p>
+              <p id="fileMeta">Supported: PDF, Word, Excel, CSV, TXT, images, videos & other files · Maximum 100 MB per file</p>
               <button id="chooseFileBtn" class="btn ghost small">Browse File</button>
+            </div>
+
+            <div
+              id="senderTransferIdPanel"
+              class="transfer-id-banner"
+              hidden
+            >
+              <span class="transfer-id-label">
+                SEND TRANSFER ID
+              </span>
+
+              <div class="transfer-id-value-row">
+                <code id="senderTransferIdValue">--</code>
+
+                <button
+                  id="copySenderTransferIdBtn"
+                  class="transfer-id-copy-btn"
+                  type="button"
+                >
+                  Copy
+                </button>
+              </div>
+
+              <small>
+                Unique transaction ID for this Sender SEND event
+              </small>
             </div>
 
             <div class="transfer-state">
@@ -143,13 +317,19 @@
 
             <div class="action-grid">
               <button id="copyBtn" class="btn glow">✋ → ✊ Air Copy</button>
-              <button id="pasteBtn" class="btn primary" disabled>✋ → ✊ Air Paste</button>
+              <button id="pasteBtn" class="btn primary" disabled>✊ → ✋ Air Paste</button>
               <button id="cancelBtn" class="btn danger" disabled>Cancel</button>
             </div>
 
             <div class="decision-ticker">
               <span class="ticker-label">LIVE EVENT</span>
               <span id="statusText">Select Sender or Receiver, enter the same universal room code, connect, and start Vision AI.</span>
+            </div>
+
+
+            <div class="classroom-data-notice">
+              Classroom transfer and device analytics are recorded
+              for DBA 802 teaching and aggregate product analysis.
             </div>
           </section>
         </div>
@@ -186,15 +366,245 @@
           </section>
         </div>
 
-        <section class="panel glass network-intelligence-panel">
+        <section id="myIntelligencePanel" class="panel glass my-intelligence-panel" hidden>
           <div class="panel-head compact">
             <div>
-              <span class="section-kicker">04 · LIVE DATA</span>
+              <span class="section-kicker">04 · MY LIVE DATA</span>
+              <h2>My AirGesture Intelligence</h2>
+            </div>
+            <span id="myTransferResult" class="status-badge neutral">WAITING</span>
+          </div>
+
+          <p class="my-intelligence-intro">
+            Your personal receiver evidence. This view shows only your own identity,
+            device, network, gesture and transfer results.
+          </p>
+
+          <div class="my-profile-strip">
+            <img id="myProfilePicture" class="my-profile-picture" alt="" hidden />
+
+            <div class="my-profile-copy">
+              <span>SIGNED-IN PARTICIPANT</span>
+              <strong id="myIdentityName">Signed-in participant</strong>
+              <small id="myIdentityEmail">Waiting for profile…</small>
+            </div>
+
+            <div class="my-profile-meta">
+              <span>RECEIVER ID</span>
+              <strong id="myReceiverId">Not joined</strong>
+            </div>
+
+            <div class="my-profile-meta">
+              <span>ROOM</span>
+              <strong id="myRoomCode">Not joined</strong>
+            </div>
+          </div>
+
+          <div class="my-intelligence-grid">
+            <article class="my-intelligence-card">
+              <span>MY DEVICE</span>
+              <strong id="myDevice">Waiting…</strong>
+              <div class="my-card-lines">
+                <small>Masked IP <b id="myMaskedIp">Waiting…</b></small>
+                <small>Location <b id="myLocation">Waiting…</b></small>
+                <small>Provider <b id="myProvider">Waiting…</b></small>
+                <small>Server latency <b id="myLatency">Waiting…</b></small>
+              </div>
+            </article>
+
+            <article class="my-intelligence-card">
+              <span>MY TRANSFER</span>
+              <strong id="myTransferFile">Waiting for Sender</strong>
+              <div class="my-card-lines">
+                <small class="my-transfer-id-line">
+                  Transfer ID
+                  <b id="myTransferId">--</b>
+                </small>
+                <small>Size <b id="myTransferSize">--</b></small>
+                <small>Speed <b id="myTransferSpeed">--</b></small>
+                <small>Duration <b id="myTransferDuration">--</b></small>
+                <small>Integrity <b id="myTransferIntegrity">WAITING</b></small>
+              </div>
+            </article>
+
+            <article class="my-intelligence-card">
+              <span>MY GESTURE</span>
+              <strong id="myGestureAction">Waiting for Air Paste</strong>
+              <div class="my-card-lines">
+                <small>Confidence <b id="myGestureConfidence">--</b></small>
+                <small>Action <b>✊ → ✋ Air Paste</b></small>
+                <small>Processing <b>On-device Vision AI</b></small>
+                <small>Frames stored <b>NO</b></small>
+              </div>
+            </article>
+
+            <article class="my-intelligence-card">
+              <span>MY NETWORK</span>
+              <strong id="myNetworkQuality">WAITING</strong>
+              <div class="my-card-lines">
+                <small>Privacy <b>Masked network data</b></small>
+                <small>Full IP stored <b>NO</b></small>
+                <small>Camera upload <b>NO</b></small>
+                <small>Evidence scope <b>My session</b></small>
+              </div>
+            </article>
+          </div>
+
+          <div class="my-decision-grid">
+            <article>
+              <span>DESCRIPTIVE</span>
+              <strong>What happened to me?</strong>
+              <p id="myDescriptiveInsight">Complete an Air Paste to generate your transfer evidence.</p>
+            </article>
+
+            <article>
+              <span>DATA QUALITY</span>
+              <strong id="myDataQuality">WAITING</strong>
+              <p>Byte count, SHA-256 integrity and session telemetry determine evidence quality.</p>
+            </article>
+
+            <article class="my-recommendation-card">
+              <span>PRESCRIPTIVE</span>
+              <strong>What should I do?</strong>
+              <p id="myRecommendation">Join the Sender room and complete an Air Paste.</p>
+            </article>
+          </div>
+
+          <p class="privacy-note my-privacy-note">
+            Receiver privacy: other participants' identities and intelligence rows are
+            not shown in this view.
+          </p>
+        </section>
+
+
+        <section
+          id="dataPreferencesPanel"
+          class="panel glass data-preferences-panel"
+        >
+          <div class="panel-head compact">
+            <div>
+              <span class="section-kicker">
+                DATA GOVERNANCE
+              </span>
+
+              <h2>
+                My Data Preferences
+              </h2>
+            </div>
+
+            <span
+              id="consentStatus"
+              class="status-badge neutral"
+            >
+              Commercial analytics collection disabled
+            </span>
+          </div>
+
+          <p class="data-preferences-intro">
+            Choose how your first-party AirGesture data may be used.
+            All commercial options are off by default.
+          </p>
+
+          <div class="consent-grid">
+
+            <label class="consent-option">
+              <input
+                id="analyticsConsent"
+                type="checkbox"
+              />
+
+              <span>
+                <strong>
+                  Commercial Analytics
+                </strong>
+
+                <small>
+                  Allow device, coarse market,
+                  acquisition and usage-category
+                  data to support aggregate
+                  business analysis.
+                </small>
+              </span>
+            </label>
+
+
+            <label class="consent-option">
+              <input
+                id="personalizationConsent"
+                type="checkbox"
+              />
+
+              <span>
+                <strong>
+                  Personalization
+                </strong>
+
+                <small>
+                  Allow approved commercial
+                  segments to be used later for
+                  product or service
+                  recommendations.
+                </small>
+              </span>
+            </label>
+
+
+            <label class="consent-option">
+              <input
+                id="marketingConsent"
+                type="checkbox"
+              />
+
+              <span>
+                <strong>
+                  Marketing Activity
+                </strong>
+
+                <small>
+                  Allow campaign and offer
+                  interactions to be measured
+                  for commercial analysis.
+                </small>
+              </span>
+            </label>
+
+          </div>
+
+
+          <div class="data-preferences-footer">
+
+            <p class="privacy-note">
+              Commercial profile excludes full IP,
+              camera frames, Google credentials,
+              precise location and transferred
+              file contents.
+            </p>
+
+            <button
+              id="saveConsentBtn"
+              class="btn secondary"
+              type="button"
+            >
+              Save Data Preferences
+            </button>
+
+          </div>
+        </section>
+
+
+        <section id="senderIntelligencePanel" class="panel glass network-intelligence-panel">
+          <div class="panel-head compact">
+            <div>
+              <span class="section-kicker">04 · CLASSROOM LIVE DATA</span>
               <h2>Receiver Network Intelligence</h2>
             </div>
             <span id="receiverIntelligenceCount" class="counter">0</span>
           </div>
-          <p class="network-intro">Privacy-first operational telemetry for the DBA analytics lab. Full IP addresses are never displayed or persisted; only masked network identifiers are retained.</p>
+
+          <p class="network-intro">
+            Sender/Host operational view of authenticated Receivers in the active room.
+            Full IP addresses are never displayed or persisted.
+          </p>
 
           <div class="own-network-grid">
             <div><span>This Device IP</span><strong id="ownNetworkIp">Waiting…</strong></div>
@@ -207,12 +617,18 @@
           <div class="table-wrap network-table-wrap">
             <table class="network-table">
               <thead>
-                <tr><th>Receiver</th><th>Masked IP</th><th>Location</th><th>Provider</th><th>Device / Browser / OS</th><th>Latency</th><th>Speed</th><th>Quality</th><th>Result</th></tr>
+                <tr><th>Participant</th><th>Receiver</th><th>Masked IP</th><th>Location</th><th>Provider</th><th>Device / Browser / OS</th><th>Latency</th><th>Speed</th><th>Quality</th><th>Result</th></tr>
               </thead>
-              <tbody id="receiverIntelligenceBody"><tr><td colspan="9" class="table-empty">No receiver network evidence yet.</td></tr></tbody>
+              <tbody id="receiverIntelligenceBody">
+                <tr><td colspan="10" class="table-empty">No authenticated receiver evidence yet.</td></tr>
+              </tbody>
             </table>
           </div>
-          <p class="privacy-note network-privacy">Location/provider are shown only when supplied by the deployment proxy or an explicitly configured server-side IP enrichment service. Localhost tests correctly show local/private-network values.</p>
+
+          <p class="privacy-note network-privacy">
+            Location/provider are shown only when supplied by the deployment proxy
+            or an explicitly configured server-side enrichment service.
+          </p>
         </section>
 
       </section>
@@ -275,16 +691,350 @@
             </table>
           </div>
         </section>
+
+        <section
+          id="databaseIntelligencePanel"
+          class="panel glass database-intelligence-panel"
+          hidden
+        >
+          <div class="panel-head compact">
+            <div>
+              <span class="section-kicker">
+                ADMIN · POSTGRESQL
+              </span>
+
+              <h2>
+                Database Intelligence
+              </h2>
+            </div>
+
+            <span
+              id="dbDashboardStatus"
+              class="status-badge neutral"
+            >
+              Loading PostgreSQL…
+            </span>
+          </div>
+
+
+          <div class="database-toolbar">
+            <div>
+              <strong>
+                Read-only commercial data view
+              </strong>
+
+              <small id="dbGeneratedAt">
+                Waiting for database…
+              </small>
+            </div>
+
+            <button
+              id="refreshDatabaseBtn"
+              class="btn secondary small"
+              type="button"
+            >
+              Refresh Database
+            </button>
+          </div>
+
+
+          <div class="database-kpi-grid">
+
+            <article>
+              <span>USERS</span>
+              <strong id="dbUsers">0</strong>
+            </article>
+
+            <article>
+              <span>CLASS SESSIONS</span>
+              <strong id="dbClassSessions">0</strong>
+            </article>
+
+            <article>
+              <span>PARTICIPANTS</span>
+              <strong id="dbParticipants">0</strong>
+            </article>
+
+            <article>
+              <span>TRANSFERS</span>
+              <strong id="dbTransferEvents">0</strong>
+            </article>
+
+            <article>
+              <span>COMMERCIAL PROFILES</span>
+              <strong id="dbCommercialProfiles">0</strong>
+            </article>
+
+            <article>
+              <span>CONSENT EVENTS</span>
+              <strong id="dbConsentEvents">0</strong>
+            </article>
+
+            <article>
+              <span>RECOMMENDATIONS</span>
+              <strong id="dbRecommendations">0</strong>
+            </article>
+
+            <article>
+              <span>CONVERSIONS</span>
+              <strong id="dbConversions">0</strong>
+            </article>
+
+          </div>
+
+
+          <details
+            class="database-record-group"
+            open
+          >
+            <summary>
+              Commercial Profiles
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Browser</th>
+                    <th>OS</th>
+                    <th>Device</th>
+                    <th>Device Segment</th>
+                    <th>Market</th>
+                    <th>Visits</th>
+                    <th>Transfers</th>
+                    <th>Total Data</th>
+                    <th>Images</th>
+                    <th>PDF</th>
+                    <th>Video</th>
+                    <th>Documents</th>
+                    <th>Usage Segment</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbProfilesBody">
+                  <tr>
+                    <td
+                      colspan="16"
+                      class="table-empty"
+                    >
+                      Loading…
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Users
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Created</th>
+                    <th>Last Login</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbUsersBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details
+            class="database-record-group"
+            open
+          >
+            <summary>
+              Consent Preferences
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Analytics</th>
+                    <th>Personalization</th>
+                    <th>Marketing</th>
+                    <th>Policy</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbConsentBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Consent Audit Events
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Analytics</th>
+                    <th>Personalization</th>
+                    <th>Marketing</th>
+                    <th>Source</th>
+                    <th>Policy</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbConsentEventsBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details
+            class="database-record-group"
+            open
+          >
+            <summary>
+              Transfer Records
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Room</th>
+                    <th>Result</th>
+                    <th>File</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Speed</th>
+                    <th>Duration</th>
+                    <th>Integrity</th>
+                    <th>Device</th>
+                    <th>Location</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbTransfersBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Data Governance Registry
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>Purpose</th>
+                    <th>Source</th>
+                    <th>Owner</th>
+                    <th>Sensitivity</th>
+                    <th>Retention</th>
+                    <th>Commercial Allowed</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbGovernanceBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Recommendation Events
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Segment</th>
+                    <th>Category</th>
+                    <th>Campaign</th>
+                    <th>Action</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbRecommendationsBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <details class="database-record-group">
+            <summary>
+              Conversion Events
+            </summary>
+
+            <div class="table-wrap database-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Conversion</th>
+                    <th>Value</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+
+                <tbody id="dbConversionsBody"></tbody>
+              </table>
+            </div>
+          </details>
+
+
+          <p class="privacy-note database-privacy-note">
+            Admin-only read access. Full IP addresses,
+            Google subject identifiers, credentials,
+            camera frames and transferred file contents
+            are not exposed by this dashboard.
+          </p>
+
+        </section>
+
+
       </section>
     </main>
 
     <footer>
-      <span>AirGesture Transfer Intelligence V5.2 · DBA 802 Residency</span>
+      <span>AirGesture Transfer Intelligence V5.4.2 · DBA 802 Residency</span>
       <span>Universal Air Copy/Paste · Network Intelligence · MediaPipe · Decision Intelligence</span>
     </footer>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth-client.js"></script>
   <script src="core.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script type="module" src="app.js"></script>

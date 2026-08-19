@@ -5,6 +5,13 @@ const fs = require('fs');
 const crypto = require('crypto');
 const net = require('net');
 const WebSocket = require('ws');
+const session = require('express-session');
+const connectPgSimple = require('connect-pg-simple');
+const { createAuthRouter } = require('./auth');
+const { createDatabase } = require('./db');
+const { buildIntelligenceSnapshot } = require('./strategy-intelligence');
+const { buildRealtimeOpportunity } = require('./realtime-opportunity');
+const { answerAirGestureQuestion } = require('./airgesture-data-assistant');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -18,6 +25,42 @@ const BROADCAST_TTL_MS = 2 * 60 * 60 * 1000;
 const BROADCAST_DIR = path.join(DATA_DIR, 'broadcasts');
 const TRUST_PROXY = String(process.env.AIRGESTURE_TRUST_PROXY || '').trim() === '1';
 const IP_ENRICH_URL_TEMPLATE = String(process.env.AIRGESTURE_IP_ENRICH_URL_TEMPLATE || '').trim();
+
+const IP_ENRICH_FALLBACK_URL_TEMPLATE =
+  String(
+    process.env.AIRGESTURE_IP_ENRICH_FALLBACK_URL_TEMPLATE ||
+    ''
+  ).trim();
+
+const IP_ENRICH_TIMEOUT_MS =
+  Math.max(
+    1500,
+    Math.min(
+      10000,
+      Number(
+        process.env.AIRGESTURE_IP_ENRICH_TIMEOUT_MS
+      ) || 4500
+    )
+  );
+
+const GEO_CACHE_TTL_MS =
+  12 * 60 * 60 * 1000;
+
+// Raw IP is used ONLY as an in-memory cache key.
+// It is never written to PostgreSQL.
+const geoCache = new Map();
+
+const ADMIN_EMAILS = new Set(
+  String(
+    process.env.AIRGESTURE_ADMIN_EMAILS || ''
+  )
+    .split(',')
+    .map((value) =>
+      value.trim().toLowerCase()
+    )
+    .filter(Boolean)
+);
+
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(BROADCAST_DIR, { recursive: true });
@@ -211,11 +254,33 @@ function maskIp(value) {
 }
 
 function requestIp(req) {
-  if (TRUST_PROXY) {
-    const forwarded = String(req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
-    if (forwarded) return normalizeIp(forwarded);
+  // AirGesture is deployed behind Render/proxy infrastructure.
+  // The FIRST X-Forwarded-For value is the original client IP.
+  const forwarded = String(
+    req?.headers?.['x-forwarded-for'] || ''
+  )
+    .split(',')[0]
+    .trim();
+
+  if (forwarded) {
+    return normalizeIp(forwarded);
   }
-  return normalizeIp(req?.socket?.remoteAddress || '');
+
+  const edgeIp = String(
+    req?.headers?.['cf-connecting-ip'] ||
+    req?.headers?.['true-client-ip'] ||
+    ''
+  ).trim();
+
+  if (edgeIp) {
+    return normalizeIp(edgeIp);
+  }
+
+  return normalizeIp(
+    req?.ip ||
+    req?.socket?.remoteAddress ||
+    ''
+  );
 }
 
 function firstHeader(headers, names) {
@@ -230,7 +295,11 @@ function firstHeader(headers, names) {
 }
 
 function sanitizeClientInfo(input = {}) {
-  const clean = (value, max = 80) => String(value || '').replace(/[\\r\\n\\t]/g, ' ').slice(0, max);
+  const clean = (value, max = 80) =>
+    String(value || '')
+      .replace(/[\r\n\t]/g, ' ')
+      .replace(/\\[rnt]/g, ' ')
+      .slice(0, max);
   const finite = (value, min, max) => {
     const n = Number(value);
     return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : 0;
@@ -251,52 +320,624 @@ function sanitizeClientInfo(input = {}) {
   };
 }
 
-function baseNetworkIdentity(rawIp, headers = {}) {
-  const addressClass = classifyIp(rawIp);
-  const city = firstHeader(headers, ['x-airgesture-city', 'x-vercel-ip-city', 'cf-ipcity']);
-  const region = firstHeader(headers, ['x-airgesture-region', 'x-vercel-ip-country-region', 'cf-region']);
-  const country = firstHeader(headers, ['x-airgesture-country', 'x-vercel-ip-country', 'cf-ipcountry']);
-  const provider = firstHeader(headers, ['x-airgesture-provider', 'cf-as-organization']);
-  const fallbackLocation = addressClass === 'loopback' ? 'Local device'
-    : addressClass === 'private' ? 'Private network'
-    : 'Approximate location unavailable';
+function normalizeCountryName(value) {
+  const country =
+    String(value || '')
+      .trim();
+
+  if (!country) {
+    return '';
+  }
+
+  const canonical =
+    country
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const countryAliases =
+    new Map([
+      [
+        'united states of america (the)',
+        'United States'
+      ],
+      [
+        'united states of america',
+        'United States'
+      ],
+      [
+        'u.s.a.',
+        'United States'
+      ],
+      [
+        'usa',
+        'United States'
+      ],
+      [
+        'u.s.',
+        'United States'
+      ]
+    ]);
+
+  if (
+    countryAliases.has(
+      canonical
+    )
+  ) {
+    return countryAliases.get(
+      canonical
+    );
+  }
+
+  if (/^[A-Za-z]{2}$/.test(country)) {
+    try {
+      const displayNames =
+        new Intl.DisplayNames(
+          ['en'],
+          {
+            type: 'region'
+          }
+        );
+
+      return (
+        displayNames.of(
+          country.toUpperCase()
+        ) ||
+        country.toUpperCase()
+      );
+    } catch {
+      return country.toUpperCase();
+    }
+  }
+
+  return country;
+}
+
+
+function hasCompleteGeo(identity = {}) {
+  return Boolean(
+    String(identity.city || '').trim() &&
+    String(identity.region || '').trim() &&
+    String(identity.country || '').trim()
+  );
+}
+
+
+
+
+function sanitizeClientGeo(input = {}) {
+  const cleanGeo =
+    (value, max) =>
+      String(value || '')
+        .replace(
+          /[\r\n\t]/g,
+          ' '
+        )
+        .trim()
+        .slice(0, max);
+
+  const city =
+    cleanGeo(
+      input.city,
+      80
+    );
+
+  const region =
+    cleanGeo(
+      input.region,
+      120
+    );
+
+  const country =
+    normalizeCountryName(
+      cleanGeo(
+        input.country,
+        80
+      )
+    );
+
+  if (
+    !city ||
+    !region ||
+    !country
+  ) {
+    return null;
+  }
+
+  const allowedSources =
+    new Set([
+      'device-location',
+      'bigdatacloud-ip',
+      'ipapi-browser',
+      'ipwhois-browser',
+      'browser-cache',
+      'browser-ip'
+    ]);
+
+  const requestedSource =
+    cleanGeo(
+      input.source,
+      40
+    );
+
+  const source =
+    allowedSources.has(
+      requestedSource
+    )
+      ? requestedSource
+      : 'browser-ip';
+
   return {
-    maskedIp: maskIp(rawIp),
-    addressClass,
-    city: city || '',
-    region: region || '',
-    country: country || '',
-    location: [city, region].filter(Boolean).join(', ') || country || fallbackLocation,
-    provider: provider || (addressClass === 'loopback' ? 'Localhost' : addressClass === 'private' ? 'LAN' : 'Not enriched')
+    city,
+    region,
+    country,
+
+    location:
+      `${city}, ${region}, ${country}`,
+
+    geoSource:
+      source
   };
 }
 
-async function enrichNetworkIdentity(rawIp, identity) {
-  if (!IP_ENRICH_URL_TEMPLATE || identity.addressClass !== 'public' || !globalThis.fetch) return identity;
-  if (!IP_ENRICH_URL_TEMPLATE.includes('{ip}')) return identity;
-  const url = IP_ENRICH_URL_TEMPLATE.replace('{ip}', encodeURIComponent(rawIp));
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1800);
-    const response = await fetch(url, { signal: controller.signal, headers: { accept: 'application/json' } });
-    clearTimeout(timer);
-    if (!response.ok) return identity;
-    const data = await response.json();
-    const city = String(data.city || data.town || '').slice(0, 80);
-    const region = String(data.region || data.regionName || data.state || '').slice(0, 80);
-    const country = String(data.country_name || data.countryName || data.country || '').slice(0, 80);
-    const provider = String(data.org || data.isp || data.provider || data.asn?.name || '').slice(0, 120);
-    return {
-      ...identity,
-      city: city || identity.city,
-      region: region || identity.region,
-      country: country || identity.country,
-      location: [city || identity.city, region || identity.region].filter(Boolean).join(', ') || country || identity.location,
-      provider: provider || identity.provider
-    };
-  } catch {
+
+function mergeClientGeo(
+  identity = {},
+  input = {}
+) {
+  const geo =
+    sanitizeClientGeo(
+      input
+    );
+
+  if (!geo) {
     return identity;
   }
+
+  return {
+    ...identity,
+    ...geo
+  };
+}
+
+
+function baseNetworkIdentity(rawIp, headers = {}) {
+  const addressClass =
+    classifyIp(rawIp);
+
+  const city =
+    firstHeader(
+      headers,
+      [
+        'x-airgesture-city',
+        'x-vercel-ip-city',
+        'cf-ipcity'
+      ]
+    );
+
+  const region =
+    firstHeader(
+      headers,
+      [
+        'x-airgesture-region',
+        'x-vercel-ip-country-region',
+        'cf-region'
+      ]
+    );
+
+  const country =
+    normalizeCountryName(
+      firstHeader(
+        headers,
+        [
+          'x-airgesture-country',
+          'x-vercel-ip-country',
+          'cf-ipcountry'
+        ]
+      )
+    );
+
+  const provider =
+    firstHeader(
+      headers,
+      [
+        'x-airgesture-provider',
+        'cf-as-organization'
+      ]
+    );
+
+  const fallbackLocation =
+    addressClass === 'loopback'
+      ? 'Local device'
+      : addressClass === 'private'
+        ? 'Private network'
+        : 'Approximate location unavailable';
+
+  const detailedLocation =
+    city || region;
+
+  return {
+    maskedIp:
+      maskIp(rawIp),
+
+    addressClass,
+
+    city:
+      city || '',
+
+    region:
+      region || '',
+
+    country:
+      country || '',
+
+    location:
+      detailedLocation
+        ? [
+            city,
+            region,
+            country
+          ]
+            .filter(Boolean)
+            .join(', ')
+        : fallbackLocation,
+
+    provider:
+      provider ||
+      (
+        addressClass === 'loopback'
+          ? 'Localhost'
+          : addressClass === 'private'
+            ? 'LAN'
+            : 'Not enriched'
+      ),
+
+    geoSource:
+      detailedLocation
+        ? 'edge-header'
+        : 'none'
+  };
+}
+
+
+function normalizeGeoPayload(
+  data = {},
+  identity = {},
+  source = ''
+) {
+  if (
+    !data ||
+    data.error === true ||
+    data.success === false
+  ) {
+    return null;
+  }
+
+  const city =
+    String(
+      data.city ||
+      data.city_name ||
+      data.town ||
+      ''
+    )
+      .trim()
+      .slice(0, 80);
+
+  const region =
+    String(
+      data.region ||
+      data.region_name ||
+      data.regionName ||
+      data.state ||
+      data.state_name ||
+      ''
+    )
+      .trim()
+      .slice(0, 120);
+
+  const country =
+    normalizeCountryName(
+      data.country_name ||
+      data.countryName ||
+      data.country ||
+      data.country_code ||
+      identity.country ||
+      ''
+    )
+      .slice(0, 80);
+
+  // A country-only response such as "US" is not sufficient.
+  // DBA 802 requires City + State/Region + Country.
+  if (
+    !city ||
+    !region ||
+    !country
+  ) {
+    return null;
+  }
+
+  const provider =
+    String(
+      data.org ||
+      data.isp ||
+      data.provider ||
+      data.connection?.isp ||
+      data.connection?.org ||
+      data.asn?.name ||
+      identity.provider ||
+      ''
+    )
+      .trim()
+      .slice(0, 160);
+
+  return {
+    ...identity,
+
+    city,
+    region,
+    country,
+
+    location:
+      `${city}, ${region}, ${country}`,
+
+    provider:
+      provider ||
+      identity.provider,
+
+    geoSource:
+      source
+  };
+}
+
+
+async function fetchGeoCandidate(
+  template,
+  rawIp,
+  identity,
+  source
+) {
+  if (
+    !template ||
+    !template.includes('{ip}') ||
+    !globalThis.fetch
+  ) {
+    return null;
+  }
+
+  const url =
+    template.replace(
+      '{ip}',
+      encodeURIComponent(rawIp)
+    );
+
+  const controller =
+    new AbortController();
+
+  const timer =
+    setTimeout(
+      () =>
+        controller.abort(),
+      IP_ENRICH_TIMEOUT_MS
+    );
+
+  try {
+    const response =
+      await fetch(
+        url,
+        {
+          signal:
+            controller.signal,
+
+          headers: {
+            accept:
+              'application/json',
+
+            'user-agent':
+              'AirGesture-DBA802/5.4'
+          }
+        }
+      );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data =
+      await response.json();
+
+    return normalizeGeoPayload(
+      data,
+      identity,
+      source
+    );
+
+  } catch (error) {
+    console.warn(
+      `IP geolocation ${source} lookup failed:`,
+      error?.name ||
+      error?.message ||
+      'unknown error'
+    );
+
+    return null;
+
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+
+async function enrichNetworkIdentity(
+  rawIp,
+  identity
+) {
+  if (
+    identity.addressClass !== 'public' ||
+    !globalThis.fetch
+  ) {
+    return identity;
+  }
+
+  // If an edge provider somehow supplied a complete
+  // city/state/country result, use it immediately.
+  if (hasCompleteGeo(identity)) {
+    return {
+      ...identity,
+
+      country:
+        normalizeCountryName(
+          identity.country
+        ),
+
+      location:
+        [
+          identity.city,
+          identity.region,
+          normalizeCountryName(
+            identity.country
+          )
+        ]
+          .filter(Boolean)
+          .join(', ')
+    };
+  }
+
+  const cacheKey =
+    normalizeIp(rawIp);
+
+  const cached =
+    geoCache.get(cacheKey);
+
+  if (
+    cached &&
+    (
+      Date.now() -
+      cached.savedAt
+    ) < GEO_CACHE_TTL_MS
+  ) {
+    return {
+      ...identity,
+      ...cached.identity
+    };
+  }
+
+  if (cached) {
+    geoCache.delete(cacheKey);
+  }
+
+  const providers = [
+    {
+      source: 'primary',
+      template:
+        IP_ENRICH_URL_TEMPLATE
+    },
+
+    {
+      source: 'fallback',
+      template:
+        IP_ENRICH_FALLBACK_URL_TEMPLATE
+    }
+  ];
+
+  const seenTemplates =
+    new Set();
+
+  for (const provider of providers) {
+    const template =
+      String(
+        provider.template || ''
+      ).trim();
+
+    if (
+      !template ||
+      seenTemplates.has(template)
+    ) {
+      continue;
+    }
+
+    seenTemplates.add(template);
+
+    const candidate =
+      await fetchGeoCandidate(
+        template,
+        rawIp,
+        identity,
+        provider.source
+      );
+
+    if (
+      candidate &&
+      hasCompleteGeo(candidate)
+    ) {
+      const safeCachedIdentity = {
+        city:
+          candidate.city,
+
+        region:
+          candidate.region,
+
+        country:
+          candidate.country,
+
+        location:
+          candidate.location,
+
+        provider:
+          candidate.provider,
+
+        geoSource:
+          candidate.geoSource
+      };
+
+      geoCache.set(
+        cacheKey,
+        {
+          savedAt:
+            Date.now(),
+
+          identity:
+            safeCachedIdentity
+        }
+      );
+
+      return {
+        ...identity,
+        ...safeCachedIdentity
+      };
+    }
+  }
+
+  // Never pretend a country code is a complete location.
+  const normalizedCountry =
+    normalizeCountryName(
+      identity.country
+    );
+
+  return {
+    ...identity,
+
+    country:
+      normalizedCountry,
+
+    location:
+      identity.city &&
+      identity.region &&
+      normalizedCountry
+        ? [
+            identity.city,
+            identity.region,
+            normalizedCountry
+          ].join(', ')
+        : (
+            identity.region &&
+            normalizedCountry
+              ? `${identity.region}, ${normalizedCountry}`
+              : 'Approximate location unavailable'
+          ),
+
+    geoSource:
+      'unresolved'
+  };
 }
 
 function safeMetric(value, max = 1000000) {
@@ -307,7 +948,11 @@ function safeMetric(value, max = 1000000) {
 function receiverIntelligenceRecord(clientId, state = {}) {
   const network = state.network || {};
   const client = state.clientInfo || {};
+  const identity = state.identity || {};
+
   return {
+    participantName: String(identity.name || 'Signed-in participant').slice(0, 120),
+    participantEmail: String(identity.email || '').slice(0, 180),
     receiverId: `RCV-${String(clientId || '').replace(/-/g, '').slice(0, 6).toUpperCase()}`,
     maskedIp: network.maskedIp || 'Unavailable',
     location: network.location || 'Unavailable',
@@ -334,8 +979,88 @@ function receiverIntelligenceRecord(clientId, state = {}) {
 
 function createServer() {
   const app = express();
+  const database = createDatabase();
+
+  // Integration-test-only authentication bypass.
+  // This cannot activate in production because NODE_ENV must equal "test".
+  const allowTestAuthBypass =
+    process.env.NODE_ENV === 'test' &&
+    process.env.AIRGESTURE_TEST_AUTH_BYPASS === '1';
+
+  if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+  }
+
+  const sessionSecret = String(
+    process.env.SESSION_SECRET ||
+    (process.env.NODE_ENV === 'production'
+      ? ''
+      : 'airgesture-local-development-session-secret')
+  );
+
+  if (!sessionSecret) {
+    throw new Error('SESSION_SECRET is required in production');
+  }
+
+  const sessionOptions = {
+    name: 'airgesture.sid',
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 8 * 60 * 60 * 1000
+    }
+  };
+
+  if (database.enabled) {
+    const PgSessionStore =
+      connectPgSimple(session);
+
+    sessionOptions.store =
+      new PgSessionStore({
+        pool: database.pool,
+        tableName: 'user_sessions',
+        createTableIfMissing: true
+      });
+  }
+
+  const sessionParser =
+    session(sessionOptions);
+
+  app.use(sessionParser);
+
+  app.use(
+    '/api/auth',
+    createAuthRouter({ database })
+  );
+
   const server = http.createServer(app);
-  const wss = new WebSocket.Server({ server, maxPayload: MAX_SIGNAL_BYTES });
+  const wss = new WebSocket.Server({
+    noServer: true,
+    maxPayload: MAX_SIGNAL_BYTES
+  });
+
+  // WebSockets are accepted only when the browser has a valid
+  // AirGesture Google-authenticated session.
+  server.on('upgrade', (req, socket, head) => {
+    sessionParser(req, {}, () => {
+      if (!req.session?.user?.googleSub && !allowTestAuthBypass) {
+        socket.write(
+          'HTTP/1.1 401 Unauthorized\r\n' +
+          'Connection: close\r\n\r\n'
+        );
+        socket.destroy();
+        return;
+      }
+
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    });
+  });
 
   // V5.1 uses one universal server-assisted room model.
   // Legacy peer-room storage is retained only for backward data compatibility; new joins do not use it.
@@ -348,26 +1073,1378 @@ function createServer() {
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Permissions-Policy', 'camera=(self)');
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(self), geolocation=(self)'
+    );
     next();
   });
   app.use(express.json({ limit: '128kb' }));
   app.use(express.static(PUBLIC_DIR, { etag: true, maxAge: 0 }));
 
+  function requireAuth(req, res, next) {
+    if (allowTestAuthBypass) return next();
+
+    if (!req.session?.user?.googleSub) {
+      return res.status(401).json({
+        error: 'Google Sign-In required.'
+      });
+    }
+
+    next();
+  }
+
+  async function resolveRequestDatabaseUserId(req) {
+    if (!database.enabled) return null;
+
+    const sessionUser =
+      req.session?.user || {};
+
+    if (!sessionUser.googleSub) {
+      return null;
+    }
+
+    if (sessionUser.dbUserId) {
+      return sessionUser.dbUserId;
+    }
+
+    const dbUser =
+      await database.upsertUser({
+        googleSub:
+          sessionUser.googleSub,
+
+        name:
+          sessionUser.name,
+
+        email:
+          sessionUser.email,
+
+        picture:
+          sessionUser.picture
+      });
+
+    const userId =
+      dbUser?.id || null;
+
+    if (
+      userId &&
+      req.session?.user
+    ) {
+      req.session.user.dbUserId =
+        String(userId);
+    }
+
+    return userId;
+  }
+
+
+  function requireAdmin(req, res, next) {
+    const email =
+      String(
+        req.session?.user?.email || ''
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      !email ||
+      !ADMIN_EMAILS.has(email)
+    ) {
+      return res.status(403).json({
+        error:
+          'AirGesture administrator access required.'
+      });
+    }
+
+    next();
+  }
+
+  // Public: /api/auth/* and /api/health
+  // Protected: classroom data, transfer files and telemetry.
+  app.use('/api/network/ping', requireAuth);
+  app.use('/api/network/location', requireAuth);
+  app.use('/api/analytics', requireAuth);
+  app.use('/api/events', requireAuth);
+  app.use('/api/demo-data', requireAuth);
+  app.use('/api/broadcast', requireAuth);
+
   app.get('/api/health', (_req, res) => res.json({
     ok: true,
-    version: '5.2.0',
+    version: '5.4.0',
     peerRooms: rooms.size,
     broadcastRooms: broadcastRooms.size,
     receiverLimit: CONFIGURED_RECEIVER_LIMIT || null,
     networkIntelligence: true,
-    ipEnrichmentConfigured: Boolean(IP_ENRICH_URL_TEMPLATE)
+
+    ipEnrichmentConfigured:
+      Boolean(
+        IP_ENRICH_URL_TEMPLATE
+      ),
+
+    ipEnrichmentFallbackConfigured:
+      Boolean(
+        IP_ENRICH_FALLBACK_URL_TEMPLATE
+      ),
+
+    ipEnrichmentTimeoutMs:
+      IP_ENRICH_TIMEOUT_MS,
+
+    database: database.status()
   }));
 
   app.get('/api/network/ping', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ ok: true, serverTime: Date.now() });
   });
+
+
+  app.get(
+    '/api/network/location',
+    async (req, res) => {
+      const rawIp =
+        requestIp(req);
+
+      let network =
+        baseNetworkIdentity(
+          rawIp,
+          req.headers || {}
+        );
+
+      network =
+        await enrichNetworkIdentity(
+          rawIp,
+          network
+        );
+
+      network =
+        mergeClientGeo(
+          network,
+          req.session?.coarseGeo ||
+          {}
+        );
+
+      res.setHeader(
+        'Cache-Control',
+        'no-store'
+      );
+
+      return res.json({
+        ok: true,
+
+        maskedIp:
+          network.maskedIp,
+
+        addressClass:
+          network.addressClass,
+
+        city:
+          network.city || '',
+
+        region:
+          network.region || '',
+
+        country:
+          network.country || '',
+
+        location:
+          network.location,
+
+        source:
+          network.geoSource ||
+          'unknown',
+
+        complete:
+          hasCompleteGeo(network)
+      });
+    }
+  );
+
+  app.post(
+    '/api/network/location',
+    async (req, res) => {
+      const clientGeo =
+        sanitizeClientGeo(
+          req.body?.clientGeo ||
+          {}
+        );
+
+      if (!clientGeo) {
+        return res.status(400).json({
+          ok: false,
+
+          error:
+            'Complete city, region and country are required.'
+        });
+      }
+
+      // Store ONLY coarse locality in the authenticated
+      // session. Latitude/longitude are never accepted here.
+      req.session.coarseGeo =
+        clientGeo;
+
+      const rawIp =
+        requestIp(req);
+
+      const network =
+        mergeClientGeo(
+          baseNetworkIdentity(
+            rawIp,
+            req.headers || {}
+          ),
+          clientGeo
+        );
+
+      res.setHeader(
+        'Cache-Control',
+        'no-store'
+      );
+
+      return res.json({
+        ok: true,
+
+        maskedIp:
+          network.maskedIp,
+
+        addressClass:
+          network.addressClass,
+
+        city:
+          network.city,
+
+        region:
+          network.region,
+
+        country:
+          network.country,
+
+        location:
+          network.location,
+
+        source:
+          network.geoSource,
+
+        complete:
+          true
+      });
+    }
+  );
+
+
+  app.get(
+    '/api/persistence/summary',
+    requireAuth,
+    async (_req, res) => {
+      if (!database.enabled) {
+        return res.status(503).json({
+          error:
+            'PostgreSQL is not configured.'
+        });
+      }
+
+      try {
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        res.json({
+          ok: true,
+          ...(await database.summary())
+        });
+      } catch (error) {
+        databaseError(
+          'summary query',
+          error
+        );
+
+        res.status(500).json({
+          error:
+            'Could not read persistence summary.'
+        });
+      }
+    }
+  );
+
+
+  app.post(
+    '/api/persistence/transfer',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const roomCode = String(
+          req.body?.room || ''
+        ).trim().toUpperCase();
+
+        const fileId = String(
+          req.body?.fileId || ''
+        ).trim();
+
+        if (
+          !isValidRoomCode(roomCode) ||
+          !fileId
+        ) {
+          return res.status(400).json({
+            error:
+              'Room code and file ID are required.'
+          });
+        }
+
+        const sessionUser =
+          req.session?.user || {};
+
+        let userId =
+          sessionUser.dbUserId || null;
+
+        if (!userId) {
+          const dbUser =
+            await database.upsertUser({
+              googleSub:
+                sessionUser.googleSub,
+              name:
+                sessionUser.name,
+              email:
+                sessionUser.email,
+              picture:
+                sessionUser.picture
+            });
+
+          userId =
+            dbUser?.id || null;
+
+          if (req.session?.user) {
+            req.session.user.dbUserId =
+              userId;
+          }
+        }
+
+        if (!userId) {
+          throw new Error(
+            'Could not resolve PostgreSQL user'
+          );
+        }
+
+        const activeRoom =
+          broadcastRooms.get(roomCode);
+
+        let sessionId =
+          activeRoom?.sessionId || null;
+
+        let persistedParticipant = null;
+
+        if (!sessionId) {
+          persistedParticipant =
+            await database
+              .findLatestReceiverSession({
+                roomCode,
+                userId
+              });
+
+          sessionId =
+            persistedParticipant
+              ?.session_id || null;
+        }
+
+        if (!sessionId) {
+          return res.status(409).json({
+            error:
+              'No persisted Receiver classroom session was found.'
+          });
+        }
+
+        let receiverWs = null;
+
+        if (activeRoom) {
+          for (
+            const ws
+            of activeRoom.receivers.values()
+          ) {
+            if (
+              ws?.user?.googleSub ===
+              sessionUser.googleSub
+            ) {
+              receiverWs = ws;
+              break;
+            }
+          }
+        }
+
+        const receiverState =
+          receiverWs && activeRoom
+            ? activeRoom.receiverStates.get(
+                receiverWs.clientId
+              ) || {}
+            : {};
+
+        if (
+          !persistedParticipant &&
+          !receiverWs
+        ) {
+          persistedParticipant =
+            await database
+              .findLatestReceiverSession({
+                roomCode,
+                userId
+              });
+        }
+
+        const activeFile =
+          activeRoom?.file?.id === fileId
+            ? activeRoom.file
+            : null;
+
+        const file = {
+          id: fileId,
+
+          name:
+            activeFile?.name ||
+            String(
+              req.body?.fileName || ''
+            ).slice(0, 180),
+
+          size:
+            activeFile?.size ??
+            Number(
+              req.body?.fileSize || 0
+            ),
+
+          mime:
+            activeFile?.mime ||
+            String(
+              req.body?.fileType ||
+              'application/octet-stream'
+            ).slice(0, 120)
+        };
+
+        const participantClient = {
+          browser:
+            persistedParticipant?.browser ||
+            '',
+          os:
+            persistedParticipant?.os ||
+            '',
+          deviceType:
+            persistedParticipant
+              ?.device_type || '',
+          timezone:
+            persistedParticipant
+              ?.timezone || ''
+        };
+
+        const participantNetwork = {
+          maskedIp:
+            persistedParticipant
+              ?.masked_ip || '',
+          location:
+            persistedParticipant
+              ?.location || '',
+          provider:
+            persistedParticipant
+              ?.provider || ''
+        };
+
+        const result =
+          req.body?.result === 'FAILED'
+            ? 'FAILED'
+            : 'SUCCESS';
+
+        const record =
+          await database.recordTransferEvent({
+            sessionId,
+            userId,
+
+            receiverId:
+              receiverWs
+                ? participantId(
+                    receiverWs,
+                    'receiver'
+                  )
+                : persistedParticipant
+                    ?.receiver_id || '',
+
+            roomCode,
+            file,
+            result,
+
+            trigger:
+              req.body?.trigger === 'gesture'
+                ? 'gesture'
+                : 'manual',
+
+            latencyMs:
+              req.body?.latencyMs ??
+              receiverState.latencyMs,
+
+            speedMbps:
+              req.body?.speedMbps ??
+              receiverState
+                .transferSpeedMbps,
+
+            durationSec:
+              req.body?.durationSec ??
+              receiverState
+                .downloadTimeSec,
+
+            acceptanceLatencySec:
+              req.body
+                ?.acceptanceLatencySec ??
+              receiverState
+                .acceptanceLatencySec,
+
+            gestureConfidence:
+              req.body
+                ?.gestureConfidence ??
+              receiverState
+                .gestureConfidence,
+
+            integrityVerified:
+              Boolean(
+                req.body
+                  ?.integrityVerified
+              ),
+
+            retries:
+              req.body?.retries || 0,
+
+            failureReason:
+              req.body
+                ?.failureReason || '',
+
+            clientInfo:
+              receiverState.clientInfo ||
+              receiverWs?.clientInfo ||
+              participantClient,
+
+            network:
+              receiverState.network ||
+              receiverWs?.network ||
+              participantNetwork
+          });
+
+        try {
+          await database
+            .recordCommercialTransfer({
+              userId,
+              file
+            });
+        } catch (commercialError) {
+          databaseError(
+            'commercial transfer aggregation',
+            commercialError
+          );
+        }
+
+        let liveTransferId = null;
+
+        if (result === 'SUCCESS') {
+          try {
+            const liveConsent =
+              await database
+                .getConsentPreferences(
+                  userId
+                );
+
+            const liveRecord =
+              await database
+                .recordLiveDataEvent({
+                  eventId:
+                    crypto.randomUUID(),
+
+                  sessionId,
+                  userId,
+                roomCode,
+                action:
+                  'RECEIVE',
+                file,
+                clientInfo:
+                  receiverState.clientInfo ||
+                  receiverWs?.clientInfo ||
+                  participantClient,
+                network:
+                  receiverState.network ||
+                  receiverWs?.network ||
+                  participantNetwork,
+                commercialAllowed:
+                  Boolean(
+                    liveConsent
+                      .analyticsConsent
+                  )
+                });
+
+            // Use the actual database row UUID.
+            // If an existing event was updated because of
+            // retry/deduplication, RETURNING gives us the
+            // already-authoritative UUID.
+            liveTransferId =
+              liveRecord?.id || null;
+
+          } catch (liveError) {
+            databaseError(
+              'live HTTP RECEIVE persistence',
+              liveError
+            );
+          }
+        }
+
+        console.log(
+          'PostgreSQL HTTP transfer persisted:',
+          result,
+          roomCode,
+          fileId
+        );
+
+        return res.status(201).json({
+          ok: true,
+          persisted: true,
+          result,
+          // Legacy transfer_events ID retained for
+          // internal compatibility.
+          id:
+            record?.id || null,
+
+          // Public event-level Transfer ID.
+          transferId:
+            liveTransferId,
+
+          sessionId
+        });
+      } catch (error) {
+        databaseError(
+          'HTTP transfer persistence',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Transfer succeeded, but database persistence failed.'
+        });
+      }
+    }
+  );
+
+
+  app.get(
+    '/api/commercial/consent',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const userId =
+          await resolveRequestDatabaseUserId(
+            req
+          );
+
+        if (!userId) {
+          return res.status(401).json({
+            error:
+              'Authenticated database user could not be resolved.'
+          });
+        }
+
+        const consent =
+          await database
+            .getConsentPreferences(
+              userId
+            );
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        return res.json({
+          ok: true,
+          ...consent
+        });
+      } catch (error) {
+        databaseError(
+          'commercial consent read',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not read data preferences.'
+        });
+      }
+    }
+  );
+
+
+  app.post(
+    '/api/commercial/consent',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const userId =
+          await resolveRequestDatabaseUserId(
+            req
+          );
+
+        if (!userId) {
+          return res.status(401).json({
+            error:
+              'Authenticated database user could not be resolved.'
+          });
+        }
+
+        await database
+          .saveConsentPreferences({
+            userId,
+
+            analyticsConsent:
+              req.body
+                ?.analyticsConsent ===
+              true,
+
+            personalizationConsent:
+              req.body
+                ?.personalizationConsent ===
+              true,
+
+            marketingConsent:
+              req.body
+                ?.marketingConsent ===
+              true,
+
+            policyVersion:
+              '2026-08-v1',
+
+            source:
+              'airgesture-web'
+          });
+
+        const consent =
+          await database
+            .getConsentPreferences(
+              userId
+            );
+
+        return res.json({
+          ok: true,
+          ...consent
+        });
+      } catch (error) {
+        databaseError(
+          'commercial consent save',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not save data preferences.'
+        });
+      }
+    }
+  );
+
+
+  app.post(
+    '/api/commercial/profile',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const userId =
+          await resolveRequestDatabaseUserId(
+            req
+          );
+
+        if (!userId) {
+          return res.status(401).json({
+            error:
+              'Authenticated database user could not be resolved.'
+          });
+        }
+
+        const rawIp =
+          requestIp(req);
+
+        let network =
+          baseNetworkIdentity(
+            rawIp,
+            req.headers
+          );
+
+        const clientGeo =
+          sanitizeClientGeo(
+            req.body?.clientGeo ||
+            {}
+          );
+
+        // Browser-direct IP geography is preferred because
+        // the lookup originates from the participant's device.
+        if (clientGeo) {
+          network =
+            mergeClientGeo(
+              network,
+              clientGeo
+            );
+
+          if (req.session) {
+            req.session.coarseGeo =
+              clientGeo;
+          }
+        }
+
+        // Server-side IP lookup remains a fallback.
+        if (!hasCompleteGeo(network)) {
+          network =
+            await enrichNetworkIdentity(
+              rawIp,
+              network
+            );
+        }
+
+        const profile =
+          await database
+            .upsertCommercialProfile({
+              userId,
+
+              clientInfo:
+                sanitizeClientInfo(
+                  req.body?.clientInfo ||
+                  {}
+                ),
+
+              network,
+
+              acquisition:
+                req.body?.acquisition ||
+                {},
+
+              screenCategory:
+                req.body
+                  ?.screenCategory,
+
+              touchCapable:
+                req.body
+                  ?.touchCapable === true,
+
+              memoryTier:
+                req.body
+                  ?.memoryTier,
+
+              cpuTier:
+                req.body
+                  ?.cpuTier,
+
+              deviceSegment:
+                req.body
+                  ?.deviceSegment
+            });
+
+        const consent =
+          await database
+            .getConsentPreferences(
+              userId
+            );
+
+        return res.json({
+          ok: true,
+
+          collected:
+            Boolean(profile),
+
+          reason:
+            profile
+              ? null
+              : 'profile_not_saved',
+
+          consent: {
+            analyticsConsent:
+              consent
+                .analyticsConsent,
+
+            personalizationConsent:
+              consent
+                .personalizationConsent,
+
+            marketingConsent:
+              consent
+                .marketingConsent
+          }
+        });
+      } catch (error) {
+        databaseError(
+          'commercial profile save',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not save commercial analytics profile.'
+        });
+      }
+    }
+  );
+
+
+
+
+
+  app.get(
+    '/api/commercial/customer-360',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const data =
+          await database
+            .customer360Data();
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        return res.json({
+          ok: true,
+          ...data
+        });
+
+      } catch (error) {
+        databaseError(
+          'customer 360 analytics',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not load Customer 360 analytics.'
+        });
+      }
+    }
+  );
+
+
+
+  // ------------------------------------------------------------------
+  // DBA 802 · DATA ANALYTICS & STRATEGIC DECISION INTELLIGENCE
+  //
+  // Read-only analytics over classroom_data_events. The browser never
+  // receives database credentials and the AI never executes SQL.
+  // ------------------------------------------------------------------
+
+  const intelligenceAiRate = new Map();
+
+  function allowIntelligenceAiRequest(req) {
+    const key =
+      String(
+        req.sessionID ||
+        req.session?.user?.email ||
+        'anonymous'
+      );
+
+    const now = Date.now();
+    const windowMs = 60 * 1000;
+    const limit = 12;
+    const recent =
+      (intelligenceAiRate.get(key) || [])
+        .filter((time) => now - time < windowMs);
+
+    if (recent.length >= limit) {
+      intelligenceAiRate.set(key, recent);
+      return false;
+    }
+
+    recent.push(now);
+    intelligenceAiRate.set(key, recent);
+
+    // Keep the in-memory limiter bounded.
+    if (intelligenceAiRate.size > 500) {
+      for (const [candidate, entries] of intelligenceAiRate) {
+        if (!entries.some((time) => now - time < windowMs)) {
+          intelligenceAiRate.delete(candidate);
+        }
+      }
+    }
+
+    return true;
+  }
+
+
+  const intelligenceRowsCache = { rows: null, loadedAt: 0, inFlight: null };
+
+  async function loadStrategicIntelligenceRows(force = false) {
+    const now = Date.now();
+    const maxAgeMs = 5000;
+
+    if (!force && intelligenceRowsCache.rows && now - intelligenceRowsCache.loadedAt < maxAgeMs) {
+      return intelligenceRowsCache.rows;
+    }
+
+    if (!force && intelligenceRowsCache.inFlight) {
+      return intelligenceRowsCache.inFlight;
+    }
+
+    intelligenceRowsCache.inFlight = (async () => {
+      const data = await database.liveClassroomDataPage({
+        page: 1,
+        pageSize: 50000,
+        search: '',
+        exportAll: true
+      });
+      const rows = Array.isArray(data?.rows) ? data.rows : [];
+      intelligenceRowsCache.rows = rows;
+      intelligenceRowsCache.loadedAt = Date.now();
+      return rows;
+    })();
+
+    try {
+      return await intelligenceRowsCache.inFlight;
+    } finally {
+      intelligenceRowsCache.inFlight = null;
+    }
+  }
+
+
+
+  // ---------------------------------------------------------
+  // REAL-TIME COMMERCIAL OPPORTUNITY ENGINE
+  // ---------------------------------------------------------
+  //
+  // Uses the same normalized classroom rows as the main
+  // Intelligence dashboard. No external AI/API is used.
+  //
+  // Recent = latest 7 days in the dataset.
+  // Previous = preceding 7 days.
+  //
+  // Anchoring to the newest database record also makes this
+  // work correctly with classroom/demo datasets.
+  // ---------------------------------------------------------
+
+  app.get(
+    '/api/intelligence/opportunity',
+    requireAuth,
+    async (req, res) => {
+
+      try {
+
+        if (!database.enabled) {
+
+          return res.status(503).json({
+            error:
+              'PostgreSQL database is not configured.'
+          });
+        }
+
+        const rows =
+          await loadStrategicIntelligenceRows();
+
+        const result =
+          buildRealtimeOpportunity(
+            rows,
+            {
+              location:
+                String(
+                  req.query?.location ||
+                  ''
+                ).trim(),
+
+              segment:
+                String(
+                  req.query?.segment ||
+                  ''
+                ).trim()
+            }
+          );
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        return res.json({
+          ok: true,
+          ...result
+        });
+
+      } catch (error) {
+
+        console.error(
+          'Real-time opportunity error:',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not calculate real-time product opportunity.'
+        });
+      }
+    }
+  );
+
+
+  app.get(
+    '/api/intelligence',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error: 'PostgreSQL database is not configured.'
+          });
+        }
+
+        const rows =
+          await loadStrategicIntelligenceRows();
+
+        const snapshot =
+          buildIntelligenceSnapshot(
+            rows,
+            req.query || {}
+          );
+
+        snapshot.assistant = {
+          configured: true,
+          provider: 'AirGesture Data Assistant',
+          source: 'local-deterministic',
+          externalApi: false,
+          costPerQuestion: 0
+        };
+
+        res.setHeader('Cache-Control', 'no-store');
+        return res.json(snapshot);
+      } catch (error) {
+        databaseError(
+          'strategic intelligence snapshot',
+          error
+        );
+
+        return res.status(500).json({
+          error: 'Could not build strategic intelligence.'
+        });
+      }
+    }
+  );
+
+
+  app.post(
+    '/api/intelligence/ask',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error: 'PostgreSQL database is not configured.'
+          });
+        }
+
+        if (!allowIntelligenceAiRequest(req)) {
+          return res.status(429).json({
+            error: 'The Data Assistant is receiving too many requests. Please wait a moment and try again.'
+          });
+        }
+
+        const question = String(req.body?.question || '').trim().slice(0, 500);
+        if (!question) {
+          return res.status(400).json({ error: 'Enter a question for the Data Assistant.' });
+        }
+
+        const history = Array.isArray(req.body?.history) ? req.body.history : [];
+        const rows = await loadStrategicIntelligenceRows();
+        const generated = answerAirGestureQuestion({
+          question,
+          history,
+          rows,
+          filters: req.body?.filters || {}
+        });
+
+        res.setHeader('Cache-Control', 'no-store');
+        return res.json({
+          ok: true,
+          generatedAt: new Date().toISOString(),
+          question,
+          filters: req.body?.filters || {},
+          answerSource: 'airgesture-data-assistant',
+          strategy: generated.strategy,
+          assistant: generated.assistant
+        });
+      } catch (error) {
+        databaseError('Data Assistant question', error);
+        return res.status(500).json({
+          error: 'Could not answer the AirGesture data question.'
+        });
+      }
+    }
+  );
+
+
+  app.get(
+    '/api/live-data',
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL database is not configured.'
+          });
+        }
+
+
+        const exportAll =
+          String(
+            req.query?.export ||
+            ''
+          ) === '1';
+
+
+        const page =
+          Math.max(
+            1,
+            Math.floor(
+              Number(
+                req.query?.page
+              ) || 1
+            )
+          );
+
+
+        // Normal page requests are intentionally fixed
+        // at exactly 20 rows.
+        //
+        // Explicit CSV exports may retrieve a larger set.
+        const pageSize =
+          exportAll
+            ? 50000
+            : 20;
+
+
+        const search =
+          String(
+            req.query?.q ||
+            ''
+          )
+            .trim()
+            .slice(
+              0,
+              160
+            );
+
+
+        const data =
+          await database
+            .liveClassroomDataPage({
+              page,
+              pageSize,
+              search,
+              exportAll
+            });
+
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+
+        return res.json(
+          data
+        );
+
+      } catch (error) {
+        console.error(
+          'Live classroom database failed:',
+          error
+        );
+
+
+        return res.status(500).json({
+          error:
+            'Could not load classroom database.'
+        });
+      }
+    }
+  );
+
+
+  app.get(
+    '/api/admin/database',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        if (!database.enabled) {
+          return res.status(503).json({
+            error:
+              'PostgreSQL is not configured.'
+          });
+        }
+
+        const limit =
+          Math.max(
+            1,
+            Math.min(
+              1000,
+              Number.parseInt(
+                req.query?.limit || '250',
+                10
+              ) || 250
+            )
+          );
+
+        const data =
+          await database.dashboardData({
+            limit
+          });
+
+        res.setHeader(
+          'Cache-Control',
+          'no-store'
+        );
+
+        return res.json({
+          ok: true,
+          ...data
+        });
+      } catch (error) {
+        databaseError(
+          'admin database dashboard',
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            'Could not load database intelligence.'
+        });
+      }
+    }
+  );
+
+
 
   app.get('/api/analytics', (_req, res) => res.json(analyticsSummary(safeReadEvents())));
 
@@ -395,6 +2472,399 @@ function createServer() {
 
   function sendJson(ws, payload) {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+  }
+
+  function databaseError(context, error) {
+    console.error(
+      `PostgreSQL ${context} failed:`,
+      error?.message || error
+    );
+  }
+
+  function participantId(ws, role) {
+    const prefix =
+      role === 'receiver' ? 'RCV' : 'SND';
+
+    return `${prefix}-${String(ws?.clientId || '')
+      .replace(/-/g, '')
+      .slice(0, 6)
+      .toUpperCase()}`;
+  }
+
+  async function resolveDatabaseUserId(ws) {
+    if (
+      !database.enabled ||
+      !ws?.user?.googleSub
+    ) {
+      return null;
+    }
+
+    if (ws.user.dbUserId) {
+      return ws.user.dbUserId;
+    }
+
+    const dbUser = await database.upsertUser({
+      googleSub: ws.user.googleSub,
+      name: ws.user.name,
+      email: ws.user.email,
+      picture: ''
+    });
+
+    ws.user.dbUserId =
+      dbUser?.id
+        ? String(dbUser.id)
+        : null;
+
+    return ws.user.dbUserId;
+  }
+
+  async function persistParticipant(room, ws, role) {
+    if (
+      !database.enabled ||
+      !room?.sessionId ||
+      !ws?.user?.googleSub
+    ) {
+      return null;
+    }
+
+    const userId =
+      await resolveDatabaseUserId(ws);
+
+    if (!userId) {
+      throw new Error(
+        'Could not resolve participant database user'
+      );
+    }
+
+    const state =
+      role === 'receiver'
+        ? room.receiverStates.get(ws.clientId) || {}
+        : {};
+
+    return database.upsertParticipant({
+      sessionId: room.sessionId,
+      userId,
+      receiverId: participantId(ws, role),
+      role,
+      clientInfo:
+        state.clientInfo ||
+        ws.clientInfo ||
+        {},
+      network:
+        state.network ||
+        ws.network ||
+        {}
+    });
+  }
+
+  function ensureClassSession(room) {
+    if (
+      !database.enabled ||
+      !room?.host?.user?.googleSub
+    ) {
+      return Promise.resolve(null);
+    }
+
+    if (room.sessionReady) {
+      return room.sessionReady;
+    }
+
+    if (!room.sessionId) {
+      room.sessionId = crypto.randomUUID();
+    }
+
+    const sessionId = room.sessionId;
+
+    room.sessionReady =
+      (async () => {
+        const hostUserId =
+          await resolveDatabaseUserId(
+            room.host
+          );
+
+        if (!hostUserId) {
+          throw new Error(
+            'Could not resolve Sender database user'
+          );
+        }
+
+        await database.createClassSession({
+          id: sessionId,
+          roomCode: room.code,
+          course: 'DBA 802',
+          hostUserId
+        });
+
+        if (room.host) {
+          await persistParticipant(
+            room,
+            room.host,
+            'sender'
+          );
+        }
+
+        for (
+          const receiver
+          of room.receivers.values()
+        ) {
+          if (
+            receiver.room === room.code &&
+            receiver.mode === 'broadcast'
+          ) {
+            await persistParticipant(
+              room,
+              receiver,
+              'receiver'
+            );
+          }
+        }
+
+        return sessionId;
+      })()
+      .catch((error) => {
+        databaseError(
+          'class session persistence',
+          error
+        );
+
+        if (room.sessionId === sessionId) {
+          room.sessionId = null;
+        }
+
+        room.sessionReady = null;
+        return null;
+      });
+
+    return room.sessionReady;
+  }
+
+  async function persistTransferEvent(
+    room,
+    ws,
+    state,
+    result
+  ) {
+    if (!database.enabled) {
+      return null;
+    }
+
+    if (
+      !room?.sessionId ||
+      !ws?.user?.googleSub ||
+      !room.file
+    ) {
+      console.warn(
+        'PostgreSQL transfer event skipped:',
+        {
+          hasSession:
+            Boolean(room?.sessionId),
+          hasGoogleIdentity:
+            Boolean(ws?.user?.googleSub),
+          hasFile:
+            Boolean(room?.file)
+        }
+      );
+
+      return null;
+    }
+
+    const userId =
+      await resolveDatabaseUserId(ws);
+
+    if (!userId) {
+      throw new Error(
+        'Could not resolve Receiver database user'
+      );
+    }
+
+    const file = {
+      id: room.file.id,
+      name: room.file.name,
+      size: room.file.size,
+      mime: room.file.mime
+    };
+
+    const sessionId =
+      await (
+        room.sessionReady ||
+        Promise.resolve(room.sessionId)
+      );
+
+    if (!sessionId) {
+      throw new Error(
+        'Class session was not persisted'
+      );
+    }
+
+    let persistenceNetwork =
+      state.network ||
+      ws.network ||
+      {};
+
+    // The WebSocket geo request starts asynchronously when the
+    // participant connects. A very fast transfer can otherwise
+    // be persisted before city/state/country are available.
+    if (
+      ws.rawIp &&
+      persistenceNetwork.addressClass === 'public' &&
+      (
+        !persistenceNetwork.city ||
+        !persistenceNetwork.region ||
+        !persistenceNetwork.country
+      )
+    ) {
+      persistenceNetwork =
+        await enrichNetworkIdentity(
+          ws.rawIp,
+          persistenceNetwork
+        );
+
+      ws.network =
+        persistenceNetwork;
+
+      state.network =
+        persistenceNetwork;
+    }
+
+    const record =
+      await database.recordTransferEvent({
+        sessionId,
+        userId,
+        receiverId:
+          participantId(
+            ws,
+            'receiver'
+          ),
+        roomCode: room.code,
+        file,
+        result,
+        trigger:
+          state.trigger ||
+          'manual',
+        latencyMs:
+          state.latencyMs,
+        speedMbps:
+          state.transferSpeedMbps,
+        durationSec:
+          state.downloadTimeSec,
+        acceptanceLatencySec:
+          state.acceptanceLatencySec,
+        gestureConfidence:
+          state.gestureConfidence,
+        integrityVerified:
+          state.integrityVerified,
+        retries:
+          state.retries,
+        failureReason:
+          state.failureReason,
+        clientInfo:
+          state.clientInfo ||
+          ws.clientInfo ||
+          {},
+        network:
+          persistenceNetwork
+      });
+
+    if (result === 'SUCCESS') {
+      try {
+        const consent =
+          await database
+            .getConsentPreferences(
+              userId
+            );
+
+        await database
+          .recordLiveDataEvent({
+            sessionId,
+            userId,
+            roomCode:
+              room.code,
+            action:
+              'RECEIVE',
+            file,
+            clientInfo:
+              state.clientInfo ||
+              ws.clientInfo ||
+              {},
+            network:
+              persistenceNetwork,
+            commercialAllowed:
+              Boolean(
+                consent
+                  .analyticsConsent
+              )
+          });
+      } catch (error) {
+        databaseError(
+          'live RECEIVE persistence',
+          error
+        );
+      }
+    }
+
+    console.log(
+      'PostgreSQL transfer event persisted:',
+      result,
+      room.code,
+      participantId(
+        ws,
+        'receiver'
+      )
+    );
+
+    return record;
+  }
+
+  function persistParticipantLeave(room, ws) {
+    if (
+      !database.enabled ||
+      !room?.sessionId ||
+      !ws?.user?.dbUserId
+    ) {
+      return;
+    }
+
+    const waiting =
+      room.sessionReady ||
+      Promise.resolve(room.sessionId);
+
+    void waiting
+      .then((sessionId) => {
+        if (!sessionId) return null;
+
+        return database.markParticipantLeft({
+          sessionId,
+          userId: ws.user.dbUserId,
+          role:
+            ws.role === 'receiver'
+              ? 'receiver'
+              : 'sender'
+        });
+      })
+      .catch((error) => {
+        databaseError(
+          'participant leave persistence',
+          error
+        );
+      });
+  }
+
+  function endRoomSession(room) {
+    if (
+      !database.enabled ||
+      !room?.sessionId
+    ) {
+      return;
+    }
+
+    void database
+      .endClassSession(room.sessionId)
+      .catch((error) => {
+        databaseError(
+          'class session close',
+          error
+        );
+      });
   }
 
   // -----------------------------
@@ -461,6 +2931,8 @@ function createServer() {
         receivers: new Map(),
         receiverStates: new Map(),
         file: null,
+        sessionId: null,
+        sessionReady: null,
         createdAt: Date.now(),
         updatedAt: Date.now()
       };
@@ -523,7 +2995,14 @@ function createServer() {
 
   function resetReceiverStatesForFile(room) {
     for (const clientId of room.receivers.keys()) {
-      room.receiverStates.set(clientId, {});
+      const previous = room.receiverStates.get(clientId) || {};
+
+      room.receiverStates.set(clientId, {
+        joinedAt: previous.joinedAt || Date.now(),
+        identity: previous.identity || {},
+        network: previous.network || {},
+        clientInfo: previous.clientInfo || {}
+      });
     }
   }
 
@@ -534,6 +3013,8 @@ function createServer() {
       ws.room = null;
       return;
     }
+
+    persistParticipantLeave(room, ws);
 
     if (ws.role === 'sender' && room.host === ws) {
       room.host = null;
@@ -575,6 +3056,7 @@ function createServer() {
       room.receiverStates.set(ws.clientId, {
         ...previous,
         joinedAt: previous.joinedAt || Date.now(),
+        identity: ws.user || previous.identity || {},
         network: ws.network || previous.network || {},
         clientInfo: ws.clientInfo || previous.clientInfo || {}
       });
@@ -584,6 +3066,39 @@ function createServer() {
     ws.mode = 'broadcast';
     ws.role = role;
     room.updatedAt = Date.now();
+
+    if (role === 'sender') {
+      void ensureClassSession(room);
+    } else if (
+      database.enabled &&
+      room.sessionId
+    ) {
+      const waiting =
+        room.sessionReady ||
+        Promise.resolve(room.sessionId);
+
+      void waiting
+        .then(() => {
+          if (
+            ws.room === room.code &&
+            ws.mode === 'broadcast'
+          ) {
+            return persistParticipant(
+              room,
+              ws,
+              'receiver'
+            );
+          }
+
+          return null;
+        })
+        .catch((error) => {
+          databaseError(
+            'participant join persistence',
+            error
+          );
+        });
+    }
 
     sendJson(ws, {
       type: 'broadcast-joined',
@@ -617,6 +3132,86 @@ function createServer() {
       return res.status(403).json({ error: 'Valid active broadcast host required' });
     }
 
+    // Capture Sender telemetry from the same HTTP request
+    // that is carrying the file. This makes SEND telemetry
+    // independent of WebSocket timing/reconnection state.
+    const senderClientInfo =
+      sanitizeClientInfo({
+        browser:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-browser'
+            )
+          ),
+
+        os:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-os'
+            )
+          ),
+
+        deviceType:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-device'
+            )
+          ),
+
+        timezone:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-timezone'
+            )
+          ),
+
+        language:
+          safeDecodeHeader(
+            req.get(
+              'x-airgesture-client-language'
+            )
+          )
+      });
+
+    // This HTTP request definitely belongs to the Sender,
+    // so it is also a reliable source for Sender network data.
+    const uploadRawIp =
+      requestIp(req);
+
+    const uploadNetwork =
+      baseNetworkIdentity(
+        uploadRawIp,
+        req.headers || {}
+      );
+
+    // Prefer an already-enriched WebSocket network value when
+    // available, otherwise use the upload request information.
+    const existingNetwork =
+      room.host.network || {};
+
+    const senderNetwork = {
+      ...uploadNetwork,
+
+      ...Object.fromEntries(
+        Object.entries(
+          existingNetwork
+        ).filter(
+          ([, value]) =>
+            value !== '' &&
+            value !== null &&
+            value !== undefined
+        )
+      )
+    };
+
+    // Refresh the host copy as well so participant persistence
+    // and subsequent transfers use the latest Sender telemetry.
+    room.host.clientInfo =
+      senderClientInfo;
+
+    room.host.network =
+      senderNetwork;
+
     const declaredSize = Number(req.get('x-file-size'));
     if (!Number.isFinite(declaredSize) || declaredSize < 0 || declaredSize > MAX_BROADCAST_FILE_BYTES) {
       return res.status(413).json({ error: 'Broadcast file must be 100 MB or smaller' });
@@ -625,6 +3220,11 @@ function createServer() {
     const name = sanitizeFilename(safeDecodeHeader(req.get('x-file-name')));
     const mime = String(req.get('x-file-type') || 'application/octet-stream').slice(0, 120);
     const fileId = crypto.randomUUID();
+
+    // Unique public SEND transaction identifier.
+    // fileId remains the internal transfer-group identifier.
+    const senderTransferId = crypto.randomUUID();
+
     const filePath = path.join(BROADCAST_DIR, `${roomCode}-${fileId}.bin`);
     const output = fs.createWriteStream(filePath, { flags: 'wx' });
     const hash = crypto.createHash('sha256');
@@ -689,6 +3289,83 @@ function createServer() {
         room.updatedAt = now;
         resetReceiverStatesForFile(room);
 
+        // The file transfer must never fail just because
+        // classroom analytics persistence has a problem.
+        void (async () => {
+          if (!database.enabled) {
+            return;
+          }
+
+          const sessionId =
+            await ensureClassSession(
+              room
+            );
+
+          if (
+            !sessionId ||
+            !room.host
+          ) {
+            return;
+          }
+
+          const userId =
+            await resolveDatabaseUserId(
+              room.host
+            );
+
+          if (!userId) {
+            return;
+          }
+
+          // Resolve coarse Sender city/state/country before
+          // the SEND classroom event is stored.
+          const liveSenderNetwork =
+            await enrichNetworkIdentity(
+              uploadRawIp,
+              senderNetwork
+            );
+
+          if (room.host) {
+            room.host.network =
+              liveSenderNetwork;
+          }
+
+          const consent =
+            await database
+              .getConsentPreferences(
+                userId
+              );
+
+          await database
+            .recordLiveDataEvent({
+              eventId:
+                senderTransferId,
+
+              sessionId,
+              userId,
+              roomCode:
+                room.code,
+              action:
+                'SEND',
+              file:
+                room.file,
+              clientInfo:
+                senderClientInfo,
+              network:
+                liveSenderNetwork,
+              commercialAllowed:
+                Boolean(
+                  consent
+                    .analyticsConsent
+                )
+            });
+        })().catch((error) => {
+          databaseError(
+            'live SEND persistence',
+            error
+          );
+        });
+
         const payload = {
           type: 'broadcast-file-ready',
           file: publicBroadcastFile(room.file),
@@ -699,8 +3376,17 @@ function createServer() {
 
         res.status(201).json({
           ok: true,
-          file: publicBroadcastFile(room.file),
-          stats: broadcastStats(room)
+
+          // This is the unique SEND event UUID shown to
+          // the Sender and in the Database / CSV.
+          transferId:
+            senderTransferId,
+
+          file:
+            publicBroadcastFile(room.file),
+
+          stats:
+            broadcastStats(room)
         });
       });
     });
@@ -747,12 +3433,59 @@ function createServer() {
   wss.on('connection', (ws, req) => {
     ws.isAlive = true;
     ws.clientId = crypto.randomUUID();
+
+    const sessionUser = req.session?.user || (
+      allowTestAuthBypass
+        ? {
+            googleSub: 'integration-test-user',
+            name: 'Integration Test User',
+            email: 'integration@example.test'
+          }
+        : {}
+    );
+
+    ws.user = {
+      googleSub:
+        String(sessionUser.googleSub || ''),
+      dbUserId:
+        sessionUser.dbUserId
+          ? String(sessionUser.dbUserId)
+          : null,
+      name:
+        String(sessionUser.name || '')
+          .slice(0, 120),
+      email:
+        String(sessionUser.email || '')
+          .slice(0, 180)
+    };
+
+    if (!ws.user.googleSub) {
+      ws.close(4401, 'Authentication required');
+      return;
+    }
+
     const rawIp = requestIp(req);
-    ws.network = baseNetworkIdentity(rawIp, req.headers || {});
+
+    // Used only in server memory for coarse IP geolocation.
+    // Full IP is never persisted to PostgreSQL.
+    ws.rawIp = rawIp;
+
+    ws.network =
+      baseNetworkIdentity(
+        rawIp,
+        req.headers || {}
+      );
+
     ws.clientInfo = {};
     if (IP_ENRICH_URL_TEMPLATE && ws.network.addressClass === 'public') {
       enrichNetworkIdentity(rawIp, ws.network).then((enriched) => {
-        ws.network = enriched;
+        // Never downgrade a complete browser-direct location
+        // with an incomplete server-side result.
+        if (!hasCompleteGeo(ws.network)) {
+          ws.network =
+            enriched;
+        }
+
         if (ws.mode === 'broadcast' && ws.role === 'receiver' && ws.room) {
           const room = broadcastRooms.get(ws.room);
           const item = room?.receiverStates.get(ws.clientId);
@@ -785,6 +3518,159 @@ function createServer() {
         return joinBroadcast(ws, room, role, data.clientInfo || {});
       }
 
+      if (data.type === 'client-geo') {
+        const clientGeo =
+          sanitizeClientGeo(
+            data.clientGeo ||
+            {}
+          );
+
+        if (!clientGeo) {
+          return;
+        }
+
+        ws.network =
+          mergeClientGeo(
+            ws.network ||
+            {},
+            clientGeo
+          );
+
+        if (
+          ws.mode === 'broadcast' &&
+          ws.room
+        ) {
+          const room =
+            broadcastRooms.get(
+              ws.room
+            );
+
+          if (
+            room &&
+            ws.role === 'receiver'
+          ) {
+            const item =
+              room.receiverStates.get(
+                ws.clientId
+              ) || {};
+
+            item.network =
+              ws.network;
+
+            room.receiverStates.set(
+              ws.clientId,
+              item
+            );
+
+            emitReceiverIntelligence(
+              room
+            );
+          }
+
+          if (
+            room &&
+            database.enabled &&
+            room.sessionId
+          ) {
+            void persistParticipant(
+              room,
+              ws,
+              ws.role === 'receiver'
+                ? 'receiver'
+                : 'sender'
+            ).catch(
+              (error) => {
+                databaseError(
+                  'browser location participant persistence',
+                  error
+                );
+              }
+            );
+
+
+            // A Sender may upload before browser IP
+            // geolocation finishes. Refresh the existing
+            // SEND analytics row when canonical location
+            // becomes available.
+            //
+            // recordLiveDataEvent uses:
+            // session + user + file ID + action
+            // as its conflict key, so this updates the
+            // existing SEND instead of adding a duplicate.
+            if (
+              ws.role === 'sender' &&
+              room.file
+            ) {
+              void (async () => {
+                const userId =
+                  await resolveDatabaseUserId(
+                    ws
+                  );
+
+                if (!userId) {
+                  return;
+                }
+
+                const consent =
+                  await database
+                    .getConsentPreferences(
+                      userId
+                    );
+
+                await database
+                  .recordLiveDataEvent({
+                    sessionId:
+                      room.sessionId,
+
+                    userId,
+
+                    roomCode:
+                      room.code,
+
+                    action:
+                      'SEND',
+
+                    file:
+                      room.file,
+
+                    clientInfo:
+                      ws.clientInfo || {},
+
+                    network:
+                      ws.network || {},
+
+                    commercialAllowed:
+                      Boolean(
+                        consent
+                          .analyticsConsent
+                      )
+                  });
+              })().catch(
+                (error) => {
+                  databaseError(
+                    'canonical SEND location refresh',
+                    error
+                  );
+                }
+              );
+            }
+          }
+        }
+
+        sendJson(
+          ws,
+          {
+            type:
+              'network-location-update',
+
+            network:
+              ws.network
+          }
+        );
+
+        return;
+      }
+
       if (ws.mode === 'peer' && ['offer', 'answer', 'ice'].includes(data.type) && ws.room) {
         if (data.type === 'offer' && ws.role !== 'sender') return;
         if (data.type === 'answer' && ws.role !== 'receiver') return;
@@ -807,7 +3693,23 @@ function createServer() {
           item.latencyMs = safeMetric(data.latencyMs, 120000);
           item.acceptanceLatencySec = safeMetric(data.acceptanceLatencySec, 86400);
           item.gestureConfidence = safeMetric(data.gestureConfidence, 1);
+          item.trigger =
+            data.trigger === 'gesture'
+              ? 'gesture'
+              : 'manual';
+
           room.receiverStates.set(ws.clientId, item);
+
+          void persistParticipant(
+            room,
+            ws,
+            'receiver'
+          ).catch((error) => {
+            databaseError(
+              'participant telemetry persistence',
+              error
+            );
+          });
           room.updatedAt = Date.now();
           sendJson(ws, { type: 'broadcast-accept-confirmed', file: publicBroadcastFile(room.file) });
           emitBroadcastStats(room);
@@ -832,6 +3734,19 @@ function createServer() {
           item.network = ws.network || item.network || {};
           room.receiverStates.set(ws.clientId, item);
           room.updatedAt = Date.now();
+
+          void persistTransferEvent(
+            room,
+            ws,
+            item,
+            'SUCCESS'
+          ).catch((error) => {
+            databaseError(
+              'transfer event persistence',
+              error
+            );
+          });
+
           emitBroadcastStats(room);
           emitReceiverIntelligence(room);
           return;
@@ -850,6 +3765,19 @@ function createServer() {
           item.network = ws.network || item.network || {};
           room.receiverStates.set(ws.clientId, item);
           room.updatedAt = Date.now();
+
+          void persistTransferEvent(
+            room,
+            ws,
+            item,
+            'FAILED'
+          ).catch((error) => {
+            databaseError(
+              'transfer event persistence',
+              error
+            );
+          });
+
           emitBroadcastStats(room);
           emitReceiverIntelligence(room);
           return;
@@ -891,6 +3819,7 @@ function createServer() {
       }
       const hostActive = Boolean(room.host && room.host.readyState === WebSocket.OPEN);
       if (!hostActive && room.receivers.size === 0 && now - room.updatedAt > 10 * 60 * 1000) {
+        endRoomSession(room);
         deleteBroadcastFile(room);
         broadcastRooms.delete(code);
       }
@@ -901,20 +3830,97 @@ function createServer() {
   server.on('close', () => {
     clearInterval(heartbeat);
     clearInterval(cleanup);
-    for (const room of broadcastRooms.values()) deleteBroadcastFile(room);
+
+    const sessionIds = [
+      ...broadcastRooms.values()
+    ]
+      .map((room) => room.sessionId)
+      .filter(Boolean);
+
+    for (const room of broadcastRooms.values()) {
+      deleteBroadcastFile(room);
+    }
+
+    void Promise.all(
+      sessionIds.map((sessionId) =>
+        database.endClassSession(sessionId)
+      )
+    )
+      .catch((error) => {
+        databaseError(
+          'shutdown session close',
+          error
+        );
+      })
+      .finally(() =>
+        database.close().catch((error) => {
+          console.error(
+            'Database shutdown error:',
+            error.message
+          );
+        })
+      );
   });
 
-  return { app, server, wss, rooms, broadcastRooms };
+  return {
+    app,
+    server,
+    wss,
+    rooms,
+    broadcastRooms,
+    database
+  };
 }
 
 if (require.main === module) {
-  const { server } = createServer();
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log('\nAirGesture Transfer Intelligence v5.2');
-    console.log(`Local:   http://localhost:${PORT}`);
-    console.log('Mode:    Universal Room (1 Sender → N Receivers; no fixed app cap)');
-    console.log('Network: use HTTPS for camera access from multiple physical devices.\n');
-  });
+  const {
+    server,
+    database
+  } = createServer();
+
+  (async () => {
+    try {
+      const dbStatus =
+        await database.initialize();
+
+      server.listen(
+        PORT,
+        '0.0.0.0',
+        () => {
+          console.log(
+            '\nAirGesture Transfer Intelligence v5.4.0'
+          );
+
+          console.log(
+            `Local:   http://localhost:${PORT}`
+          );
+
+          console.log(
+            'Mode:    Universal Room (1 Sender → N Receivers; no fixed app cap)'
+          );
+
+          console.log(
+            `Database: ${
+              dbStatus.ready
+                ? 'PostgreSQL ready'
+                : 'not configured locally'
+            }`
+          );
+
+          console.log(
+            'Network: use HTTPS for camera access from multiple physical devices.\n'
+          );
+        }
+      );
+    } catch (error) {
+      console.error(
+        'PostgreSQL initialization failed:',
+        error.message
+      );
+
+      process.exit(1);
+    }
+  })();
 }
 
 module.exports = {
@@ -926,5 +3932,7 @@ module.exports = {
   maskIp,
   classifyIp,
   sanitizeClientInfo,
+  sanitizeClientGeo,
+  mergeClientGeo,
   receiverIntelligenceRecord
 };

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#07111f" />
+  <title>AirGesture Decision Intelligence</title>
+  <meta
+    name="description"
+    content="AirGesture commercial analytics and data-grounded strategic decision intelligence for DBA 802."
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="intelligence.css" />
+</head>
+<body class="intelligence-page">
+  <section id="authGate" class="auth-gate">
+    <div class="auth-card glass">
+      <div class="auth-logo">✦</div>
+      <div class="eyebrow">DBA 802 · DECISION INTELLIGENCE LAB</div>
+      <h1>Enter the <span>Intelligence Center</span></h1>
+      <p>Sign in with Google to explore aggregate AirGesture analytics and data-grounded strategy.</p>
+      <div class="auth-purpose">
+        <div><strong>ANALYZE</strong><span>See audience, market, content and platform patterns.</span></div>
+        <div><strong>DECIDE</strong><span>Turn evidence into a small, testable business action.</span></div>
+        <div><strong>ASK</strong><span>Use the Data Assistant to ask normal business questions.</span></div>
+      </div>
+      <div id="googleSignInButton" class="google-signin"></div>
+      <p id="authMessage" class="auth-message">Loading secure sign-in…</p>
+      <small class="auth-footnote">
+        The Data Assistant uses aggregate AirGesture records only. It has no external AI API cost and does not expose passwords, file contents, Google IDs or full IP addresses.
+      </small>
+    </div>
+  </section>
+
+  <div class="intelligence-shell">
+    <header class="intelligence-topbar">
+      <a class="brand intelligence-brand" href="/" aria-label="AirGesture home">
+        <span class="brand-mark">
+          <svg viewBox="0 0 42 42" aria-hidden="true"><path d="M8 22c6-12 11-13 13-2 2-10 7-9 8-1 3-6 8-3 6 5-3 11-11 15-20 9C7 28 5 26 8 22Z"/><circle cx="31" cy="10" r="3"/></svg>
+        </span>
+        <span><strong>AirGesture</strong><small>Decision Intelligence</small></span>
+      </a>
+
+      <nav class="intelligence-nav" aria-label="AirGesture views">
+        <a href="/" class="intelligence-nav-link">Transfer</a>
+        <a href="/live-data.html" class="intelligence-nav-link">Database</a>
+        <a href="/intelligence.html" class="intelligence-nav-link active">Intelligence</a>
+      </nav>
+
+      <div class="intelligence-user-area">
+        <span id="aiStatusBadge" class="ai-status-badge"><span class="ai-status-dot"></span>Data Assistant ready</span>
+        <div id="authUser" class="auth-user intelligence-auth-user" hidden>
+          <img id="authUserPicture" alt="" hidden />
+          <div><strong id="authUserName">Signed In</strong><small id="authUserEmail"></small></div>
+          <button id="logoutBtn" class="mini-btn" type="button">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="intelligence-main">
+      <section class="intelligence-hero">
+        <div>
+          <span class="section-kicker">AIRGESTURE · DBA 802</span>
+          <h1>Data Analytics → <span>Strategic Decision</span></h1>
+          <p>
+            Start with observed behavior, explore the pattern, then decide what business experiment is worth testing next.
+          </p>
+        </div>
+        <div class="hero-status-card">
+          <span>LIVE DATABASE ANALYSIS</span>
+          <strong id="heroStatusText">Preparing current business signals…</strong>
+          <small id="lastUpdated">Waiting for database…</small>
+          <button id="refreshIntelligenceBtn" type="button">Refresh data</button>
+        </div>
+      </section>
+
+      <div class="mode-switch" role="tablist" aria-label="Intelligence mode">
+        <button id="dashboardModeBtn" class="mode-button active" role="tab" aria-selected="true" type="button">Analytics Dashboard</button>
+        <button id="aiModeBtn" class="mode-button" role="tab" aria-selected="false" type="button">✦ Data Assistant</button>
+      </div>
+
+      <section id="dashboardView" class="mode-view active">
+        <section class="filter-panel" aria-label="Filter analysis">
+          <div class="filter-title">
+            <strong>Filter analysis</strong>
+            <span>Choose a scenario or click a chart value.</span>
+          </div>
+          <label><span>Period</span><select id="rangeFilter"><option value="all">All data</option><option value="90d">Last 90 days</option><option value="30d">Last 30 days</option><option value="7d">Last 7 days</option></select></label>
+          <label><span>Audience</span><select id="segmentFilter"><option value="">All audiences</option></select></label>
+          <label><span>Market</span><select id="locationFilter"><option value="">All markets</option></select></label>
+          <label><span>Content</span><select id="fileTypeFilter"><option value="">All file types</option></select></label>
+          <button id="resetFiltersBtn" class="filter-reset" type="button">Reset</button>
+        </section>
+        <div id="activeFilters" class="active-filter-row" aria-live="polite"></div>
+
+        <section class="kpi-grid" aria-label="Executive overview">
+          <article class="kpi-card"><span>RECORDED EVENTS</span><strong id="kpiEvents">—</strong><small>events in current scope</small></article>
+          <article class="kpi-card"><span>OBSERVED USERS</span><strong id="kpiUsers">—</strong><small>unique display names</small></article>
+          <article class="kpi-card"><span>MARKETS</span><strong id="kpiMarkets">—</strong><small>observed locations</small></article>
+          <article class="kpi-card"><span>RECORDED VOLUME</span><strong id="kpiBytes">—</strong><small>sum of event file sizes</small></article>
+          <article class="kpi-card"><span>LEADING AUDIENCE</span><strong id="kpiSegment">—</strong><small id="kpiSegmentShare">—</small></article>
+          <article class="kpi-card"><span>LEADING CONTENT</span><strong id="kpiFileType">—</strong><small id="kpiFileTypeShare">—</small></article>
+        </section>
+
+        <section id="decisionCockpitV6" class="section-block decision-cockpit-v6">
+          <div class="section-heading simple"><div><span class="section-kicker">DECISION COCKPIT</span><h2>Who → Where → What should we test?</h2><p>Move from observed audience behavior to a market and a small commercial experiment. Rankings are evidence-based hypotheses—not sales predictions.</p></div><button id="cockpitAskBtn" class="text-action" type="button">Ask Data Assistant →</button></div>
+          <div class="decision-question-strip">
+            <article class="decision-question-card"><span>01 · WHO</span><strong id="cockpitWho">—</strong><p id="cockpitWhoMeta">Finding the strongest observed audience…</p></article>
+            <article class="decision-question-card"><span>02 · WHERE</span><strong id="cockpitWhere">—</strong><p id="cockpitWhereMeta">Evaluating market reach and engagement…</p></article>
+            <article class="decision-question-card"><span>03 · WHAT</span><strong id="cockpitWhat">—</strong><p id="cockpitWhatMeta">Mapping observed content to a testable use case…</p></article>
+          </div>
+          <div class="decision-cockpit-grid">
+            <article class="cockpit-panel"><div class="cockpit-panel-head"><div><span class="section-kicker">AUDIENCE OPPORTUNITY</span><h3>Audience ranking</h3></div><small>Reach + activity + evidence</small></div><div id="audienceRankingV6" class="audience-ranking-v6"></div></article>
+            <article class="cockpit-panel"><div class="cockpit-panel-head"><div><span class="section-kicker">MARKET QUALITY</span><h3>Reach · Engagement · Volume</h3></div><small>Size is not the same as quality</small></div><div id="marketQualityV6" class="market-quality-v6"></div></article>
+          </div>
+          <div class="executive-decision-v6"><div class="executive-decision-label">EXECUTIVE DECISION</div><div class="executive-decision-grid">
+            <div><span>WHAT WE OBSERVED</span><strong id="decisionObservedV6">—</strong></div><div><span>WHY IT MATTERS</span><strong id="decisionWhyV6">—</strong></div><div><span>WHAT TO TEST</span><strong id="decisionTestV6">—</strong></div><div><span>HOW TO VALIDATE</span><strong id="decisionValidateV6">—</strong></div>
+          </div><div class="decision-evidence-row"><span id="decisionEvidenceV6" class="evidence-badge-v6">Evidence: —</span><span id="decisionSampleV6" class="sample-note-v6">Waiting for current data…</span></div></div>
+          <div class="compare-lab-v6"><div><span class="section-kicker">COMPARE MODE</span><h3>Compare two markets</h3><p>Use the same metrics on both sides before making a decision.</p></div><label><span>Market A</span><select id="compareMarketA"><option value="">Select market</option></select></label><label><span>Market B</span><select id="compareMarketB"><option value="">Select market</option></select></label><button id="compareMarketsBtn" type="button">Compare</button></div>
+          <div id="compareResultsV6" class="compare-results-v6" hidden></div>
+        </section>
+
+        <section class="section-block executive-block">
+          <div class="section-heading simple">
+            <div><span class="section-kicker">DECISION SNAPSHOT</span><h2>Three questions management can act on</h2><p>These are neutral starting points from the current data—not product sales predictions.</p></div>
+            <button class="text-action" data-ai-question="What should management do next based on the current AirGesture data?" type="button">Ask Assistant →</button>
+          </div>
+          <div id="decisionSnapshot" class="decision-snapshot-grid"></div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading simple"><div><span class="section-kicker">CORE ANALYTICS</span><h2>Explore what the data says</h2><p>Click a chart value to filter the entire dashboard.</p></div></div>
+          <div class="analytics-grid">
+            <article class="chart-card" data-panel="audience">
+              <div class="chart-card-head"><div><h3>Audience mix</h3><p>Which technology segments are most active?</p></div><div class="card-actions"><button data-insight="audience" type="button">View insight</button><button data-panel-ai="audience" type="button">Ask Assistant</button></div></div>
+              <div class="chart-stage donut-stage"><canvas id="segmentChart"></canvas></div>
+            </article>
+
+            <article class="chart-card" data-panel="market">
+              <div class="chart-card-head"><div><h3>Top markets</h3><p>Where is observed activity concentrated?</p></div><div class="card-actions"><button data-insight="market" type="button">View insight</button><button data-panel-ai="market" type="button">Ask Assistant</button></div></div>
+              <div class="metric-toggle" id="marketMetricToggle"><button class="active" data-metric="count" type="button">Events</button><button data-metric="users" type="button">Users</button><button data-metric="bytes" type="button">Volume</button></div>
+              <div class="chart-stage bar-stage"><canvas id="marketChart"></canvas></div>
+            </article>
+
+            <article class="chart-card" data-panel="product">
+              <div class="chart-card-head"><div><h3>Content mix</h3><p>What types of files drive usage?</p></div><div class="card-actions"><button data-insight="product" type="button">View insight</button><button data-panel-ai="product" type="button">Ask Assistant</button></div></div>
+              <div class="chart-stage donut-stage"><canvas id="fileTypeChart"></canvas></div>
+            </article>
+
+            <article class="chart-card" data-panel="platform">
+              <div class="chart-card-head"><div><h3>Platform mix</h3><p>Which operating systems dominate?</p></div><div class="card-actions"><button data-insight="platform" type="button">View insight</button><button data-panel-ai="platform" type="button">Ask Assistant</button></div></div>
+              <div class="chart-stage bar-stage"><canvas id="platformChart"></canvas></div>
+              <div id="browserMiniStats" class="mini-stat-row"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-block behavior-block">
+          <div class="section-heading simple"><div><span class="section-kicker">BEHAVIOR</span><h2>When and how intensely AirGesture is used</h2><p>Useful for support, messaging and feature-tier experiments.</p></div></div>
+          <div class="behavior-grid">
+            <article class="chart-card wide-card" data-panel="timing">
+              <div class="chart-card-head"><div><h3>Activity by hour</h3><p>Hourly activity is displayed in UTC.</p></div><div class="card-actions"><button data-insight="timing" type="button">View insight</button><button data-panel-ai="timing" type="button">Ask Assistant</button></div></div>
+              <div class="chart-stage line-stage"><canvas id="timeChart"></canvas></div>
+              <div id="peakTiming" class="peak-timing"></div>
+            </article>
+            <article class="chart-card" data-panel="usage">
+              <div class="chart-card-head"><div><h3>Usage intensity</h3><p>Light, active and heavy usage groups.</p></div><div class="card-actions"><button data-insight="usage" type="button">View insight</button><button data-panel-ai="usage" type="button">Ask Assistant</button></div></div>
+              <div class="chart-stage donut-stage"><canvas id="usageChart"></canvas></div>
+              <p class="plain-note">High usage can justify a feature-tier test; it does not prove willingness to pay.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-block commercial-block">
+          <div class="section-heading simple"><div><span class="section-kicker">COMMERCIAL STRATEGY</span><h2>Product Opportunity Marketplace</h2><p>Choose a category to explore 20 product ideas—from obvious fits to unexpected experiments.</p></div>
+
+          
+          <div
+            id="commercialStrategyControlsV1"
+            class="commercial-strategy-controls-v1">
+
+            <div class="commercial-controls-title-v1">
+
+              <span>
+                BUILD A BUSINESS SCENARIO
+              </span>
+
+              <strong>
+                Choose an audience and market
+              </strong>
+
+              <p>
+                Commercial Strategy will update only for this selected scenario.
+              </p>
+
+            </div>
+
+
+            <label>
+
+              <span>
+                AUDIENCE
+              </span>
+
+              <select
+                id="commercialAudienceFilterV1">
+
+                <option value="">
+                  All audiences
+                </option>
+
+              </select>
+
+            </label>
+
+
+            <label>
+
+              <span>
+                MARKET
+              </span>
+
+              <select
+                id="commercialMarketFilterV1">
+
+                <option value="">
+                  All markets
+                </option>
+
+              </select>
+
+            </label>
+
+
+            <button
+              id="commercialResetV1"
+              type="button">
+
+              Reset
+            </button>
+
+          </div>
+
+<div id="commercialScenarioV1" class="commercial-scenario-v1">
+
+            <div class="commercial-scenario-icon-v1">◎</div>
+
+            <div>
+              <span>CURRENT BUSINESS SCENARIO</span>
+
+              <strong id="commercialScenarioTitleV1">
+                All audiences · All markets
+              </strong>
+
+              <p id="commercialScenarioTextV1">
+                Select an Audience and Market above. Product opportunities will
+                automatically reorganize around that specific scenario.
+              </p>
+            </div>
+
+            <div class="commercial-scenario-status-v1">
+              DYNAMIC
+            </div>
+
+          </div>
+
+<button class="text-action" data-ai-question="What should management do next based on the current AirGesture data?" type="button">Ask Assistant →</button></div>
+          <div id="opportunityList" class="opportunity-list"></div>
+        </section>
+
+      </section>
+
+      <section id="aiView" class="mode-view ai-mode-view" hidden>
+        <div class="ai-mode-header">
+          <div><span class="section-kicker">DATA ASSISTANT</span><h2>Ask the AirGesture data</h2><p>Ask a normal business question. The assistant calculates the answer from the current AirGesture PostgreSQL aggregates using transparent rules—no external AI API.</p></div>
+          <div id="aiProviderLabel" class="ai-provider-label">$0 external API · current PostgreSQL aggregates</div>
+        </div>
+
+        <div class="suggested-prompts" id="suggestedPrompts">
+          <button type="button">Which area has the most users?</button>
+          <button type="button">Which area has the least users?</button>
+          <button type="button">Which area has the most Windows users?</button>
+          <button type="button">Compare Dallas and Chicago by users.</button>
+          <button type="button">I want to promote a music app. Which area is best?</button>
+          <button type="button">What should management do next?</button>
+        </div>
+
+        <div class="ai-workspace">
+          <div class="ai-chat-panel">
+            <div class="ai-chat-head"><strong>Data conversation</strong><button id="clearAiConversationBtn" type="button">Clear</button></div>
+            <div id="aiConversation" class="ai-conversation" aria-live="polite">
+              <div class="ai-message assistant intro-message"><div class="ai-avatar">✦</div><div><strong>AirGesture Data Assistant</strong><p>Ask a data or business-test question. I calculate the answer from the current aggregate database without calling an external AI service.</p></div></div>
+            </div>
+            <form id="aiQuestionForm" class="ai-question-form">
+              <textarea id="aiQuestionInput" rows="3" maxlength="500" placeholder="Example: Which area has the least users?" aria-label="Ask an AirGesture data question"></textarea>
+              <button id="aiSendBtn" type="submit">Ask Data Assistant <span>↗</span></button>
+            </form>
+            <small class="ai-input-note">Every answer is calculated from current aggregate AirGesture data. Product recommendations use transparent behavioral proxies and remain hypotheses to validate.</small>
+          </div>
+          <aside id="aiAnswerPanel" class="ai-answer-panel">
+            <div class="ai-answer-empty"><span>✦</span><strong>Your data answer will appear here</strong><p>Direct answer · evidence · recommendation · experiment · limitation</p></div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="intelligence-footer">
+      <span>AirGesture · DBA 802 Data Analytics & Strategic Decision Intelligence</span>
+      <span>Observed evidence → business hypothesis → controlled test</span>
+    </footer>
+  </div>
+
+  <section id="productExplorerV1" class="product-explorer-v1" hidden aria-hidden="true">
+    <div class="product-explorer-backdrop-v1" data-close-product-explorer></div>
+    <div class="product-explorer-shell-v1" role="dialog" aria-modal="true">
+      <header class="product-explorer-header-v1">
+        <div><span class="section-kicker">PRODUCT OPPORTUNITY MARKETPLACE</span><h2 id="productExplorerTitleV1">Commercial Product Opportunities</h2><p id="productExplorerSubtitleV1">20 testable product ideas based on observed AirGesture behavior.</p></div>
+        <button class="product-explorer-close-v1" type="button" data-close-product-explorer>×</button>
+      </header>
+      <div class="product-explorer-context-v1">
+        <div><span>AUDIENCE</span><strong id="productExplorerAudienceV1">—</strong></div>
+        <div><span>MARKET</span><strong id="productExplorerMarketV1">—</strong></div>
+        <div><span>OBSERVED SIGNAL</span><strong id="productExplorerSignalV1">—</strong></div>
+        <div><span>EVIDENCE</span><strong id="productExplorerEvidenceV1">—</strong></div>
+      </div>
+      
+      <div id="productExplorerToolbarV2" class="product-explorer-toolbar-v2">
+        <input id="productSearchV2"
+               type="search"
+               placeholder="Search products..."
+               aria-label="Search products">
+
+        <div class="product-type-filters-v2">
+          <button class="active" data-product-kind="all" type="button">All Types</button>
+          <button data-product-kind="software" type="button">Software</button>
+          <button data-product-kind="hardware" type="button">Hardware</button>
+          <button data-product-kind="service" type="button">Service</button>
+        </div>
+
+        <button id="surpriseProductV2"
+                class="surprise-product-v2"
+                type="button">
+          ✦ Surprise Me
+        </button>
+      </div>
+
+<div class="product-explorer-tabs-v1">
+        <button class="active" type="button" data-product-tier="all">All 20</button><button type="button" data-product-tier="best">Best Fit</button><button type="button" data-product-tier="emerging">Emerging</button><button type="button" data-product-tier="unexpected">Unexpected</button>
+      </div>
+      <div id="productExplorerGridV1" class="product-explorer-grid-v1"></div>
+      
+      <section id="productCompareTrayV2"
+               class="product-compare-tray-v2"
+               hidden>
+
+        <div>
+          <span class="section-kicker">SHORTLIST</span>
+          <strong id="productCompareCountV2">0 selected</strong>
+          <small>Select up to 3 products.</small>
+        </div>
+
+        <div id="productCompareItemsV2"
+             class="product-compare-items-v2"></div>
+
+        <button id="compareProductsV2"
+                type="button">
+          Compare Selected
+        </button>
+
+        <button id="clearCompareV2"
+                type="button">
+          Clear
+        </button>
+      </section>
+
+      <section id="productComparisonV2"
+               class="product-comparison-v2"
+               hidden>
+
+        <div class="product-comparison-head-v2">
+          <div>
+            <span class="section-kicker">PRODUCT COMPARISON</span>
+            <h3>Which opportunity should we test first?</h3>
+          </div>
+
+          <button id="closeComparisonV2"
+                  type="button">×</button>
+        </div>
+
+        <div id="productComparisonGridV2"
+             class="product-comparison-grid-v2"></div>
+      </section>
+
+<footer class="product-explorer-footer-v1"><p>Commercial hypotheses from aggregate technology behavior only. AirGesture does not infer purchase intent or sensitive personal attributes.</p><button id="productExplorerAskV1" type="button">Ask Data Assistant about this category →</button></footer>
+    </div>
+  </section>
+
+  <aside id="intelligenceDrawer" class="intelligence-drawer" aria-hidden="true">
+    <div class="drawer-backdrop" data-close-drawer></div>
+    <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+      <div class="drawer-head"><div><span class="section-kicker">INSIGHT</span><h2 id="drawerTitle">Analysis</h2></div><button class="drawer-close" type="button" data-close-drawer aria-label="Close insight">×</button></div>
+      <div id="drawerContent" class="drawer-content"></div>
+    </div>
+  </aside>
+
+  <div id="intelligenceToast" class="intelligence-toast" role="status" aria-live="polite"></div>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth-client.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="intelligence-utils.js"></script>
+  <script src="intelligence.js"></script>
+</body>
+</html>
