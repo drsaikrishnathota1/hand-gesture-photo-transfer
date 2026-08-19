@@ -31,6 +31,11 @@
   let searchTimer = null;
   let refreshInFlight = false;
 
+  // Commercial analytics use the SAME Intelligence snapshot
+  // as /intelligence.html.
+  let intelligenceRefreshInFlight = false;
+  let latestIntelligenceSnapshot = null;
+
   // Selected transaction remains expanded even while
   // the live dashboard refreshes every second.
   let activeTransferGroupId = '';
@@ -1081,15 +1086,583 @@
   }
 
 
+
+  // ========================================================
+  // AIRGESTURE_UNIFIED_INTELLIGENCE_SOURCE_V1
+  //
+  // Single source of truth:
+  //
+  // Database records:
+  //   /api/live-data
+  //
+  // Commercial analytics:
+  //   /api/intelligence
+  //
+  // This guarantees the Database page and Strategic
+  // Intelligence page use the SAME analytical snapshot.
+  // ========================================================
+
+
+  function normalizedDimensionName(value) {
+
+    return String(value || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
+  }
+
+
+  function validCommercialSegment(item) {
+
+    const name =
+      normalizedDimensionName(
+        item?.name
+      );
+
+    return Boolean(name)
+      && name !== 'UNCLASSIFIED'
+      && name !== 'NOT_OPTED_IN'
+      && name !== 'UNSPECIFIED';
+  }
+
+
+  function segmentMetricMap(snapshot) {
+
+    const map =
+      new Map();
+
+
+    for (
+      const item
+      of (
+        snapshot
+          ?.dimensions
+          ?.segments || []
+      )
+    ) {
+
+      if (
+        !validCommercialSegment(item)
+      ) {
+        continue;
+      }
+
+
+      map.set(
+        normalizedDimensionName(
+          item.name
+        ),
+        {
+          name:
+            item.name,
+
+          events:
+            Number(
+              item.count || 0
+            ),
+
+          users:
+            Number(
+              item.users || 0
+            ),
+
+          bytes:
+            Number(
+              item.bytes || 0
+            )
+        }
+      );
+    }
+
+
+    return map;
+  }
+
+
+  function fileMetricMap(snapshot) {
+
+    const map =
+      new Map();
+
+
+    for (
+      const item
+      of (
+        snapshot
+          ?.dimensions
+          ?.fileTypes || []
+      )
+    ) {
+
+      map.set(
+        normalizedDimensionName(
+          item.name
+        ),
+        Number(
+          item.count || 0
+        )
+      );
+    }
+
+
+    return map;
+  }
+
+
+  function pctOf(
+    value,
+    total
+  ) {
+
+    if (!total) {
+      return '0%';
+    }
+
+
+    return (
+      Math.round(
+        (
+          Number(value || 0)
+          /
+          Number(total || 1)
+        )
+        * 1000
+      )
+      / 10
+    ) + '%';
+  }
+
+
+  function prettyCommercialSegmentV1(
+    value
+  ) {
+
+    const key =
+      normalizedDimensionName(
+        value
+      );
+
+
+    const labels = {
+
+      WINDOWS_DESKTOP:
+        'Windows Desktop',
+
+      APPLE_DESKTOP:
+        'Apple Desktop',
+
+      APPLE_MOBILE:
+        'Apple Mobile',
+
+      ANDROID_MOBILE:
+        'Android Mobile',
+
+      TABLET_USER:
+        'Tablet',
+
+      TABLET:
+        'Tablet',
+
+      LINUX_DESKTOP:
+        'Linux Desktop',
+
+      GENERAL_DESKTOP:
+        'General Desktop',
+
+      MOBILE_USER:
+        'Mobile User'
+    };
+
+
+    return (
+      labels[key]
+      ||
+      String(value || '')
+        .replace(/_/g, ' ')
+        .replace(
+          /\b\w/g,
+          char =>
+            char.toUpperCase()
+        )
+    );
+  }
+
+
+  function renderUnifiedCommercialV1(
+    snapshot
+  ) {
+
+    if (!snapshot) {
+      return;
+    }
+
+
+    latestIntelligenceSnapshot =
+      snapshot;
+
+
+    const segments =
+      segmentMetricMap(
+        snapshot
+      );
+
+
+    const segmentRows =
+      [...segments.values()];
+
+
+    /*
+      Same denominator as the visible Audience Mix chart:
+      qualified commercial-segment EVENTS.
+    */
+
+    const totalSegmentEvents =
+      segmentRows.reduce(
+        (sum, item) =>
+          sum + item.events,
+        0
+      );
+
+
+    const eventsFor =
+      (...names) =>
+        names.reduce(
+          (sum, name) =>
+            sum
+            +
+            (
+              segments.get(
+                normalizedDimensionName(
+                  name
+                )
+              )
+                ?.events || 0
+            ),
+          0
+        );
+
+
+    const appleEvents =
+      eventsFor(
+        'APPLE_DESKTOP',
+        'APPLE_MOBILE'
+      );
+
+
+    const windowsEvents =
+      eventsFor(
+        'WINDOWS_DESKTOP'
+      );
+
+
+    const mobileEvents =
+      eventsFor(
+        'APPLE_MOBILE',
+        'ANDROID_MOBILE',
+        'TABLET_USER',
+        'TABLET',
+        'MOBILE_USER'
+      );
+
+
+    setText(
+      'applePct',
+      pctOf(
+        appleEvents,
+        totalSegmentEvents
+      )
+    );
+
+
+    setText(
+      'windowsPct',
+      pctOf(
+        windowsEvents,
+        totalSegmentEvents
+      )
+    );
+
+
+    setText(
+      'mobilePct',
+      pctOf(
+        mobileEvents,
+        totalSegmentEvents
+      )
+    );
+
+
+    const files =
+      fileMetricMap(
+        snapshot
+      );
+
+
+    setText(
+      'imageMix',
+      files.get('IMAGE') || 0
+    );
+
+
+    setText(
+      'documentMix',
+      Number(
+        files.get('PDF') || 0
+      )
+      +
+      Number(
+        files.get('DOCUMENT') || 0
+      )
+    );
+
+
+    setText(
+      'videoMix',
+      files.get('VIDEO') || 0
+    );
+
+
+    renderUnifiedBusinessV1(
+      segmentRows
+    );
+  }
+
+
+  function renderUnifiedBusinessV1(
+    segments
+  ) {
+
+    const root =
+      $('businessOpportunities');
+
+
+    if (!root) {
+      return;
+    }
+
+
+    root.innerHTML = '';
+
+
+    /*
+      Sort by EVENT COUNT so the order corresponds to
+      Strategic Intelligence Audience Mix.
+    */
+
+    const rows =
+      [...(segments || [])]
+        .filter(
+          item =>
+            Number(
+              item.events || 0
+            ) > 0
+        )
+        .sort(
+          (a, b) =>
+            Number(
+              b.events || 0
+            )
+            -
+            Number(
+              a.events || 0
+            )
+        );
+
+
+    if (!rows.length) {
+
+      const empty =
+        document.createElement(
+          'div'
+        );
+
+      empty.className =
+        'business-empty';
+
+      empty.textContent =
+        'Commercial opportunities will appear as usage data is collected.';
+
+      root.appendChild(
+        empty
+      );
+
+      return;
+    }
+
+
+    for (
+      const item
+      of rows
+    ) {
+
+      const key =
+        normalizedDimensionName(
+          item.name
+        );
+
+
+      const card =
+        document.createElement(
+          'article'
+        );
+
+
+      const title =
+        document.createElement(
+          'strong'
+        );
+
+      title.textContent =
+        prettyCommercialSegmentV1(
+          item.name
+        );
+
+
+      const audience =
+        document.createElement(
+          'span'
+        );
+
+
+      /*
+        Show BOTH metrics to eliminate ambiguity.
+      */
+
+      audience.textContent =
+        `${Number(item.users || 0).toLocaleString()} users · `
+        +
+        `${Number(item.events || 0).toLocaleString()} events`;
+
+
+      const list =
+        document.createElement(
+          'ul'
+        );
+
+
+      for (
+        const idea
+        of (
+          recommendations[key]
+          ||
+          [
+            'Cloud services',
+            'Productivity tools',
+            'Digital services'
+          ]
+        )
+      ) {
+
+        const li =
+          document.createElement(
+            'li'
+          );
+
+        li.textContent =
+          idea;
+
+        list.appendChild(
+          li
+        );
+      }
+
+
+      card.appendChild(
+        title
+      );
+
+      card.appendChild(
+        audience
+      );
+
+      card.appendChild(
+        list
+      );
+
+
+      root.appendChild(
+        card
+      );
+    }
+  }
+
+
+  async function refreshUnifiedIntelligenceV1() {
+
+    if (
+      intelligenceRefreshInFlight
+    ) {
+      return;
+    }
+
+
+    intelligenceRefreshInFlight =
+      true;
+
+
+    try {
+
+      const response =
+        await fetch(
+          '/api/intelligence',
+          {
+            cache:
+              'no-store',
+
+            credentials:
+              'same-origin'
+          }
+        );
+
+
+      const snapshot =
+        await response
+          .json()
+          .catch(
+            () => ({})
+          );
+
+
+      if (!response.ok) {
+
+        throw new Error(
+          snapshot.error
+          ||
+          'Strategic Intelligence unavailable'
+        );
+      }
+
+
+      renderUnifiedCommercialV1(
+        snapshot
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        'Unified Intelligence load failed:',
+        error
+      );
+
+
+      /*
+        Do NOT fall back to the old /api/live-data
+        commercial calculation. A silent fallback would
+        recreate the exact mismatch we are fixing.
+      */
+
+    } finally {
+
+      intelligenceRefreshInFlight =
+        false;
+    }
+  }
+
+
   function render(data) {
     const summary =
       data.summary || {};
-
-    const insights =
-      data.insights || {};
-
-    const mix =
-      insights.fileMix || {};
 
     currentRows =
       Array.isArray(data.rows)
@@ -1119,41 +1692,6 @@
     );
 
     setText(
-      'applePct',
-      `${insights.applePct || 0}%`
-    );
-
-    setText(
-      'windowsPct',
-      `${insights.windowsPct || 0}%`
-    );
-
-    setText(
-      'mobilePct',
-      `${insights.mobilePct || 0}%`
-    );
-
-    setText(
-      'imageMix',
-      mix.IMAGE || 0
-    );
-
-    setText(
-      'documentMix',
-      Number(
-        mix.PDF || 0
-      ) +
-      Number(
-        mix.DOCUMENT || 0
-      )
-    );
-
-    setText(
-      'videoMix',
-      mix.VIDEO || 0
-    );
-
-    setText(
       'liveStatus',
       'LIVE · PostgreSQL'
     );
@@ -1171,9 +1709,6 @@
       data.pagination || {}
     );
 
-    renderBusiness(
-      insights.segments || {}
-    );
   }
 
 
@@ -1614,6 +2149,10 @@
 
   refresh();
 
+  // Commercial sections use the same source as
+  // Strategic Intelligence.
+  refreshUnifiedIntelligenceV1();
+
 
   // Preserve the live character of the database page.
   // refreshInFlight prevents overlapping PostgreSQL requests.
@@ -1621,4 +2160,12 @@
     refresh,
     1000
   );
+
+  // Intelligence endpoint is server-cached and does not
+  // need the one-second database-table refresh frequency.
+  setInterval(
+    refreshUnifiedIntelligenceV1,
+    5000
+  );
+
 })();
