@@ -6764,4 +6764,303 @@
     1600
   );
 
+
+
+  // =======================================================
+  // AIRGESTURE_FINAL_PASSIVE_CHARTS_V1
+  // Charts are visual evidence only.
+  // Commercial Strategy is controlled ONLY by its own
+  // Audience + Market dropdowns.
+  // =======================================================
+
+  function makeAnalyticsChartsPassiveV1() {
+
+    const dashboard =
+      $('dashboardView');
+
+    if (!dashboard) return;
+
+
+    /*
+      Prevent Chart.js canvas interactions from reaching
+      existing dashboard filtering handlers.
+
+      Capture phase is intentional:
+      it runs before existing click handlers.
+    */
+
+    dashboard
+      .querySelectorAll(
+        '.chart-stage canvas'
+      )
+      .forEach(canvas => {
+
+        if (
+          canvas.dataset
+            .passiveAnalyticsV1 ===
+          '1'
+        ) {
+          return;
+        }
+
+        canvas.dataset
+          .passiveAnalyticsV1 =
+          '1';
+
+
+        const blockInteraction =
+          event => {
+
+            event.preventDefault();
+
+            event.stopPropagation();
+
+            event
+              .stopImmediatePropagation();
+
+            return false;
+          };
+
+
+        [
+          'click',
+          'dblclick',
+          'pointerdown',
+          'pointerup',
+          'mousedown',
+          'mouseup',
+          'touchstart',
+          'touchend'
+        ]
+          .forEach(type => {
+
+            canvas.addEventListener(
+              type,
+              blockInteraction,
+              true
+            );
+
+          });
+
+      });
+
+
+    /*
+      Remove chart filtering appearance from cards.
+    */
+
+    dashboard
+      .querySelectorAll(
+        '.chart-card'
+      )
+      .forEach(card => {
+
+        card.removeAttribute(
+          'tabindex'
+        );
+
+        card.removeAttribute(
+          'role'
+        );
+
+      });
+  }
+
+
+  function forceCommercialStrategyLocalOnlyV1() {
+
+    const audience =
+      $('commercialAudienceFilterV1');
+
+    const market =
+      $('commercialMarketFilterV1');
+
+
+    if (
+      !audience ||
+      !market
+    ) {
+      return;
+    }
+
+
+    /*
+      Recalculate Commercial Strategy strictly from
+      these two controls.
+
+      Hidden dashboard chart filters must never decide
+      the product scenario.
+    */
+
+    const refresh =
+      () => {
+
+        if (
+          typeof
+            loadCommercialStrategyOpportunityV1 ===
+          'function'
+        ) {
+
+          loadCommercialStrategyOpportunityV1();
+
+        }
+
+      };
+
+
+    if (
+      audience.dataset
+        .commercialLocalOnlyV1 !==
+      '1'
+    ) {
+
+      audience.dataset
+        .commercialLocalOnlyV1 =
+        '1';
+
+      audience.addEventListener(
+        'change',
+        refresh
+      );
+
+    }
+
+
+    if (
+      market.dataset
+        .commercialLocalOnlyV1 !==
+      '1'
+    ) {
+
+      market.dataset
+        .commercialLocalOnlyV1 =
+        '1';
+
+      market.addEventListener(
+        'change',
+        refresh
+      );
+
+    }
+  }
+
+
+  function removeUsageIntensityV1() {
+
+    const usage =
+      document.querySelector(
+        '#dashboardView [data-panel="usage"]'
+      );
+
+    if (usage) {
+
+      usage.remove();
+
+    }
+
+
+    /*
+      If Usage Intensity left an empty Behavior section,
+      keep only the useful Activity-by-hour visualization.
+    */
+
+    const behavior =
+      document.querySelector(
+        '#dashboardView .behavior-block'
+      );
+
+    if (behavior) {
+
+      const timing =
+        behavior.querySelector(
+          '[data-panel="timing"]'
+        );
+
+      if (timing) {
+
+        timing.classList.add(
+          'wide-card'
+        );
+
+      }
+
+    }
+  }
+
+
+  function simplifyCommercialStrategyV1() {
+
+    /*
+      Real-time opportunity calculations remain available
+      internally for product ranking, but the explanation
+      panel is unnecessary in the visible student flow.
+    */
+
+    const realtime =
+      $('realtimeOpportunityV1');
+
+    if (realtime) {
+
+      realtime.hidden = true;
+
+      realtime.setAttribute(
+        'aria-hidden',
+        'true'
+      );
+
+    }
+
+
+    const scenario =
+      $('commercialScenarioV1');
+
+    if (scenario) {
+
+      scenario.hidden = true;
+
+      scenario.setAttribute(
+        'aria-hidden',
+        'true'
+      );
+
+    }
+  }
+
+
+  function finalSimpleIntelligenceFlowV1() {
+
+    makeAnalyticsChartsPassiveV1();
+
+    removeUsageIntensityV1();
+
+    simplifyCommercialStrategyV1();
+
+    forceCommercialStrategyLocalOnlyV1();
+
+  }
+
+
+  document.addEventListener(
+    'DOMContentLoaded',
+    finalSimpleIntelligenceFlowV1
+  );
+
+
+  window.addEventListener(
+    'load',
+    () => {
+
+      setTimeout(
+        finalSimpleIntelligenceFlowV1,
+        300
+      );
+
+      setTimeout(
+        finalSimpleIntelligenceFlowV1,
+        1200
+      );
+
+    }
+  );
+
 })();

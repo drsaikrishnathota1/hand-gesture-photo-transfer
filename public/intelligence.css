@@ -2100,3 +2100,324 @@ body {
   }
 }
 
+
+
+/* =========================================================
+   AIRGESTURE_FINAL_PASSIVE_CHARTS_V1
+   FINAL SIMPLE FLOW:
+   VISUALS -> DROPDOWNS -> PRODUCTS
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   ALL ANALYTIC CHARTS ARE DISPLAY ONLY
+   --------------------------------------------------------- */
+
+#dashboardView canvas {
+  pointer-events: none !important;
+  cursor: default !important;
+  user-select: none !important;
+}
+
+/*
+  Chart legends and chart cards must not look clickable.
+*/
+
+#dashboardView .chart-card,
+#dashboardView .chart-stage,
+#dashboardView .chart-stage *,
+#dashboardView canvas {
+  cursor: default !important;
+}
+
+#dashboardView .chart-card {
+  user-select: none;
+}
+
+/* ---------------------------------------------------------
+   REMOVE USAGE INTENSITY COMPLETELY
+   --------------------------------------------------------- */
+
+#dashboardView [data-panel="usage"] {
+  display: none !important;
+}
+
+/*
+  Activity-by-hour remains useful.
+  It gets the full row instead of leaving an empty space.
+*/
+
+#dashboardView .behavior-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  width: 100% !important;
+}
+
+#dashboardView .behavior-grid
+[data-panel="timing"] {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* ---------------------------------------------------------
+   REMOVE REAL-TIME EXPLANATION PANEL FROM UI
+   Calculation may continue internally for product ranking.
+   --------------------------------------------------------- */
+
+#realtimeOpportunityV1 {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------
+   SIMPLE COMMERCIAL STRATEGY
+   --------------------------------------------------------- */
+
+.commercial-block {
+  margin-top: 20px !important;
+  padding-top: 20px !important;
+}
+
+.commercial-block
+.section-heading.simple {
+  margin-bottom: 12px !important;
+}
+
+.commercial-block
+.section-heading.simple > div:first-child > p {
+  display: none !important;
+}
+
+#commercialStrategyControlsV1 {
+  display: grid !important;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr)
+    auto !important;
+
+  width: 100% !important;
+  max-width: 100% !important;
+
+  gap: 14px !important;
+
+  padding: 16px !important;
+  margin: 8px 0 16px !important;
+
+  align-items: end !important;
+}
+
+/*
+  The explanatory block on the left is unnecessary.
+*/
+
+#commercialStrategyControlsV1
+.commercial-controls-title-v1 {
+  display: none !important;
+}
+
+#commercialStrategyControlsV1 label {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#commercialStrategyControlsV1 label > span {
+  display: block;
+  margin-bottom: 7px;
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+
+  color: #8da5bd;
+}
+
+#commercialStrategyControlsV1 select {
+  display: block;
+
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+
+  height: 54px !important;
+
+  padding: 0 15px !important;
+
+  border-radius: 14px !important;
+
+  font-size: 16px !important;
+}
+
+#commercialResetV1 {
+  min-width: 110px !important;
+  height: 54px !important;
+
+  border-radius: 14px !important;
+}
+
+/*
+  Current Scenario card duplicates what the dropdowns already show.
+*/
+
+#commercialScenarioV1 {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------
+   PRODUCTS DIRECTLY BELOW DROPDOWNS
+   --------------------------------------------------------- */
+
+#opportunityList {
+  margin-top: 0 !important;
+
+  display: grid !important;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr)) !important;
+
+  gap: 14px !important;
+
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+#opportunityList > * {
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* ---------------------------------------------------------
+   VISUAL ANALYTICS
+   Keep charts large enough to understand but compact.
+   --------------------------------------------------------- */
+
+.analytics-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr)) !important;
+
+  gap: 14px !important;
+
+  width: 100% !important;
+}
+
+.analytics-grid .chart-card {
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  padding: 16px !important;
+}
+
+.analytics-grid .chart-card-head {
+  margin-bottom: 6px !important;
+}
+
+.analytics-grid .chart-card-head p {
+  display: none !important;
+}
+
+.analytics-grid .card-actions {
+  display: none !important;
+}
+
+.chart-stage {
+  width: 100% !important;
+  max-width: 100% !important;
+
+  height: 300px !important;
+  min-height: 300px !important;
+
+  overflow: hidden !important;
+}
+
+.chart-stage canvas {
+  display: block !important;
+
+  width: 100% !important;
+  max-width: 100% !important;
+
+  height: 100% !important;
+}
+
+/*
+  Remove unnecessary explanatory note under behavior chart.
+*/
+
+.behavior-block .plain-note {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------
+   PREVENT ALL HORIZONTAL OVERFLOW
+   --------------------------------------------------------- */
+
+html,
+body,
+.intelligence-shell,
+.intelligence-main,
+#dashboardView {
+  width: 100% !important;
+  max-width: 100% !important;
+
+  overflow-x: hidden !important;
+}
+
+#dashboardView section,
+#dashboardView article,
+#dashboardView div {
+  min-width: 0;
+}
+
+/* ---------------------------------------------------------
+   TABLET
+   --------------------------------------------------------- */
+
+@media (max-width: 950px) {
+
+  .analytics-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+
+  #commercialStrategyControlsV1 {
+    grid-template-columns:
+      1fr 1fr !important;
+  }
+
+  #commercialResetV1 {
+    grid-column:
+      1 / -1;
+
+    width: 100% !important;
+  }
+
+  #opportunityList {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* ---------------------------------------------------------
+   MOBILE
+   --------------------------------------------------------- */
+
+@media (max-width: 620px) {
+
+  #commercialStrategyControlsV1 {
+    grid-template-columns:
+      1fr !important;
+  }
+
+  #commercialResetV1 {
+    grid-column: auto;
+  }
+
+  #opportunityList {
+    grid-template-columns:
+      1fr !important;
+  }
+
+  .chart-stage {
+    height: 260px !important;
+    min-height: 260px !important;
+  }
+}
+
