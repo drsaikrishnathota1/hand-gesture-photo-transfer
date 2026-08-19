@@ -178,7 +178,7 @@
         </section>
 
         <section class="section-block commercial-block">
-          <div class="section-heading simple"><div><span class="section-kicker">COMMERCIAL STRATEGY</span><h2>Commercial test ideas</h2><p>Observed usage can suggest what to test. It cannot prove what users will buy.</p></div><button class="text-action" data-ai-question="What should management do next based on the current AirGesture data?" type="button">Ask Assistant →</button></div>
+          <div class="section-heading simple"><div><span class="section-kicker">COMMERCIAL STRATEGY</span><h2>Product Opportunity Marketplace</h2><p>Choose a category to explore 20 product ideas—from obvious fits to unexpected experiments.</p></div><button class="text-action" data-ai-question="What should management do next based on the current AirGesture data?" type="button">Ask Assistant →</button></div>
           <div id="opportunityList" class="opportunity-list"></div>
         </section>
 
@@ -223,6 +223,27 @@
       <span>Observed evidence → business hypothesis → controlled test</span>
     </footer>
   </div>
+
+  <section id="productExplorerV1" class="product-explorer-v1" hidden aria-hidden="true">
+    <div class="product-explorer-backdrop-v1" data-close-product-explorer></div>
+    <div class="product-explorer-shell-v1" role="dialog" aria-modal="true">
+      <header class="product-explorer-header-v1">
+        <div><span class="section-kicker">PRODUCT OPPORTUNITY MARKETPLACE</span><h2 id="productExplorerTitleV1">Commercial Product Opportunities</h2><p id="productExplorerSubtitleV1">20 testable product ideas based on observed AirGesture behavior.</p></div>
+        <button class="product-explorer-close-v1" type="button" data-close-product-explorer>×</button>
+      </header>
+      <div class="product-explorer-context-v1">
+        <div><span>AUDIENCE</span><strong id="productExplorerAudienceV1">—</strong></div>
+        <div><span>MARKET</span><strong id="productExplorerMarketV1">—</strong></div>
+        <div><span>OBSERVED SIGNAL</span><strong id="productExplorerSignalV1">—</strong></div>
+        <div><span>EVIDENCE</span><strong id="productExplorerEvidenceV1">—</strong></div>
+      </div>
+      <div class="product-explorer-tabs-v1">
+        <button class="active" type="button" data-product-tier="all">All 20</button><button type="button" data-product-tier="best">Best Fit</button><button type="button" data-product-tier="emerging">Emerging</button><button type="button" data-product-tier="unexpected">Unexpected</button>
+      </div>
+      <div id="productExplorerGridV1" class="product-explorer-grid-v1"></div>
+      <footer class="product-explorer-footer-v1"><p>Commercial hypotheses from aggregate technology behavior only. AirGesture does not infer purchase intent or sensitive personal attributes.</p><button id="productExplorerAskV1" type="button">Ask Data Assistant about this category →</button></footer>
+    </div>
+  </section>
 
   <aside id="intelligenceDrawer" class="intelligence-drawer" aria-hidden="true">
     <div class="drawer-backdrop" data-close-drawer></div>

@@ -555,17 +555,62 @@
     }
   }
 
+  const PRODUCT_CATALOG_V1 = {"Antivirus & Security Software": [["Endpoint Security Suite", "best"], ["Password Manager", "best"], ["Business VPN", "best"], ["Ransomware Protection", "best"], ["Identity Monitoring", "best"], ["Phishing Protection", "best"], ["DNS / Web Filtering", "emerging"], ["Security Awareness Training", "emerging"], ["Hardware Security Key", "emerging"], ["Encrypted USB Drive", "emerging"], ["Privacy Screen Filter", "emerging"], ["Secure Browser", "emerging"], ["Family Cyber-Safety Bundle", "unexpected"], ["Digital Legacy Vault", "unexpected"], ["Personal Data Removal Service", "unexpected"], ["Travel Cybersecurity Kit", "unexpected"], ["Webcam Privacy Hardware", "unexpected"], ["Home Network Security Appliance", "unexpected"], ["Cyber Insurance Starter Plan", "unexpected"], ["Secure Smart-Home Gateway", "unexpected"]], "Business Productivity Software": [["Microsoft 365", "best"], ["Google Workspace", "best"], ["Project Management Platform", "best"], ["Team Chat Platform", "best"], ["Video Meeting Platform", "best"], ["Digital Notes Workspace", "best"], ["Workflow Automation", "emerging"], ["Calendar Scheduling", "emerging"], ["CRM Platform", "emerging"], ["Expense Management", "emerging"], ["AI Meeting Notes", "emerging"], ["Knowledge Base Platform", "emerging"], ["Portable Monitor", "unexpected"], ["Ergonomic Keyboard", "unexpected"], ["Smart Desk Dock", "unexpected"], ["E-Ink Work Notebook", "unexpected"], ["NFC Digital Business Card", "unexpected"], ["Desk Booking Software", "unexpected"], ["Digital Receptionist", "unexpected"], ["Focus / Acoustic Privacy Device", "unexpected"]], "PDF & Document Productivity": [["Adobe Acrobat", "best"], ["Foxit PDF", "best"], ["Nitro PDF", "best"], ["E-Signature Platform", "best"], ["OCR Software", "best"], ["Portable Document Scanner", "best"], ["Secure File Sharing", "emerging"], ["Document Redaction", "emerging"], ["Contract Management", "emerging"], ["Form Automation", "emerging"], ["Document Comparison", "emerging"], ["Invoice Automation", "emerging"], ["Portable Document Camera", "unexpected"], ["Smart Pen", "unexpected"], ["E-Ink Annotation Tablet", "unexpected"], ["Digital Notary Service", "unexpected"], ["Legal Document Automation", "unexpected"], ["Document Archival Service", "unexpected"], ["Tamper-Evident Document Vault", "unexpected"], ["Smart Label / QR Filing Kit", "unexpected"]], "Cloud Storage": [["Google Drive", "best"], ["Microsoft OneDrive", "best"], ["Dropbox", "best"], ["iCloud+", "best"], ["Encrypted Cloud Storage", "best"], ["Business File Sharing", "best"], ["Large-File Transfer Service", "emerging"], ["Photo Cloud Backup", "emerging"], ["Archive Storage", "emerging"], ["Private Cloud Appliance", "emerging"], ["Home NAS", "emerging"], ["Portable SSD", "emerging"], ["Family Digital Vault", "unexpected"], ["Creator Media Vault", "unexpected"], ["Travel Backup Hub", "unexpected"], ["Wi-Fi Storage Hub", "unexpected"], ["Smartphone Backup Dock", "unexpected"], ["Digital Estate Storage", "unexpected"], ["Cold Storage Membership", "unexpected"], ["Decentralized Storage Service", "unexpected"]], "Photo & Creative Software": [["Adobe Photoshop", "best"], ["Adobe Lightroom", "best"], ["Canva", "best"], ["Video Editor", "best"], ["AI Photo Editor", "best"], ["Stock Media Subscription", "best"], ["Photo Printing Service", "emerging"], ["Photo Book Service", "emerging"], ["Portable SSD", "emerging"], ["Phone Gimbal", "emerging"], ["Creator Microphone", "emerging"], ["Mobile Camera Lens", "emerging"], ["Digital Photo Frame", "unexpected"], ["Instant Photo Printer", "unexpected"], ["Creator Lighting Kit", "unexpected"], ["Portable Projector", "unexpected"], ["Smart Photo Organizer", "unexpected"], ["AI Background Studio", "unexpected"], ["Digital Art Display", "unexpected"], ["Photo Restoration Service", "unexpected"]], "Backup & Recovery": [["Cloud Backup", "best"], ["Ransomware Recovery", "best"], ["External SSD", "best"], ["External HDD", "best"], ["NAS Backup", "best"], ["Business Disaster Recovery", "best"], ["Mobile Phone Backup", "emerging"], ["Photo Backup", "emerging"], ["Encrypted Offline Backup", "emerging"], ["Data Recovery Service", "emerging"], ["Backup Power + Storage Bundle", "emerging"], ["Automated Backup Dock", "emerging"], ["Fireproof Backup Drive Safe", "unexpected"], ["Water-Resistant Media Vault", "unexpected"], ["Family Backup Subscription", "unexpected"], ["Travel Backup Kit", "unexpected"], ["Digital Legacy Backup", "unexpected"], ["Cold Archive Service", "unexpected"], ["Creator Disaster-Recovery Kit", "unexpected"], ["Home Cyber-Recovery Appliance", "unexpected"]]};
+
+  let productExplorerCategoryV1 = '';
+  let productExplorerTierV1 = 'all';
+  function catalogForOpportunityV1(title) {
+    if (PRODUCT_CATALOG_V1[title]) return PRODUCT_CATALOG_V1[title];
+    const t=String(title||'').toLowerCase();
+    if(t.includes('security')||t.includes('antivirus')) return PRODUCT_CATALOG_V1['Antivirus & Security Software'];
+    if(t.includes('pdf')||t.includes('document')) return PRODUCT_CATALOG_V1['PDF & Document Productivity'];
+    if(t.includes('cloud')||t.includes('storage')) return PRODUCT_CATALOG_V1['Cloud Storage'];
+    if(t.includes('photo')||t.includes('creative')) return PRODUCT_CATALOG_V1['Photo & Creative Software'];
+    if(t.includes('backup')||t.includes('recovery')) return PRODUCT_CATALOG_V1['Backup & Recovery'];
+    return PRODUCT_CATALOG_V1['Business Productivity Software'];
+  }
+  function productExplorerContextV1(snapshot){
+    const audience=(snapshot?.dimensions?.segments||[]).find(i=>prettySegment(i.name)!=='Unclassified');
+    const market=(snapshot?.dimensions?.locations||[]).find(i=>prettyLocation(i.name)!=='Unspecified');
+    const file=snapshot?.dimensions?.fileTypes?.[0]; const users=Number(snapshot?.kpis?.users||market?.users||0);
+    return {audience:prettySegment(audience?.name||'Current audience mix'),market:prettyLocation(market?.name||'Current market scope'),signal:file?`${prettyFileType(file.name)} leads observed content`:'Current aggregate usage pattern',evidence:users>=25?'Strong sample':users>=10?'Moderate sample':'Limited sample'};
+  }
+  function renderProductExplorerGridV1(){
+    const grid=$('productExplorerGridV1'); if(!grid||!productExplorerCategoryV1)return;
+    const c=productExplorerContextV1(state.snapshot); const tierText=t=>t==='best'?'Best Fit':t==='emerging'?'Emerging':'Unexpected';
+    const products=catalogForOpportunityV1(productExplorerCategoryV1).filter(p=>productExplorerTierV1==='all'||p[1]===productExplorerTierV1);
+    grid.innerHTML=products.map((p,index)=>{const why=p[1]==='best'?`Directly related to the observed ${c.audience} / ${c.market} usage pattern.`:p[1]==='emerging'?`Adjacent to observed technology behavior and suitable for a controlled test in ${c.market}.`:`An unconventional hypothesis to test—not a claim that users intend to buy it.`; return `<article class="product-card-v1"><div class="product-card-top-v1"><span class="product-number-v1">${String(index+1).padStart(2,'0')}</span><span class="product-tier-v1 ${escapeHtml(p[1])}">${escapeHtml(tierText(p[1]))}</span></div><h3>${escapeHtml(p[0])}</h3><p>${escapeHtml(why)}</p><div class="product-test-v1"><strong>HOW TO TEST:</strong> Run a small ${escapeHtml(c.market)} campaign and compare response with another product in the same category.</div></article>`;}).join('');
+  }
+  function openProductExplorerV1(category,reason){
+    const el=$('productExplorerV1'); if(!el)return; productExplorerCategoryV1=category; productExplorerTierV1='all'; const c=productExplorerContextV1(state.snapshot);
+    $('productExplorerTitleV1').textContent=category; $('productExplorerSubtitleV1').textContent=`20 product opportunities—from obvious fits to unconventional experiments. ${reason||''}`.trim(); $('productExplorerAudienceV1').textContent=c.audience; $('productExplorerMarketV1').textContent=c.market; $('productExplorerSignalV1').textContent=c.signal; $('productExplorerEvidenceV1').textContent=c.evidence;
+    document.querySelectorAll('[data-product-tier]').forEach(b=>b.classList.toggle('active',b.dataset.productTier==='all')); renderProductExplorerGridV1(); el.hidden=false; el.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden';
+  }
+  function closeProductExplorerV1(){const el=$('productExplorerV1');if(!el)return;el.hidden=true;el.setAttribute('aria-hidden','true');document.body.style.overflow='';}
+  function bindProductExplorerV1(){
+    if(document.documentElement.dataset.productExplorerBoundV1==='1')return; document.documentElement.dataset.productExplorerBoundV1='1';
+    document.addEventListener('click',event=>{
+      const openBtn=event.target.closest('[data-product-category]'); if(openBtn){openProductExplorerV1(openBtn.dataset.productCategory,openBtn.dataset.productReason);return;}
+      if(event.target.closest('[data-close-product-explorer]')){closeProductExplorerV1();return;}
+      const tierBtn=event.target.closest('[data-product-tier]'); if(tierBtn){productExplorerTierV1=tierBtn.dataset.productTier||'all';document.querySelectorAll('[data-product-tier]').forEach(b=>b.classList.toggle('active',b===tierBtn));renderProductExplorerGridV1();return;}
+      if(event.target.closest('#productExplorerAskV1')){const c=productExplorerContextV1(state.snapshot);closeProductExplorerV1();askStrategy(`For ${productExplorerCategoryV1}, analyze ${c.market} and ${c.audience}. Which product ideas should we test first and what limitation should management remember?`);}
+    });
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('productExplorerV1')?.hidden)closeProductExplorerV1();});
+  }
+
   function renderOpportunities(snapshot) {
     const container = $('opportunityList');
     if (!container) return;
     const items = (snapshot.opportunities || []).slice(0, 6);
-    container.innerHTML = items.map((item) => `
-      <article class="opportunity-row">
-        <div class="opportunity-row-head"><h3>${escapeHtml(item.title)}</h3><span class="opportunity-label">${escapeHtml(opportunityLabel(item.score))}</span></div>
-        <p>${escapeHtml(item.reason || 'Observed behavior supports a controlled product-message test.')}</p>
-        <button type="button" data-ai-question="Should we test ${escapeHtml(item.title)}? Which audience, market and channel should we use first based on current AirGesture data?">Ask Assistant →</button>
-      </article>
-    `).join('');
+    container.innerHTML = items.map((item) => {
+      const available = catalogForOpportunityV1(item.title).length;
+      return `
+        <article class="opportunity-row">
+          <div class="opportunity-row-head"><h3>${escapeHtml(item.title)}</h3><span class="opportunity-label">${escapeHtml(opportunityLabel(item.score))}</span></div>
+          <p>${escapeHtml(item.reason || 'Observed behavior supports a controlled product-message test.')}</p>
+          <button class="product-explore-btn-v1" type="button" data-product-category="${escapeHtml(item.title)}" data-product-reason="${escapeHtml(item.reason || '')}">Explore ${available} products →</button>
+        </article>`;
+    }).join('');
   }
 
   function renderAll(snapshot) {
@@ -1018,6 +1063,7 @@
     if (!state.initialized) {
       state.initialized = true;
       bindEvents();
+      bindProductExplorerV1();
       bindDecisionCockpitV6();
       renderActiveFilters();
       switchMode('dashboard');

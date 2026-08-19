@@ -21,7 +21,7 @@ test('intelligence UI keeps a clear dashboard and permanent data assistant', () 
   assert.match(html, /Analytics Dashboard/);
   assert.match(html, /Data Assistant/);
   assert.match(html, /Three questions management can act on/);
-  assert.match(html, /Commercial test ideas/);
+  assert.match(html, /Product Opportunity Marketplace/);
   assert.match(html, /no external AI API|\$0 external API/i);
   assert.doesNotMatch(html, /Ask AI/);
 });

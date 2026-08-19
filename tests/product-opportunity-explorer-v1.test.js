@@ -1,0 +1,5 @@
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
+const html=fs.readFileSync(path.join(__dirname,'..','public','intelligence.html'),'utf8');const js=fs.readFileSync(path.join(__dirname,'..','public','intelligence.js'),'utf8');const css=fs.readFileSync(path.join(__dirname,'..','public','intelligence.css'),'utf8');
+test('product opportunity marketplace exists',()=>{assert.match(html,/PRODUCT OPPORTUNITY MARKETPLACE/);assert.match(html,/All 20/);assert.match(html,/Best Fit/);assert.match(html,/Emerging/);assert.match(html,/Unexpected/);});
+test('six catalogs exist',()=>{for(const n of ['Antivirus & Security Software','Business Productivity Software','PDF & Document Productivity','Cloud Storage','Photo & Creative Software','Backup & Recovery'])assert.ok(js.includes(n),n);});
+test('marketplace remains hypothesis based',()=>{assert.match(html,/does not infer purchase intent/);assert.match(css,/AIRGESTURE PRODUCT OPPORTUNITY EXPLORER V1/);});
