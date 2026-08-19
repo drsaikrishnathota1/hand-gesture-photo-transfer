@@ -578,3 +578,66 @@ button { cursor: pointer; }
   font-size: 18px !important;
 }
 
+
+
+/* AIRGESTURE PRODUCT DESCRIPTION V4 */
+
+.product-logo-link-v4 {
+  display: inline-block;
+  width: fit-content;
+  text-decoration: none;
+}
+
+.product-logo-link-v4 .product-logo-wrap-v2 {
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease;
+}
+
+.product-logo-link-v4:hover .product-logo-wrap-v2 {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow:
+    0 8px 24px rgba(57,216,255,.18);
+}
+
+.product-logo-link-v4:focus-visible {
+  outline: 2px solid #57dcff;
+  outline-offset: 4px;
+  border-radius: 15px;
+}
+
+
+.product-about-v4,
+.product-market-fit-v4 {
+  margin-top: 12px;
+}
+
+.product-about-v4 > span,
+.product-market-fit-v4 > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #62ddff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .09em;
+}
+
+.product-about-v4 p {
+  margin: 0;
+  color: #c1d0dd;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.product-market-fit-v4 p {
+  margin: 0;
+  color: #90a5b8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.branded-product-card-v3 {
+  min-height: 440px;
+}
+

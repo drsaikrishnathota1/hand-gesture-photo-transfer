@@ -2054,4 +2054,316 @@
     updateCompareV2();
   };
 
+
+
+  // AIRGESTURE_PRODUCT_DESCRIPTIONS_V4
+
+  const PRODUCT_DESCRIPTIONS_V4 = {
+
+    'Norton 360 Deluxe':
+      'All-in-one consumer security suite combining antivirus, ransomware protection, VPN, password tools and online privacy features.',
+
+    'Bitdefender Total Security':
+      'Multi-device cybersecurity software designed to protect computers and mobile devices from malware, ransomware, phishing and online threats.',
+
+    'McAfee+ Premium':
+      'Personal security suite combining antivirus, identity monitoring, privacy protection and secure browsing tools across multiple devices.',
+
+    'ESET HOME Security Premium':
+      'Advanced endpoint security for home users with malware protection, secure browsing, password management and privacy-focused security features.',
+
+    'Malwarebytes Premium Security':
+      'Security software focused on detecting malware, ransomware, malicious websites and other threats that traditional antivirus may miss.',
+
+    'Avast Premium Security':
+      'Multi-device antivirus and privacy software that protects against malware, unsafe websites, ransomware and suspicious applications.',
+
+    'Trend Micro Maximum Security':
+      'Consumer cybersecurity suite providing malware protection, web-threat blocking, privacy controls and ransomware defense across devices.',
+
+    'AVG Internet Security':
+      'Security software that protects computers from viruses, ransomware, phishing, unsafe downloads and suspicious websites.',
+
+    'Microsoft Defender':
+      'Microsoft security platform providing built-in malware protection, threat detection and security monitoring for Windows and Microsoft users.',
+
+    '1Password':
+      'Password manager that securely stores passwords, passkeys and sensitive account information while helping users sign in safely across devices.',
+
+    'Bitwarden Premium':
+      'Encrypted password-management platform that stores credentials, generates strong passwords and synchronizes secure vaults across devices.',
+
+    'Dashlane Premium':
+      'Password and identity-security service that manages credentials, monitors compromised accounts and helps users improve online security.',
+
+    'YubiKey 5 NFC':
+      'Physical hardware security key from Yubico that adds strong multi-factor authentication to online accounts using USB and NFC.',
+
+    'Cloudflare Zero Trust':
+      'Cloud security platform that helps organizations control access to applications, users and internet traffic without relying on a traditional network perimeter.',
+
+    'Cisco Umbrella':
+      'Cloud-delivered security service that blocks malicious domains, phishing sites and risky internet traffic before users connect to them.',
+
+    'Proton VPN Plus':
+      'Privacy-focused VPN service that encrypts internet traffic and helps protect users when browsing on public or untrusted networks.',
+
+    'NordVPN':
+      'VPN service that encrypts internet connections, protects online privacy and provides additional tools for safer browsing across devices.',
+
+    'Keeper Security':
+      'Password-management and privileged-access platform that protects credentials, secrets and sensitive account information.',
+
+    'Aura Identity Protection':
+      'Digital identity-protection service combining identity monitoring, fraud alerts, online privacy tools and personal cybersecurity features.',
+
+    'NordPass':
+      'Password manager from Nord Security that securely stores credentials, passkeys and sensitive information across multiple devices.'
+  };
+
+
+  const originalRenderProductExplorerGridV4 =
+    renderProductExplorerGridV1;
+
+
+  function productDescriptionV4(name) {
+
+    return PRODUCT_DESCRIPTIONS_V4[name]
+      || 'A commercial product or service related to the observed technology behavior. This recommendation is intended as a market-test hypothesis.';
+  }
+
+
+  renderProductExplorerGridV1 = function() {
+
+    const grid =
+      $('productExplorerGridV1');
+
+    if (
+      !grid ||
+      !productExplorerCategoryV1
+    ) return;
+
+
+    const context =
+      marketplaceContextV2();
+
+
+    const tierText =
+      tier =>
+        tier === 'best'
+          ? 'Best Fit'
+          : tier === 'emerging'
+            ? 'Emerging'
+            : 'Unexpected';
+
+
+    let products =
+      catalogForOpportunityV1(
+        productExplorerCategoryV1
+      )
+      .map(p => ({
+        name: p[0],
+        tier: p[1],
+        kind: productKindV2(p[0])
+      }));
+
+
+    products =
+      products.filter(p =>
+        productExplorerTierV1 === 'all' ||
+        p.tier === productExplorerTierV1
+      );
+
+
+    products =
+      products.filter(p =>
+        productExplorerKindV2 === 'all' ||
+        p.kind === productExplorerKindV2
+      );
+
+
+    products =
+      products.filter(p =>
+        !productExplorerSearchV2 ||
+        p.name
+          .toLowerCase()
+          .includes(productExplorerSearchV2)
+      );
+
+
+    grid.innerHTML =
+      products.map((p,index) => {
+
+        const score =
+          productFitV2(p.tier);
+
+        const brand =
+          productBrandV2(p.name);
+
+        const company =
+          companyNameV3(p.name);
+
+        const description =
+          productDescriptionV4(p.name);
+
+
+        const why =
+          p.tier === 'best'
+            ? `Strong commercial test candidate for the observed ${context.audience} audience in ${context.market}.`
+            : p.tier === 'emerging'
+              ? `Adjacent branded product worth testing against stronger candidates in ${context.market}.`
+              : `An unconventional branded opportunity to test—not evidence of purchase intent.`;
+
+
+        const logo =
+          brand
+            ? `
+              <a
+                class="product-logo-link-v4"
+                href="https://${escapeHtml(brand.domain)}"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Visit ${escapeHtml(company)}">
+
+                <div class="product-logo-wrap-v2">
+
+                  <img
+                    class="product-logo-v2 product-logo-large-v3"
+                    src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(brand.domain)}&sz=128"
+                    alt="${escapeHtml(company)} logo"
+                    loading="lazy">
+
+                </div>
+
+              </a>
+            `
+            : productLogoV2(p.name);
+
+
+        return `
+
+          <article
+            class="product-card-v1 branded-product-card-v3"
+            data-product-card="${escapeHtml(p.name)}">
+
+            <div class="product-card-top-v1">
+
+              <span class="product-number-v1">
+                ${String(index + 1).padStart(2,'0')}
+              </span>
+
+              <span
+                class="product-tier-v1 ${escapeHtml(p.tier)}">
+
+                ${escapeHtml(
+                  tierText(p.tier)
+                )}
+
+              </span>
+
+            </div>
+
+
+            ${logo}
+
+
+            <div class="product-company-v3">
+              ${escapeHtml(company)}
+            </div>
+
+
+            <h3 class="product-name-v3">
+              ${escapeHtml(p.name)}
+            </h3>
+
+
+            <div class="product-about-v4">
+
+              <span>WHAT IT DOES</span>
+
+              <p>
+                ${escapeHtml(description)}
+              </p>
+
+            </div>
+
+
+            <div class="product-market-fit-v4">
+
+              <span>WHY IT MAY FIT THIS MARKET</span>
+
+              <p>
+                ${escapeHtml(why)}
+              </p>
+
+            </div>
+
+
+            <div class="product-fit-meter-v2">
+
+              <div>
+                <i style="width:${score}%"></i>
+              </div>
+
+              <span>
+                Test priority:
+                ${score}/100 · hypothesis score
+              </span>
+
+            </div>
+
+
+            <div class="product-test-v1">
+
+              <strong>HOW TO TEST:</strong>
+
+              Run a small
+              ${escapeHtml(context.market)}
+              campaign and compare actual
+              response with another product
+              in the same category.
+
+            </div>
+
+
+            <div class="product-card-actions-v2">
+
+              <button
+                data-compare-product="${escapeHtml(p.name)}"
+                data-tier="${escapeHtml(tierText(p.tier))}"
+                data-kind="${escapeHtml(p.kind)}"
+                type="button">
+
+                + Compare
+
+              </button>
+
+
+              ${
+                brand
+                  ? `
+                    <a
+                      href="https://${escapeHtml(brand.domain)}"
+                      target="_blank"
+                      rel="noopener noreferrer">
+
+                      Visit ${escapeHtml(company)} ↗
+
+                    </a>
+                  `
+                  : ''
+              }
+
+            </div>
+
+          </article>
+
+        `;
+
+      }).join('');
+
+
+    updateCompareV2();
+  };
+
 })();
