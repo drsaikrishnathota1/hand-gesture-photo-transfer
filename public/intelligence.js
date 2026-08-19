@@ -2366,4 +2366,941 @@
     updateCompareV2();
   };
 
+
+
+  // AIRGESTURE_ALL_BRANDED_PRODUCTS_V5
+
+  const BRANDED_MARKETPLACE_V5 = {
+
+    'Business Productivity Software': [
+
+      {
+        name:'Microsoft 365',
+        company:'Microsoft',
+        domain:'microsoft.com',
+        tier:'best',
+        description:'Business productivity suite combining Word, Excel, PowerPoint, Outlook, Teams and cloud collaboration tools.'
+      },
+
+      {
+        name:'Google Workspace',
+        company:'Google',
+        domain:'workspace.google.com',
+        tier:'best',
+        description:'Cloud productivity platform providing Gmail, Drive, Docs, Sheets, Meet and collaborative business applications.'
+      },
+
+      {
+        name:'Slack',
+        company:'Salesforce',
+        domain:'slack.com',
+        tier:'best',
+        description:'Business messaging and collaboration platform for team communication, workflows, integrations and shared workspaces.'
+      },
+
+      {
+        name:'Zoom Workplace',
+        company:'Zoom',
+        domain:'zoom.com',
+        tier:'best',
+        description:'Collaboration platform combining video meetings, chat, phone, scheduling and workplace productivity tools.'
+      },
+
+      {
+        name:'Notion',
+        company:'Notion',
+        domain:'notion.so',
+        tier:'best',
+        description:'Connected workspace for notes, documents, knowledge bases, project planning and team collaboration.'
+      },
+
+      {
+        name:'Asana',
+        company:'Asana',
+        domain:'asana.com',
+        tier:'best',
+        description:'Work-management platform for organizing projects, assigning tasks, tracking deadlines and coordinating teams.'
+      },
+
+      {
+        name:'monday.com Work Management',
+        company:'monday.com',
+        domain:'monday.com',
+        tier:'emerging',
+        description:'Visual work-management platform for planning projects, automating workflows and tracking team operations.'
+      },
+
+      {
+        name:'Trello',
+        company:'Atlassian',
+        domain:'trello.com',
+        tier:'emerging',
+        description:'Visual Kanban-style project tool for organizing tasks, workflows and collaborative team activities.'
+      },
+
+      {
+        name:'ClickUp',
+        company:'ClickUp',
+        domain:'clickup.com',
+        tier:'emerging',
+        description:'All-in-one productivity platform combining tasks, documents, goals, dashboards and team collaboration.'
+      },
+
+      {
+        name:'Dropbox Business',
+        company:'Dropbox',
+        domain:'dropbox.com',
+        tier:'emerging',
+        description:'Business cloud-storage and collaboration platform for sharing, organizing, securing and managing team files.'
+      },
+
+      {
+        name:'DocuSign',
+        company:'DocuSign',
+        domain:'docusign.com',
+        tier:'emerging',
+        description:'Electronic-signature and agreement platform for securely sending, signing and managing digital documents.'
+      },
+
+      {
+        name:'HubSpot CRM',
+        company:'HubSpot',
+        domain:'hubspot.com',
+        tier:'emerging',
+        description:'Customer relationship management platform for organizing sales activity, contacts, marketing and customer interactions.'
+      },
+
+      {
+        name:'Salesforce Starter',
+        company:'Salesforce',
+        domain:'salesforce.com',
+        tier:'unexpected',
+        description:'Cloud CRM product designed to help growing businesses manage customers, sales activities and service workflows.'
+      },
+
+      {
+        name:'Calendly',
+        company:'Calendly',
+        domain:'calendly.com',
+        tier:'unexpected',
+        description:'Automated scheduling platform that helps individuals and businesses coordinate meetings without email back-and-forth.'
+      },
+
+      {
+        name:'Miro',
+        company:'Miro',
+        domain:'miro.com',
+        tier:'unexpected',
+        description:'Collaborative visual workspace used for brainstorming, planning, workshops, diagrams and remote teamwork.'
+      },
+
+      {
+        name:'Airtable',
+        company:'Airtable',
+        domain:'airtable.com',
+        tier:'unexpected',
+        description:'Flexible database and workflow platform that combines spreadsheet simplicity with structured business applications.'
+      },
+
+      {
+        name:'Evernote',
+        company:'Evernote',
+        domain:'evernote.com',
+        tier:'unexpected',
+        description:'Digital note-taking and information-management platform for organizing notes, documents and personal knowledge.'
+      },
+
+      {
+        name:'Todoist',
+        company:'Doist',
+        domain:'todoist.com',
+        tier:'unexpected',
+        description:'Task-management application for organizing personal and team work, deadlines, projects and recurring responsibilities.'
+      },
+
+      {
+        name:'Loom',
+        company:'Atlassian',
+        domain:'loom.com',
+        tier:'unexpected',
+        description:'Asynchronous video-messaging platform for recording screens, demonstrations, explanations and workplace updates.'
+      },
+
+      {
+        name:'Grammarly Business',
+        company:'Grammarly',
+        domain:'grammarly.com',
+        tier:'unexpected',
+        description:'Business writing assistant that helps teams improve clarity, grammar, tone and consistency across workplace communication.'
+      }
+    ],
+
+
+    'PDF & Document Productivity': [
+
+      {
+        name:'Adobe Acrobat Pro',
+        company:'Adobe',
+        domain:'adobe.com',
+        tier:'best',
+        description:'Professional PDF platform for creating, editing, converting, signing, protecting and organizing PDF documents.'
+      },
+
+      {
+        name:'Foxit PDF Editor',
+        company:'Foxit',
+        domain:'foxit.com',
+        tier:'best',
+        description:'PDF editing platform for creating, modifying, signing, converting and securely sharing business documents.'
+      },
+
+      {
+        name:'Nitro PDF Pro',
+        company:'Nitro',
+        domain:'gonitro.com',
+        tier:'best',
+        description:'Professional PDF productivity software for editing, converting, signing and collaborating on digital documents.'
+      },
+
+      {
+        name:'Smallpdf Pro',
+        company:'Smallpdf',
+        domain:'smallpdf.com',
+        tier:'best',
+        description:'Web-based PDF toolkit for compressing, converting, editing, signing and managing documents.'
+      },
+
+      {
+        name:'iLovePDF Premium',
+        company:'iLovePDF',
+        domain:'ilovepdf.com',
+        tier:'best',
+        description:'Online PDF productivity suite for merging, splitting, compressing, converting and editing PDF files.'
+      },
+
+      {
+        name:'ABBYY FineReader PDF',
+        company:'ABBYY',
+        domain:'abbyy.com',
+        tier:'best',
+        description:'OCR and PDF software for converting scanned documents into searchable and editable digital content.'
+      },
+
+      {
+        name:'Wondershare PDFelement',
+        company:'Wondershare',
+        domain:'wondershare.com',
+        tier:'emerging',
+        description:'PDF editing and document-management software offering conversion, forms, OCR, annotation and e-signature tools.'
+      },
+
+      {
+        name:'PDF-XChange Editor',
+        company:'Tracker Software',
+        domain:'pdf-xchange.com',
+        tier:'emerging',
+        description:'Desktop PDF editor focused on annotation, editing, OCR, document conversion and advanced PDF workflows.'
+      },
+
+      {
+        name:'Soda PDF',
+        company:'LULU Software',
+        domain:'sodapdf.com',
+        tier:'emerging',
+        description:'PDF productivity application for editing, converting, merging, signing and managing electronic documents.'
+      },
+
+      {
+        name:'PDF Expert',
+        company:'Readdle',
+        domain:'pdfexpert.com',
+        tier:'emerging',
+        description:'PDF reader and editor designed for Apple devices with annotation, editing, form and signing capabilities.'
+      },
+
+      {
+        name:'UPDF',
+        company:'Superace',
+        domain:'updf.com',
+        tier:'emerging',
+        description:'Cross-platform PDF editor offering annotation, document editing, conversion and AI-assisted PDF workflows.'
+      },
+
+      {
+        name:'PandaDoc',
+        company:'PandaDoc',
+        domain:'pandadoc.com',
+        tier:'emerging',
+        description:'Document automation platform for creating proposals, contracts, approvals and electronic-signature workflows.'
+      },
+
+      {
+        name:'Dropbox Sign',
+        company:'Dropbox',
+        domain:'dropbox.com',
+        tier:'unexpected',
+        description:'Electronic-signature service for requesting signatures and completing digital agreements securely online.'
+      },
+
+      {
+        name:'signNow',
+        company:'airSlate',
+        domain:'signnow.com',
+        tier:'unexpected',
+        description:'Electronic-signature platform for preparing, sending, signing and automating document approval workflows.'
+      },
+
+      {
+        name:'CamScanner',
+        company:'INTSIG',
+        domain:'camscanner.com',
+        tier:'unexpected',
+        description:'Mobile document-scanning application that converts photographed pages into digital PDF and image documents.'
+      },
+
+      {
+        name:'Adobe Scan',
+        company:'Adobe',
+        domain:'adobe.com',
+        tier:'unexpected',
+        description:'Mobile scanning application that converts documents, receipts and forms into searchable digital PDFs.'
+      },
+
+      {
+        name:'ScanSnap iX1600',
+        company:'Ricoh',
+        domain:'ricoh.com',
+        tier:'unexpected',
+        description:'Desktop document scanner designed to digitize paper records quickly into searchable electronic files.'
+      },
+
+      {
+        name:'reMarkable Paper Pro',
+        company:'reMarkable',
+        domain:'remarkable.com',
+        tier:'unexpected',
+        description:'Digital paper tablet designed for reading, handwriting, document annotation and distraction-free knowledge work.'
+      },
+
+      {
+        name:'Rocketbook Core',
+        company:'Rocketbook',
+        domain:'getrocketbook.com',
+        tier:'unexpected',
+        description:'Reusable notebook system that connects handwritten notes with cloud-based digital storage and organization.'
+      },
+
+      {
+        name:'Livescribe Symphony',
+        company:'Livescribe',
+        domain:'livescribe.com',
+        tier:'unexpected',
+        description:'Smartpen system that digitizes handwritten notes and synchronizes them with compatible mobile applications.'
+      }
+    ],
+
+
+    'Cloud Storage': [
+
+      {
+        name:'Google Drive',
+        company:'Google',
+        domain:'drive.google.com',
+        tier:'best',
+        description:'Cloud file-storage and synchronization service for storing, sharing and collaborating on files across devices.'
+      },
+
+      {
+        name:'Microsoft OneDrive',
+        company:'Microsoft',
+        domain:'onedrive.com',
+        tier:'best',
+        description:'Microsoft cloud-storage service for synchronizing, backing up and sharing files across Windows and other devices.'
+      },
+
+      {
+        name:'Dropbox',
+        company:'Dropbox',
+        domain:'dropbox.com',
+        tier:'best',
+        description:'Cloud storage and file-sharing platform that synchronizes documents, photos and other content across devices.'
+      },
+
+      {
+        name:'iCloud+',
+        company:'Apple',
+        domain:'icloud.com',
+        tier:'best',
+        description:'Apple cloud service for synchronizing photos, files, backups and other data across Apple devices.'
+      },
+
+      {
+        name:'Box',
+        company:'Box',
+        domain:'box.com',
+        tier:'best',
+        description:'Enterprise cloud-content platform for securely storing, sharing and collaborating on business files.'
+      },
+
+      {
+        name:'IDrive',
+        company:'IDrive',
+        domain:'idrive.com',
+        tier:'best',
+        description:'Cloud storage and backup service designed to protect files from multiple computers and mobile devices.'
+      },
+
+      {
+        name:'pCloud',
+        company:'pCloud',
+        domain:'pcloud.com',
+        tier:'emerging',
+        description:'Cloud storage platform offering file synchronization, sharing and optional encrypted private storage.'
+      },
+
+      {
+        name:'Sync.com',
+        company:'Sync',
+        domain:'sync.com',
+        tier:'emerging',
+        description:'Privacy-focused cloud-storage service using encrypted file sharing and collaboration across devices.'
+      },
+
+      {
+        name:'MEGA',
+        company:'MEGA',
+        domain:'mega.io',
+        tier:'emerging',
+        description:'Encrypted cloud-storage and file-sharing platform with synchronization and collaboration capabilities.'
+      },
+
+      {
+        name:'Proton Drive',
+        company:'Proton',
+        domain:'proton.me',
+        tier:'emerging',
+        description:'Privacy-focused encrypted cloud-storage service from Proton for securely storing and sharing files.'
+      },
+
+      {
+        name:'Internxt Drive',
+        company:'Internxt',
+        domain:'internxt.com',
+        tier:'emerging',
+        description:'Encrypted cloud-storage platform designed around privacy, secure file synchronization and protected sharing.'
+      },
+
+      {
+        name:'Tresorit',
+        company:'Tresorit',
+        domain:'tresorit.com',
+        tier:'emerging',
+        description:'End-to-end encrypted cloud collaboration platform for securely storing and sharing sensitive business files.'
+      },
+
+      {
+        name:'Egnyte',
+        company:'Egnyte',
+        domain:'egnyte.com',
+        tier:'unexpected',
+        description:'Enterprise content-management platform combining secure cloud file access, governance and collaboration.'
+      },
+
+      {
+        name:'Zoho WorkDrive',
+        company:'Zoho',
+        domain:'zoho.com',
+        tier:'unexpected',
+        description:'Team cloud-storage platform designed for business file collaboration, organization and controlled sharing.'
+      },
+
+      {
+        name:'Icedrive',
+        company:'Icedrive',
+        domain:'icedrive.net',
+        tier:'unexpected',
+        description:'Cloud-storage service offering file synchronization, sharing and encrypted storage options.'
+      },
+
+      {
+        name:'Koofr',
+        company:'Koofr',
+        domain:'koofr.eu',
+        tier:'unexpected',
+        description:'Cloud-storage platform that can connect multiple online storage services into one organized interface.'
+      },
+
+      {
+        name:'Filen',
+        company:'Filen',
+        domain:'filen.io',
+        tier:'unexpected',
+        description:'End-to-end encrypted cloud-storage service focused on private file synchronization and sharing.'
+      },
+
+      {
+        name:'Synology BeeStation',
+        company:'Synology',
+        domain:'synology.com',
+        tier:'unexpected',
+        description:'Personal cloud-storage appliance designed to keep files locally while making them accessible across devices.'
+      },
+
+      {
+        name:'QNAP myQNAPcloud',
+        company:'QNAP',
+        domain:'qnap.com',
+        tier:'unexpected',
+        description:'Private-cloud ecosystem that connects QNAP network storage with secure remote file access and sharing.'
+      },
+
+      {
+        name:'Western Digital My Cloud',
+        company:'Western Digital',
+        domain:'westerndigital.com',
+        tier:'unexpected',
+        description:'Personal network-storage concept designed to centralize files and provide private-cloud-style access.'
+      }
+    ],
+
+
+    'Photo & Creative Software': [
+
+      {
+        name:'Adobe Photoshop',
+        company:'Adobe',
+        domain:'adobe.com',
+        tier:'best',
+        description:'Professional image-editing software for photography, graphic design, digital compositing and creative production.'
+      },
+
+      {
+        name:'Adobe Lightroom',
+        company:'Adobe',
+        domain:'adobe.com',
+        tier:'best',
+        description:'Photography application for organizing, editing, enhancing and synchronizing photo libraries across devices.'
+      },
+
+      {
+        name:'Canva Pro',
+        company:'Canva',
+        domain:'canva.com',
+        tier:'best',
+        description:'Visual-design platform for creating social graphics, presentations, videos, marketing materials and branded content.'
+      },
+
+      {
+        name:'Affinity Photo',
+        company:'Canva',
+        domain:'affinity.serif.com',
+        tier:'best',
+        description:'Professional photo-editing application for retouching, compositing, RAW processing and digital artwork.'
+      },
+
+      {
+        name:'Capture One Pro',
+        company:'Capture One',
+        domain:'captureone.com',
+        tier:'best',
+        description:'Professional photography workflow software for RAW processing, image organization, color editing and tethered capture.'
+      },
+
+      {
+        name:'DaVinci Resolve Studio',
+        company:'Blackmagic Design',
+        domain:'blackmagicdesign.com',
+        tier:'best',
+        description:'Professional video-production suite combining editing, color correction, visual effects, motion graphics and audio.'
+      },
+
+      {
+        name:'Final Cut Pro',
+        company:'Apple',
+        domain:'apple.com',
+        tier:'emerging',
+        description:'Professional video-editing software for Mac used for editing, organizing and producing high-quality video content.'
+      },
+
+      {
+        name:'CapCut Pro',
+        company:'CapCut',
+        domain:'capcut.com',
+        tier:'emerging',
+        description:'Video-editing platform providing templates, effects, captions and AI-assisted tools for social and creator content.'
+      },
+
+      {
+        name:'Luminar Neo',
+        company:'Skylum',
+        domain:'skylum.com',
+        tier:'emerging',
+        description:'AI-assisted photo editor designed for automated image enhancement, creative effects and photography workflows.'
+      },
+
+      {
+        name:'Picsart Gold',
+        company:'Picsart',
+        domain:'picsart.com',
+        tier:'emerging',
+        description:'Creative editing platform for photos, graphics, video and social-media content across mobile and web devices.'
+      },
+
+      {
+        name:'Adobe Express Premium',
+        company:'Adobe',
+        domain:'adobe.com',
+        tier:'emerging',
+        description:'Browser and mobile design application for quickly creating social posts, videos, graphics and marketing content.'
+      },
+
+      {
+        name:'Corel PaintShop Pro',
+        company:'Alludo',
+        domain:'paintshoppro.com',
+        tier:'emerging',
+        description:'Windows photo-editing and graphic-design software offering image correction, compositing and creative tools.'
+      },
+
+      {
+        name:'ON1 Photo RAW',
+        company:'ON1',
+        domain:'on1.com',
+        tier:'unexpected',
+        description:'Photography workflow application combining RAW processing, organization, effects and AI-powered image enhancement.'
+      },
+
+      {
+        name:'DxO PhotoLab',
+        company:'DxO',
+        domain:'dxo.com',
+        tier:'unexpected',
+        description:'Professional RAW photo-processing software known for optical correction, noise reduction and image-quality enhancement.'
+      },
+
+      {
+        name:'CyberLink PhotoDirector',
+        company:'CyberLink',
+        domain:'cyberlink.com',
+        tier:'unexpected',
+        description:'Photo-editing software combining traditional image tools with AI effects, retouching and creative generation features.'
+      },
+
+      {
+        name:'Descript',
+        company:'Descript',
+        domain:'descript.com',
+        tier:'unexpected',
+        description:'Audio and video editing platform that lets creators edit recordings using text-based transcription workflows.'
+      },
+
+      {
+        name:'Figma Professional',
+        company:'Figma',
+        domain:'figma.com',
+        tier:'unexpected',
+        description:'Collaborative design platform for interface design, prototypes, visual systems and digital product development.'
+      },
+
+      {
+        name:'Procreate',
+        company:'Savage Interactive',
+        domain:'procreate.com',
+        tier:'unexpected',
+        description:'Digital illustration and painting application for iPad used by artists, designers and creative professionals.'
+      },
+
+      {
+        name:'Loupedeck Live',
+        company:'Logitech',
+        domain:'loupedeck.com',
+        tier:'unexpected',
+        description:'Physical creative-control console designed to speed up editing workflows in photo, video and streaming applications.'
+      },
+
+      {
+        name:'Aura Digital Frame',
+        company:'Aura',
+        domain:'auraframes.com',
+        tier:'unexpected',
+        description:'Connected digital photo frame that lets users display and remotely share personal photo collections.'
+      }
+    ],
+
+
+    'Backup & Recovery': [
+
+      {
+        name:'Backblaze Computer Backup',
+        company:'Backblaze',
+        domain:'backblaze.com',
+        tier:'best',
+        description:'Automatic cloud-backup service designed to continuously protect computer files with minimal user configuration.'
+      },
+
+      {
+        name:'IDrive Personal',
+        company:'IDrive',
+        domain:'idrive.com',
+        tier:'best',
+        description:'Multi-device cloud-backup service for protecting computers, phones and important files under one account.'
+      },
+
+      {
+        name:'Acronis Cyber Protect Home Office',
+        company:'Acronis',
+        domain:'acronis.com',
+        tier:'best',
+        description:'Backup and cybersecurity suite combining full-system backup, ransomware protection and disaster recovery capabilities.'
+      },
+
+      {
+        name:'Carbonite Safe',
+        company:'Carbonite',
+        domain:'carbonite.com',
+        tier:'best',
+        description:'Cloud-backup service focused on automatically protecting personal and small-business computer files.'
+      },
+
+      {
+        name:'CrashPlan',
+        company:'CrashPlan',
+        domain:'crashplan.com',
+        tier:'best',
+        description:'Continuous cloud-backup platform designed for protecting business endpoint data and recovering lost files.'
+      },
+
+      {
+        name:'Dropbox Backup',
+        company:'Dropbox',
+        domain:'dropbox.com',
+        tier:'best',
+        description:'Cloud backup capability for protecting important computer folders and restoring files after device loss or failure.'
+      },
+
+      {
+        name:'EaseUS Todo Backup',
+        company:'EaseUS',
+        domain:'easeus.com',
+        tier:'emerging',
+        description:'Backup software for protecting files, disks and complete computer systems with scheduled recovery options.'
+      },
+
+      {
+        name:'AOMEI Backupper',
+        company:'AOMEI',
+        domain:'aomeitech.com',
+        tier:'emerging',
+        description:'Windows backup and cloning software for file backup, system imaging, disk migration and disaster recovery.'
+      },
+
+      {
+        name:'Macrium Reflect',
+        company:'Macrium',
+        domain:'macrium.com',
+        tier:'emerging',
+        description:'Disk imaging and backup software designed for reliable system recovery, cloning and data protection.'
+      },
+
+      {
+        name:'Paragon Backup & Recovery',
+        company:'Paragon Software',
+        domain:'paragon-software.com',
+        tier:'emerging',
+        description:'Backup and recovery software for protecting files, partitions and complete Windows systems.'
+      },
+
+      {
+        name:'Veeam Data Cloud',
+        company:'Veeam',
+        domain:'veeam.com',
+        tier:'emerging',
+        description:'Cloud-based backup and recovery platform for protecting business workloads, applications and organizational data.'
+      },
+
+      {
+        name:'Stellar Data Recovery',
+        company:'Stellar',
+        domain:'stellarinfo.com',
+        tier:'emerging',
+        description:'Data-recovery software designed to restore deleted, corrupted or inaccessible files from storage devices.'
+      },
+
+      {
+        name:'Disk Drill',
+        company:'CleverFiles',
+        domain:'cleverfiles.com',
+        tier:'unexpected',
+        description:'File-recovery application for restoring deleted or lost data from computers, drives and removable storage.'
+      },
+
+      {
+        name:'Synology Active Backup',
+        company:'Synology',
+        domain:'synology.com',
+        tier:'unexpected',
+        description:'Centralized backup solution for protecting PCs, servers, virtual machines and business data on Synology NAS.'
+      },
+
+      {
+        name:'QNAP Hybrid Backup Sync',
+        company:'QNAP',
+        domain:'qnap.com',
+        tier:'unexpected',
+        description:'NAS backup and synchronization application for copying data between local storage, remote servers and cloud services.'
+      },
+
+      {
+        name:'Samsung T9 Portable SSD',
+        company:'Samsung',
+        domain:'samsung.com',
+        tier:'unexpected',
+        description:'High-speed portable solid-state drive suitable for local backups, large media files and mobile work.'
+      },
+
+      {
+        name:'SanDisk Extreme Portable SSD',
+        company:'SanDisk',
+        domain:'sandisk.com',
+        tier:'unexpected',
+        description:'Portable solid-state storage device designed for fast file transfer, local backup and mobile content workflows.'
+      },
+
+      {
+        name:'WD My Passport',
+        company:'Western Digital',
+        domain:'westerndigital.com',
+        tier:'unexpected',
+        description:'Portable external hard drive commonly used for offline file storage, computer backups and archival copies.'
+      },
+
+      {
+        name:'ioSafe Solo G3',
+        company:'ioSafe',
+        domain:'iosafe.com',
+        tier:'unexpected',
+        description:'Fire-resistant and water-resistant external storage device designed to protect physical backup copies during disasters.'
+      },
+
+      {
+        name:'Synology BeeDrive',
+        company:'Synology',
+        domain:'synology.com',
+        tier:'unexpected',
+        description:'Compact personal backup device designed to simplify computer and mobile file protection and synchronization.'
+      }
+    ]
+  };
+
+
+  const previousCatalogV5 =
+    catalogForOpportunityV1;
+
+
+  catalogForOpportunityV1 =
+    function(title) {
+
+      const catalog =
+        BRANDED_MARKETPLACE_V5[title];
+
+      if (catalog) {
+
+        return catalog.map(item => [
+          item.name,
+          item.tier
+        ]);
+      }
+
+      return previousCatalogV5(title);
+    };
+
+
+  const previousBrandLookupV5 =
+    productBrandV2;
+
+
+  productBrandV2 =
+    function(name) {
+
+      for (
+        const catalog
+        of Object.values(
+          BRANDED_MARKETPLACE_V5
+        )
+      ) {
+
+        const item =
+          catalog.find(
+            p => p.name === name
+          );
+
+        if (item) {
+
+          return {
+            domain: item.domain,
+            label: item.company,
+            company: item.company
+          };
+        }
+      }
+
+      return previousBrandLookupV5(name);
+    };
+
+
+  const previousDescriptionV5 =
+    productDescriptionV4;
+
+
+  productDescriptionV4 =
+    function(name) {
+
+      for (
+        const catalog
+        of Object.values(
+          BRANDED_MARKETPLACE_V5
+        )
+      ) {
+
+        const item =
+          catalog.find(
+            p => p.name === name
+          );
+
+        if (item) {
+          return item.description;
+        }
+      }
+
+      return previousDescriptionV5(name);
+    };
+
+
+  const previousCompanyNameV5 =
+    companyNameV3;
+
+
+  companyNameV3 =
+    function(name) {
+
+      for (
+        const catalog
+        of Object.values(
+          BRANDED_MARKETPLACE_V5
+        )
+      ) {
+
+        const item =
+          catalog.find(
+            p => p.name === name
+          );
+
+        if (item) {
+          return item.company;
+        }
+      }
+
+      return previousCompanyNameV5(name);
+    };
+
 })();
