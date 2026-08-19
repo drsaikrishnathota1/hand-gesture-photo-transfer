@@ -237,11 +237,75 @@
         <div><span>OBSERVED SIGNAL</span><strong id="productExplorerSignalV1">—</strong></div>
         <div><span>EVIDENCE</span><strong id="productExplorerEvidenceV1">—</strong></div>
       </div>
-      <div class="product-explorer-tabs-v1">
+      
+      <div id="productExplorerToolbarV2" class="product-explorer-toolbar-v2">
+        <input id="productSearchV2"
+               type="search"
+               placeholder="Search products..."
+               aria-label="Search products">
+
+        <div class="product-type-filters-v2">
+          <button class="active" data-product-kind="all" type="button">All Types</button>
+          <button data-product-kind="software" type="button">Software</button>
+          <button data-product-kind="hardware" type="button">Hardware</button>
+          <button data-product-kind="service" type="button">Service</button>
+        </div>
+
+        <button id="surpriseProductV2"
+                class="surprise-product-v2"
+                type="button">
+          ✦ Surprise Me
+        </button>
+      </div>
+
+<div class="product-explorer-tabs-v1">
         <button class="active" type="button" data-product-tier="all">All 20</button><button type="button" data-product-tier="best">Best Fit</button><button type="button" data-product-tier="emerging">Emerging</button><button type="button" data-product-tier="unexpected">Unexpected</button>
       </div>
       <div id="productExplorerGridV1" class="product-explorer-grid-v1"></div>
-      <footer class="product-explorer-footer-v1"><p>Commercial hypotheses from aggregate technology behavior only. AirGesture does not infer purchase intent or sensitive personal attributes.</p><button id="productExplorerAskV1" type="button">Ask Data Assistant about this category →</button></footer>
+      
+      <section id="productCompareTrayV2"
+               class="product-compare-tray-v2"
+               hidden>
+
+        <div>
+          <span class="section-kicker">SHORTLIST</span>
+          <strong id="productCompareCountV2">0 selected</strong>
+          <small>Select up to 3 products.</small>
+        </div>
+
+        <div id="productCompareItemsV2"
+             class="product-compare-items-v2"></div>
+
+        <button id="compareProductsV2"
+                type="button">
+          Compare Selected
+        </button>
+
+        <button id="clearCompareV2"
+                type="button">
+          Clear
+        </button>
+      </section>
+
+      <section id="productComparisonV2"
+               class="product-comparison-v2"
+               hidden>
+
+        <div class="product-comparison-head-v2">
+          <div>
+            <span class="section-kicker">PRODUCT COMPARISON</span>
+            <h3>Which opportunity should we test first?</h3>
+          </div>
+
+          <button id="closeComparisonV2"
+                  type="button">×</button>
+        </div>
+
+        <div id="productComparisonGridV2"
+             class="product-comparison-grid-v2"></div>
+      </section>
+
+<footer class="product-explorer-footer-v1"><p>Commercial hypotheses from aggregate technology behavior only. AirGesture does not infer purchase intent or sensitive personal attributes.</p><button id="productExplorerAskV1" type="button">Ask Data Assistant about this category →</button></footer>
     </div>
   </section>
 

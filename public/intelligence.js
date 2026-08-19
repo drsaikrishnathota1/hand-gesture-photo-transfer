@@ -1077,4 +1077,583 @@
     if (window.AirGestureAuthUser) initialize();
     else setTimeout(() => { if (!state.initialized) initialize(); }, 700);
   });
+
+
+  // AIRGESTURE_MARKETPLACE_V2_OVERRIDE
+
+  const PRODUCT_BRANDS_V2 = {
+    'Microsoft 365': ['microsoft.com','Microsoft'],
+    'Google Workspace': ['workspace.google.com','Google'],
+    'Google Drive': ['drive.google.com','Google Drive'],
+    'Microsoft OneDrive': ['onedrive.com','OneDrive'],
+    'Dropbox': ['dropbox.com','Dropbox'],
+    'iCloud+': ['icloud.com','Apple'],
+    'Adobe Acrobat': ['adobe.com','Adobe'],
+    'Adobe Photoshop': ['adobe.com','Adobe'],
+    'Adobe Lightroom': ['adobe.com','Adobe'],
+    'Canva': ['canva.com','Canva'],
+    'Foxit PDF': ['foxit.com','Foxit'],
+    'Nitro PDF': ['gonitro.com','Nitro']
+  };
+
+  let productExplorerKindV2 = 'all';
+  let productExplorerSearchV2 = '';
+
+  const productCompareV2 = new Map();
+
+  function productBrandV2(name) {
+    const b = PRODUCT_BRANDS_V2[name];
+
+    return b ? {
+      domain: b[0],
+      label: b[1]
+    } : null;
+  }
+
+  function productKindV2(name) {
+
+    const n = String(name).toLowerCase();
+
+    if (
+      /ssd|hdd|nas|monitor|keyboard|usb|screen|webcam|camera|pen|tablet|gimbal|microphone|lens|frame|printer|projector|hub|dock|appliance|gateway|vault/.test(n)
+    ) return 'hardware';
+
+    if (
+      /service|insurance|training|notary|restoration|subscription|membership|archive/.test(n)
+    ) return 'service';
+
+    return 'software';
+  }
+
+  function productFitV2(tier) {
+
+    if (tier === 'best') return 88;
+    if (tier === 'emerging') return 68;
+
+    return 44;
+  }
+
+  function productLogoV2(name) {
+
+    const brand = productBrandV2(name);
+
+    if (brand) {
+
+      const src =
+        `https://www.google.com/s2/favicons?domain=${encodeURIComponent(brand.domain)}&sz=128`;
+
+      return `
+        <div class="product-logo-wrap-v2">
+          <img class="product-logo-v2"
+               src="${src}"
+               alt="${escapeHtml(brand.label)} logo"
+               loading="lazy">
+        </div>
+      `;
+    }
+
+    const initials = String(name)
+      .split(/\s+/)
+      .slice(0,2)
+      .map(x => x[0] || '')
+      .join('')
+      .toUpperCase();
+
+    return `
+      <div class="product-logo-wrap-v2">
+        <div class="product-logo-fallback-v2">
+          ${escapeHtml(initials || 'P')}
+        </div>
+      </div>
+    `;
+  }
+
+  function marketplaceContextV2() {
+
+    const s = state.snapshot;
+
+    const audience =
+      (s?.dimensions?.segments || [])
+      .find(i => prettySegment(i.name) !== 'Unclassified');
+
+    const market =
+      (s?.dimensions?.locations || [])
+      .find(i => prettyLocation(i.name) !== 'Unspecified');
+
+    return {
+      audience:
+        prettySegment(audience?.name || 'Current audience'),
+      market:
+        prettyLocation(market?.name || 'Current market')
+    };
+  }
+
+  function updateCompareV2() {
+
+    const tray = $('productCompareTrayV2');
+    const items = $('productCompareItemsV2');
+    const count = $('productCompareCountV2');
+
+    if (!tray || !items || !count) return;
+
+    const products = [...productCompareV2.values()];
+
+    tray.hidden = products.length === 0;
+
+    count.textContent =
+      `${products.length} selected`;
+
+    items.innerHTML =
+      products
+      .map(p =>
+        `<span class="product-compare-chip-v2">
+          ${escapeHtml(p.name)}
+        </span>`
+      )
+      .join('');
+
+    document
+      .querySelectorAll('[data-compare-product]')
+      .forEach(button => {
+
+        const selected =
+          productCompareV2.has(
+            button.dataset.compareProduct
+          );
+
+        button.classList.toggle(
+          'selected',
+          selected
+        );
+
+        button.textContent =
+          selected
+          ? '✓ Selected'
+          : '+ Compare';
+      });
+  }
+
+
+  function showProductComparisonV2() {
+
+    const selected =
+      [...productCompareV2.values()];
+
+    if (selected.length < 2) {
+
+      showToast(
+        'Select at least two products to compare.'
+      );
+
+      return;
+    }
+
+    const box =
+      $('productComparisonV2');
+
+    const grid =
+      $('productComparisonGridV2');
+
+    const context =
+      marketplaceContextV2();
+
+    grid.innerHTML =
+      selected.map(product => `
+
+        <article class="product-compare-card-v2">
+
+          <h4>${escapeHtml(product.name)}</h4>
+
+          <p>
+            <strong>Opportunity:</strong>
+            ${escapeHtml(product.tier)}
+          </p>
+
+          <p>
+            <strong>Product type:</strong>
+            ${escapeHtml(product.kind)}
+          </p>
+
+          <p>
+            <strong>Audience:</strong>
+            ${escapeHtml(context.audience)}
+          </p>
+
+          <p>
+            <strong>Market:</strong>
+            ${escapeHtml(context.market)}
+          </p>
+
+          <p>
+            <strong>Validation:</strong>
+            Run the same small campaign and compare
+            actual response before scaling.
+          </p>
+
+        </article>
+
+      `).join('');
+
+    box.hidden = false;
+
+    box.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest'
+    });
+  }
+
+
+  renderProductExplorerGridV1 = function() {
+
+    const grid =
+      $('productExplorerGridV1');
+
+    if (
+      !grid ||
+      !productExplorerCategoryV1
+    ) return;
+
+    const context =
+      marketplaceContextV2();
+
+    const tierText =
+      tier =>
+        tier === 'best'
+        ? 'Best Fit'
+        : tier === 'emerging'
+        ? 'Emerging'
+        : 'Unexpected';
+
+    let products =
+      catalogForOpportunityV1(
+        productExplorerCategoryV1
+      )
+      .map(p => ({
+        name: p[0],
+        tier: p[1],
+        kind: productKindV2(p[0])
+      }));
+
+    products =
+      products.filter(p =>
+        productExplorerTierV1 === 'all' ||
+        p.tier === productExplorerTierV1
+      );
+
+    products =
+      products.filter(p =>
+        productExplorerKindV2 === 'all' ||
+        p.kind === productExplorerKindV2
+      );
+
+    products =
+      products.filter(p =>
+        !productExplorerSearchV2 ||
+        p.name
+        .toLowerCase()
+        .includes(productExplorerSearchV2)
+      );
+
+
+    grid.innerHTML =
+      products.map((p,index) => {
+
+        const score =
+          productFitV2(p.tier);
+
+        const brand =
+          productBrandV2(p.name);
+
+        const why =
+          p.tier === 'best'
+          ? `Directly connected to the observed ${context.audience} / ${context.market} behavior.`
+          :
+          p.tier === 'emerging'
+          ? `An adjacent commercial hypothesis worth testing in ${context.market}.`
+          :
+          `An unconventional opportunity to test — not evidence of purchase intent.`;
+
+        return `
+
+          <article
+            class="product-card-v1"
+            data-product-card="${escapeHtml(p.name)}">
+
+            <div class="product-card-top-v1">
+
+              <span class="product-number-v1">
+                ${String(index + 1).padStart(2,'0')}
+              </span>
+
+              <span class="product-tier-v1 ${escapeHtml(p.tier)}">
+                ${escapeHtml(tierText(p.tier))}
+              </span>
+
+            </div>
+
+            ${productLogoV2(p.name)}
+
+            <h3>
+              ${escapeHtml(p.name)}
+            </h3>
+
+            <p>
+              ${escapeHtml(why)}
+            </p>
+
+            <div class="product-fit-meter-v2">
+
+              <div>
+                <i style="width:${score}%"></i>
+              </div>
+
+              <span>
+                Test priority:
+                ${score}/100 · hypothesis score
+              </span>
+
+            </div>
+
+            <div class="product-test-v1">
+
+              <strong>HOW TO TEST:</strong>
+
+              Run a small
+              ${escapeHtml(context.market)}
+              campaign and compare actual response.
+
+            </div>
+
+            <div class="product-card-actions-v2">
+
+              <button
+                data-compare-product="${escapeHtml(p.name)}"
+                data-tier="${escapeHtml(tierText(p.tier))}"
+                data-kind="${escapeHtml(p.kind)}"
+                type="button">
+
+                + Compare
+
+              </button>
+
+              ${
+                brand
+                ? `
+                  <a
+                    href="https://${escapeHtml(brand.domain)}"
+                    target="_blank"
+                    rel="noopener noreferrer">
+                    Official Site ↗
+                  </a>
+                `
+                : ''
+              }
+
+            </div>
+
+          </article>
+
+        `;
+
+      }).join('');
+
+
+    updateCompareV2();
+  };
+
+
+  $('productSearchV2')
+    ?.addEventListener(
+      'input',
+      event => {
+
+        productExplorerSearchV2 =
+          String(event.target.value || '')
+          .trim()
+          .toLowerCase();
+
+        renderProductExplorerGridV1();
+      }
+    );
+
+
+  document.addEventListener(
+    'click',
+    event => {
+
+      const typeButton =
+        event.target.closest(
+          '[data-product-kind]'
+        );
+
+      if (typeButton) {
+
+        productExplorerKindV2 =
+          typeButton.dataset.productKind;
+
+        document
+          .querySelectorAll(
+            '[data-product-kind]'
+          )
+          .forEach(button =>
+            button.classList.toggle(
+              'active',
+              button === typeButton
+            )
+          );
+
+        renderProductExplorerGridV1();
+
+        return;
+      }
+
+
+      const compareButton =
+        event.target.closest(
+          '[data-compare-product]'
+        );
+
+      if (compareButton) {
+
+        const name =
+          compareButton.dataset.compareProduct;
+
+        if (
+          productCompareV2.has(name)
+        ) {
+
+          productCompareV2.delete(name);
+
+        } else {
+
+          if (
+            productCompareV2.size >= 3
+          ) {
+
+            showToast(
+              'You can compare up to three products.'
+            );
+
+            return;
+          }
+
+          productCompareV2.set(
+            name,
+            {
+              name,
+              tier:
+                compareButton.dataset.tier,
+              kind:
+                compareButton.dataset.kind
+            }
+          );
+        }
+
+        updateCompareV2();
+
+        return;
+      }
+
+
+      if (
+        event.target.closest(
+          '#compareProductsV2'
+        )
+      ) {
+
+        showProductComparisonV2();
+
+        return;
+      }
+
+
+      if (
+        event.target.closest(
+          '#clearCompareV2'
+        )
+      ) {
+
+        productCompareV2.clear();
+
+        updateCompareV2();
+
+        $('productComparisonV2').hidden =
+          true;
+
+        return;
+      }
+
+
+      if (
+        event.target.closest(
+          '#closeComparisonV2'
+        )
+      ) {
+
+        $('productComparisonV2').hidden =
+          true;
+
+        return;
+      }
+
+
+      if (
+        event.target.closest(
+          '#surpriseProductV2'
+        )
+      ) {
+
+        productExplorerTierV1 =
+          'unexpected';
+
+        document
+          .querySelectorAll(
+            '[data-product-tier]'
+          )
+          .forEach(button =>
+            button.classList.toggle(
+              'active',
+              button.dataset.productTier ===
+              'unexpected'
+            )
+          );
+
+        renderProductExplorerGridV1();
+
+        const cards =
+          [...document.querySelectorAll(
+            '[data-product-card]'
+          )];
+
+        if (cards.length) {
+
+          const card =
+            cards[
+              Math.floor(
+                Math.random() *
+                cards.length
+              )
+            ];
+
+          card.classList.add(
+            'flash-v2'
+          );
+
+          card.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+
+          setTimeout(
+            () =>
+              card.classList.remove(
+                'flash-v2'
+              ),
+            1600
+          );
+        }
+      }
+    }
+  );
+
 })();
