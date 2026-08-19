@@ -3303,4 +3303,420 @@
       return previousCompanyNameV5(name);
     };
 
+
+
+  // AIRGESTURE_GLOBAL_COMPARE_V1
+
+  let globalCompareTypeV1 = 'market';
+
+
+  function globalCompareItemsV1() {
+
+    const s = state.snapshot;
+
+    if (!s) return [];
+
+
+    if (
+      globalCompareTypeV1 === 'market'
+    ) {
+
+      return (
+        s.dimensions?.locations || []
+      )
+      .filter(
+        item =>
+          prettyLocation(item.name)
+          !== 'Unspecified'
+      )
+      .map(item => ({
+        ...item,
+        label:
+          prettyLocation(item.name)
+      }));
+    }
+
+
+    if (
+      globalCompareTypeV1 === 'audience'
+    ) {
+
+      return (
+        s.dimensions?.segments || []
+      )
+      .filter(
+        item =>
+          prettySegment(item.name)
+          !== 'Unclassified'
+      )
+      .map(item => ({
+        ...item,
+        label:
+          prettySegment(item.name)
+      }));
+    }
+
+
+    if (
+      globalCompareTypeV1 === 'platform'
+    ) {
+
+      return (
+        s.dimensions?.os || []
+      )
+      .filter(
+        item =>
+          prettyOs(item.name)
+          !== 'Unspecified'
+      )
+      .map(item => ({
+        ...item,
+        label:
+          prettyOs(item.name)
+      }));
+    }
+
+
+    return (
+      s.dimensions?.fileTypes || []
+    )
+    .map(item => ({
+      ...item,
+      label:
+        prettyFileType(item.name)
+    }));
+  }
+
+
+  function globalCompareTitleV1() {
+
+    return {
+      market: 'Market',
+      audience: 'Audience',
+      platform: 'Platform',
+      content: 'Content'
+    }[globalCompareTypeV1];
+  }
+
+
+  function populateGlobalCompareV1() {
+
+    const a =
+      $('globalCompareA');
+
+    const b =
+      $('globalCompareB');
+
+    if (!a || !b) return;
+
+
+    const items =
+      globalCompareItemsV1();
+
+
+    const options =
+      '<option value="">Select item</option>'
+      +
+      items
+      .map(item => `
+        <option value="${escapeHtml(item.name)}">
+          ${escapeHtml(item.label)}
+        </option>
+      `)
+      .join('');
+
+
+    a.innerHTML = options;
+    b.innerHTML = options;
+
+
+    if (items[0]) {
+      a.value = items[0].name;
+    }
+
+    if (items[1]) {
+      b.value = items[1].name;
+    }
+
+
+    const title =
+      globalCompareTitleV1();
+
+
+    if ($('globalCompareLabelA')) {
+      $('globalCompareLabelA').textContent =
+        `${title} A`;
+    }
+
+    if ($('globalCompareLabelB')) {
+      $('globalCompareLabelB').textContent =
+        `${title} B`;
+    }
+
+
+    if ($('globalCompareResultV1')) {
+      $('globalCompareResultV1').hidden =
+        true;
+    }
+  }
+
+
+  function compareMetricCardV1(
+    item
+  ) {
+
+    const users =
+      Number(item.users || 0);
+
+    const events =
+      Number(item.count || 0);
+
+    const bytes =
+      Number(item.bytes || 0);
+
+    const engagement =
+      users
+      ? events / users
+      : 0;
+
+
+    return `
+      <article
+        class="global-compare-card-v1">
+
+        <h3>
+          ${escapeHtml(item.label)}
+        </h3>
+
+        <div
+          class="global-compare-metrics-v1">
+
+          <div>
+            <span>Users</span>
+            <strong>
+              ${formatNumber(users)}
+            </strong>
+          </div>
+
+          <div>
+            <span>Events</span>
+            <strong>
+              ${formatNumber(events)}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              ${
+                globalCompareTypeV1
+                === 'market'
+                ? 'Engagement'
+                : 'Share'
+              }
+            </span>
+
+            <strong>
+              ${
+                globalCompareTypeV1
+                === 'market'
+                ? `${formatNumber(
+                    engagement,
+                    1
+                  )}/user`
+                : `${Number(
+                    item.share || 0
+                  ).toFixed(1)}%`
+              }
+            </strong>
+          </div>
+
+        </div>
+
+        ${
+          bytes
+          ? `
+            <p class="plain-note">
+              Recorded volume:
+              ${escapeHtml(
+                formatBytes(bytes)
+              )}
+            </p>
+          `
+          : ''
+        }
+
+      </article>
+    `;
+  }
+
+
+  function runGlobalCompareV1() {
+
+    const aName =
+      $('globalCompareA')?.value;
+
+    const bName =
+      $('globalCompareB')?.value;
+
+    if (
+      !aName ||
+      !bName
+    ) {
+
+      showToast(
+        'Select two items to compare.'
+      );
+
+      return;
+    }
+
+
+    if (
+      aName === bName
+    ) {
+
+      showToast(
+        'Choose two different items.'
+      );
+
+      return;
+    }
+
+
+    const items =
+      globalCompareItemsV1();
+
+
+    const a =
+      items.find(
+        item =>
+          item.name === aName
+      );
+
+    const b =
+      items.find(
+        item =>
+          item.name === bName
+      );
+
+
+    if (!a || !b) return;
+
+
+    const aEvents =
+      Number(a.count || 0);
+
+    const bEvents =
+      Number(b.count || 0);
+
+
+    const leader =
+      aEvents === bEvents
+      ? 'Neither item leads on observed activity.'
+      :
+        `${
+          aEvents > bEvents
+          ? a.label
+          : b.label
+        } has more observed activity in the current scope.`;
+
+
+    const result =
+      $('globalCompareResultV1');
+
+
+    result.hidden = false;
+
+    result.innerHTML = `
+
+      <div
+        class="global-compare-result-grid-v1">
+
+        ${compareMetricCardV1(a)}
+
+        ${compareMetricCardV1(b)}
+
+      </div>
+
+
+      <div
+        class="global-compare-conclusion-v1">
+
+        <strong>What this comparison means:</strong>
+
+        ${escapeHtml(leader)}
+
+        Compare the same dimension only.
+        Use the result as evidence for a controlled
+        business experiment rather than assuming
+        purchase intent.
+
+      </div>
+
+    `;
+  }
+
+
+  document.addEventListener(
+    'click',
+    event => {
+
+      const typeButton =
+        event.target.closest(
+          '[data-global-compare-type]'
+        );
+
+
+      if (typeButton) {
+
+        globalCompareTypeV1 =
+          typeButton.dataset
+          .globalCompareType;
+
+
+        document
+          .querySelectorAll(
+            '[data-global-compare-type]'
+          )
+          .forEach(
+            button =>
+              button.classList.toggle(
+                'active',
+                button === typeButton
+              )
+          );
+
+
+        populateGlobalCompareV1();
+
+        return;
+      }
+
+
+      if (
+        event.target.closest(
+          '#runGlobalCompareV1'
+        )
+      ) {
+
+        runGlobalCompareV1();
+      }
+    }
+  );
+
+
+  const originalRenderAllGlobalCompareV1 =
+    renderAll;
+
+
+  renderAll =
+    function(snapshot) {
+
+      originalRenderAllGlobalCompareV1(
+        snapshot
+      );
+
+      populateGlobalCompareV1();
+    };
+
 })();
