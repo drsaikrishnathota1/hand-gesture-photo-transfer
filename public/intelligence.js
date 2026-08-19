@@ -6615,4 +6615,153 @@
     }
   );
 
+
+
+  // AIRGESTURE_FINAL_VISUAL_FIRST_V1
+
+  function organizeVisualFirstDashboardV1() {
+
+    const dashboard =
+      $('dashboardView');
+
+    if (!dashboard) return;
+
+
+    const kpis =
+      dashboard.querySelector(
+        ':scope > .kpi-grid'
+      );
+
+
+    const sections =
+      [
+        ...dashboard.querySelectorAll(
+          ':scope > .section-block'
+        )
+      ];
+
+
+    const coreAnalytics =
+      sections.find(section =>
+        section
+          .querySelector(
+            '[data-panel="audience"]'
+          )
+      );
+
+
+    const behavior =
+      sections.find(section =>
+        section.classList
+          .contains(
+            'behavior-block'
+          )
+      );
+
+
+    const commercial =
+      sections.find(section =>
+        section.classList
+          .contains(
+            'commercial-block'
+          )
+      );
+
+
+    /*
+      Desired order:
+
+      KPI summary
+      ↓
+      Visual analytics charts
+      ↓
+      Behavior charts
+      ↓
+      Commercial Strategy
+    */
+
+    if (kpis) {
+
+      if (coreAnalytics) {
+        kpis.insertAdjacentElement(
+          'afterend',
+          coreAnalytics
+        );
+      }
+
+
+      if (
+        behavior &&
+        coreAnalytics
+      ) {
+
+        coreAnalytics
+          .insertAdjacentElement(
+            'afterend',
+            behavior
+          );
+      }
+
+
+      if (commercial) {
+
+        const anchor =
+          behavior ||
+          coreAnalytics ||
+          kpis;
+
+        anchor
+          .insertAdjacentElement(
+            'afterend',
+            commercial
+          );
+      }
+    }
+
+
+    /*
+      Remove unnecessary explanatory text
+      without removing the data itself.
+    */
+
+    dashboard
+      .querySelectorAll(
+        '.plain-note'
+      )
+      .forEach(note => {
+
+        if (
+          note.closest(
+            '.commercial-block'
+          )
+        ) {
+          return;
+        }
+
+        note.hidden = true;
+      });
+  }
+
+
+  document.addEventListener(
+    'DOMContentLoaded',
+    () => {
+
+      organizeVisualFirstDashboardV1();
+
+    }
+  );
+
+
+  setTimeout(
+    organizeVisualFirstDashboardV1,
+    700
+  );
+
+
+  setTimeout(
+    organizeVisualFirstDashboardV1,
+    1600
+  );
+
 })();
