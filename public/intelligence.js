@@ -4933,6 +4933,393 @@
     900
   );
 
+
+  // =======================================================
+  // AIRGESTURE_EXACT_COMMERCIAL_CONTEXT_V3
+  //
+  // Audience + Market selected in Commercial Strategy
+  // are the authoritative scenario for ALL 6 categories.
+  // =======================================================
+
+  function exactCommercialContextV3() {
+
+    const audienceSelect =
+      $('commercialAudienceFilterV1');
+
+    const marketSelect =
+      $('commercialMarketFilterV1');
+
+
+    /*
+      Always read directly from the visible dropdown.
+      Never use first market/audience from state.snapshot.
+    */
+
+    const audienceValue =
+      audienceSelect?.value || '';
+
+    const marketValue =
+      marketSelect?.value || '';
+
+
+    let audience =
+      'All audiences';
+
+    let market =
+      'All markets';
+
+
+    if (audienceValue) {
+
+      const selected =
+        audienceSelect.options[
+          audienceSelect.selectedIndex
+        ];
+
+      audience =
+        selected?.textContent?.trim()
+        ||
+        (
+          typeof prettySegment === 'function'
+            ? prettySegment(audienceValue)
+            : audienceValue
+        );
+    }
+
+
+    if (marketValue) {
+
+      const selected =
+        marketSelect.options[
+          marketSelect.selectedIndex
+        ];
+
+      market =
+        (
+          selected?.textContent?.trim()
+          ||
+          (
+            typeof prettyLocation === 'function'
+              ? prettyLocation(marketValue)
+              : marketValue
+          )
+        )
+        .replace(
+          /\s*\([\d,]+\)\s*$/,
+          ''
+        )
+        .trim();
+    }
+
+
+    return {
+      audienceValue,
+      marketValue,
+      audience,
+      market
+    };
+  }
+
+
+  /*
+    CRITICAL FIX.
+
+    The old marketplaceContextV2() used the first audience
+    and first market from state.snapshot.
+
+    That is why selecting Phoenix could still display
+    New York inside the product marketplace.
+
+    From here forward the marketplace receives ONLY the
+    selected Commercial Strategy dropdown values.
+  */
+
+  marketplaceContextV2 =
+    function() {
+
+      const scenario =
+        exactCommercialContextV3();
+
+      return {
+        audience:
+          scenario.audience,
+
+        market:
+          scenario.market
+      };
+    };
+
+
+  function synchronizeCommercialMarketplaceV3() {
+
+    const scenario =
+      exactCommercialContextV3();
+
+
+    /*
+      Keep internal scenario variables synchronized too.
+    */
+
+    commercialAudienceV1 =
+      scenario.audienceValue;
+
+    commercialMarketV1 =
+      scenario.marketValue;
+
+
+    /*
+      Product Explorer header.
+    */
+
+    const explorerAudience =
+      $('productExplorerAudienceV1');
+
+    const explorerMarket =
+      $('productExplorerMarketV1');
+
+
+    if (explorerAudience) {
+
+      explorerAudience.textContent =
+        scenario.audience;
+    }
+
+
+    if (explorerMarket) {
+
+      explorerMarket.textContent =
+        scenario.market;
+    }
+
+
+    /*
+      Re-render products.
+
+      catalogForOpportunityV1() already ranks products
+      through scenarioProductScoreV1(), so refreshing here
+      applies Audience + Market ordering to EVERY category.
+    */
+
+    if (
+      typeof renderProductExplorerGridV1 === 'function'
+      &&
+      typeof productExplorerCategoryV1 !== 'undefined'
+      &&
+      productExplorerCategoryV1
+    ) {
+
+      try {
+
+        renderProductExplorerGridV1();
+
+      } catch (error) {
+
+        console.warn(
+          'Commercial marketplace redraw failed:',
+          error
+        );
+      }
+    }
+  }
+
+
+  async function commercialSelectionChangedV3() {
+
+    const scenario =
+      exactCommercialContextV3();
+
+
+    commercialAudienceV1 =
+      scenario.audienceValue;
+
+    commercialMarketV1 =
+      scenario.marketValue;
+
+
+    /*
+      Refresh backend opportunity score for this exact
+      audience + market.
+    */
+
+    if (
+      typeof loadCommercialStrategyOpportunityV1 ===
+        'function'
+    ) {
+
+      await loadCommercialStrategyOpportunityV1();
+    }
+
+
+    synchronizeCommercialMarketplaceV3();
+  }
+
+
+  /*
+    Handle BOTH Commercial Strategy dropdowns.
+  */
+
+  document.addEventListener(
+    'change',
+    event => {
+
+      if (
+        event.target?.id ===
+          'commercialAudienceFilterV1'
+        ||
+        event.target?.id ===
+          'commercialMarketFilterV1'
+      ) {
+
+        commercialSelectionChangedV3();
+      }
+    }
+  );
+
+
+  /*
+    Every "Explore 20 products" action must inherit the
+    currently visible Audience + Market.
+
+    Applies to:
+      Antivirus & Security
+      Business Productivity
+      PDF & Document Productivity
+      Cloud Storage
+      Photo & Creative
+      Backup & Recovery
+  */
+
+  document.addEventListener(
+    'click',
+    event => {
+
+      const button =
+        event.target.closest('button');
+
+      if (!button) return;
+
+
+      if (
+        String(
+          button.textContent || ''
+        )
+        .toLowerCase()
+        .includes('explore 20 products')
+      ) {
+
+        /*
+          The existing handler opens the product explorer.
+          Synchronize immediately after it renders.
+        */
+
+        requestAnimationFrame(
+          () => {
+
+            synchronizeCommercialMarketplaceV3();
+
+            requestAnimationFrame(
+              synchronizeCommercialMarketplaceV3
+            );
+          }
+        );
+      }
+    }
+  );
+
+
+  /*
+    Also guard against later render functions overwriting
+    the displayed market with an old snapshot value.
+  */
+
+  const exactCommercialObserverV3 =
+    new MutationObserver(
+      () => {
+
+        const explorer =
+          $('productExplorerV1');
+
+        if (
+          !explorer ||
+          explorer.hidden
+        ) {
+          return;
+        }
+
+
+        const scenario =
+          exactCommercialContextV3();
+
+        const audience =
+          $('productExplorerAudienceV1');
+
+        const market =
+          $('productExplorerMarketV1');
+
+
+        if (
+          audience &&
+          audience.textContent.trim() !==
+            scenario.audience
+        ) {
+
+          audience.textContent =
+            scenario.audience;
+        }
+
+
+        if (
+          market &&
+          market.textContent.trim() !==
+            scenario.market
+        ) {
+
+          market.textContent =
+            scenario.market;
+        }
+      }
+    );
+
+
+  exactCommercialObserverV3.observe(
+    document.body,
+    {
+      subtree: true,
+      childList: true
+    }
+  );
+
+
+  /*
+    Reset behavior.
+  */
+
+  document.addEventListener(
+    'click',
+    event => {
+
+      if (
+        !event.target.closest(
+          '#commercialResetV1'
+        )
+      ) {
+        return;
+      }
+
+
+      requestAnimationFrame(
+        () => {
+
+          commercialAudienceV1 = '';
+          commercialMarketV1 = '';
+
+          synchronizeCommercialMarketplaceV3();
+        }
+      );
+    }
+  );
+
+
 })();
 
 
