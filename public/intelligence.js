@@ -445,6 +445,14 @@
     };
   }
 
+  function v6Valid(items, pretty){return (items||[]).filter(i=>{const x=pretty(i?.name);return x&&!/unspecified|unclassified|unknown/i.test(x);});}
+  function v6Norm(v,m){return m>0?Math.max(0,Math.min(1,Number(v||0)/m)):0;}
+  function v6Audience(snapshot){const a=v6Valid(snapshot?.dimensions?.segments,prettySegment);if(!a.length)return[];const mu=Math.max(...a.map(i=>Number(i.users||0)),1),me=Math.max(...a.map(i=>Number(i.count||0)),1);return a.map(i=>{const users=Number(i.users||0),events=Number(i.count||0),score=Math.round((v6Norm(users,mu)*.6+v6Norm(events,me)*.4)*100);return{...i,users,events,score,label:score>=80?'Very Strong':score>=65?'Strong':score>=50?'Moderate':'Explore'};}).sort((a,b)=>b.score-a.score);}
+  function v6Markets(snapshot){const a=v6Valid(snapshot?.dimensions?.locations,prettyLocation);if(!a.length)return[];const mu=Math.max(...a.map(i=>Number(i.users||0)),1),mg=Math.max(...a.map(i=>Number(i.count||0)/Math.max(1,Number(i.users||0))),1),mb=Math.max(...a.map(i=>Number(i.bytes||0)),1);return a.map(i=>{const users=Number(i.users||0),events=Number(i.count||0),bytes=Number(i.bytes||0),engagement=users?events/users:0,quality=Math.round((v6Norm(users,mu)*.45+v6Norm(engagement,mg)*.30+v6Norm(bytes,mb)*.25)*100);return{...i,users,events,bytes,engagement,quality};}).sort((a,b)=>b.quality-a.quality);}
+  function v6Product(snapshot){const t=String(snapshot?.dimensions?.fileTypes?.[0]?.name||'').toUpperCase();if(['PDF','DOCUMENT'].includes(t))return'PDF / productivity tools';if(['IMAGE','VIDEO'].includes(t))return'Storage / creative tools';return'Cross-device productivity';}
+  function renderDecisionCockpitV6(snapshot){if(!$('decisionCockpitV6'))return;const a=v6Audience(snapshot),m=v6Markets(snapshot),A=a[0],M=m[0],P=v6Product(snapshot);$('cockpitWho').textContent=A?prettySegment(A.name):'Need more evidence';$('cockpitWhoMeta').textContent=A?`${formatNumber(A.users)} users · ${formatNumber(A.events)} events · ${A.label}`:'No qualified audience data.';$('cockpitWhere').textContent=M?prettyLocation(M.name):'Need more evidence';$('cockpitWhereMeta').textContent=M?`${formatNumber(M.users)} users · ${formatNumber(M.engagement,1)} events/user`:'No qualified market data.';$('cockpitWhat').textContent=P;$('cockpitWhatMeta').textContent='Mapped from the leading observed content type.';const ab=$('audienceRankingV6');if(ab)ab.innerHTML=a.slice(0,6).map((i,n)=>`<div class="audience-rank-row-v6"><span class="rank-index-v6">${n+1}</span><div class="rank-main-v6"><strong>${escapeHtml(prettySegment(i.name))}</strong><small>${formatNumber(i.events)} observed events</small></div><span class="strength-pill-v6">${i.label}</span><span class="rank-users-v6">${formatNumber(i.users)} users</span></div>`).join('');const mb=$('marketQualityV6');if(mb)mb.innerHTML=m.slice(0,6).map(i=>`<div class="market-quality-row-v6"><strong>${escapeHtml(prettyLocation(i.name))}</strong><div class="metric-v6"><span>Reach</span><b>${formatNumber(i.users)}</b></div><div class="metric-v6"><span>Engagement</span><b>${formatNumber(i.engagement,1)}</b></div><div class="metric-v6"><span>Volume</span><b>${formatBytes(i.bytes)}</b></div></div>`).join('');$('decisionObservedV6').textContent=A&&M?`${prettySegment(A.name)} is the leading observed audience; ${prettyLocation(M.name)} has the strongest combined market evidence.`:'More evidence is needed.';$('decisionWhyV6').textContent=M?`Market quality separates reach (${formatNumber(M.users)} users) from engagement (${formatNumber(M.engagement,1)} events/user) and volume.`:'Market size alone should not drive a decision.';$('decisionTestV6').textContent=M?`Run a small ${P.toLowerCase()} test in ${prettyLocation(M.name)}.`:`Run a small ${P.toLowerCase()} test after more evidence is available.`;$('decisionValidateV6').textContent=M&&m[1]?`Compare ${prettyLocation(M.name)} with ${prettyLocation(m[1].name)} using the same product, message and response metric.`:'Use a second market as a controlled comparison.';const u=Number(snapshot?.kpis?.users||0);$('decisionEvidenceV6').textContent=`Evidence: ${u>=25?'STRONG':u>=10?'MODERATE':'LIMITED'}`;$('decisionSampleV6').textContent=`${formatNumber(u)} observed users · ${formatNumber(snapshot?.scope?.matchingRecords||0)} records in scope`;$('decisionSampleV6').classList.toggle('warning',u<10);const opts='<option value="">Select market</option>'+m.map(i=>`<option value="${escapeHtml(i.name)}">${escapeHtml(prettyLocation(i.name))}</option>`).join('');for(const id of ['compareMarketA','compareMarketB']){const el=$(id);if(el)el.innerHTML=opts;}if(m[0])$('compareMarketA').value=m[0].name;if(m[1])$('compareMarketB').value=m[1].name;}
+  function renderMarketComparisonV6(){const s=state.snapshot,box=$('compareResultsV6'),an=$('compareMarketA')?.value,bn=$('compareMarketB')?.value;if(!s||!box||!an||!bn)return showToast('Select two markets to compare.');const arr=s.dimensions?.locations||[],a=arr.find(x=>x.name===an),b=arr.find(x=>x.name===bn);if(!a||!b)return;const card=i=>{const u=Number(i.users||0),e=Number(i.count||0);return`<article class="compare-result-card-v6"><h4>${escapeHtml(prettyLocation(i.name))}</h4><div class="compare-metrics-v6"><div><span>Reach</span><strong>${formatNumber(u)} users</strong></div><div><span>Engagement</span><strong>${formatNumber(u?e/u:0,1)} events/user</strong></div><div><span>Volume</span><strong>${formatBytes(i.bytes||0)}</strong></div></div></article>`};box.hidden=false;box.innerHTML=`<div class="compare-result-grid-v6">${card(a)}${card(b)}</div><button class="text-action" type="button" data-ai-question="Compare ${escapeHtml(a.name)} and ${escapeHtml(b.name)} by users, events and data volume. Which should we test first?">Ask Data Assistant about this →</button>`;}
+
   function renderDecisionSnapshot(snapshot) {
     const container = $('decisionSnapshot');
     if (!container) return;
@@ -565,6 +573,7 @@
     renderKpis(snapshot);
     renderAiStatus(snapshot);
     renderDecisionSnapshot(snapshot);
+    renderDecisionCockpitV6(snapshot);
     renderCharts(snapshot);
     renderSupportingDetails(snapshot);
     renderOpportunities(snapshot);
@@ -911,6 +920,8 @@
     }
   }
 
+  function bindDecisionCockpitV6(){document.addEventListener('click',(event)=>{if(event.target.closest('#compareMarketsBtn')){renderMarketComparisonV6();return;}if(event.target.closest('#cockpitAskBtn')){askStrategy(`Analyze ${$('cockpitWho')?.textContent||'the leading audience'} in ${$('cockpitWhere')?.textContent||'the leading market'} for a ${$('cockpitWhat')?.textContent||'product'} test. Explain the evidence, limitation and validation step.`);}});}
+
   function bindEvents() {
     const filterMap = { rangeFilter: 'range', segmentFilter: 'segment', locationFilter: 'location', fileTypeFilter: 'fileType' };
     for (const [id, key] of Object.entries(filterMap)) {
@@ -1007,6 +1018,7 @@
     if (!state.initialized) {
       state.initialized = true;
       bindEvents();
+      bindDecisionCockpitV6();
       renderActiveFilters();
       switchMode('dashboard');
       startAutoRefresh();
