@@ -281,6 +281,38 @@
             </div>
 
             <div
+              id="declineAnalyticsSenderPanel"
+              class="decline-analytics-config"
+            >
+              <label class="decline-analytics-toggle">
+                <input
+                  id="declineAnalyticsToggle"
+                  type="checkbox"
+                />
+                <span>
+                  <strong>Classroom Decline Analytics Test</strong>
+                  <small>
+                    Enable only for a classroom test file.
+                    Receivers will be clearly informed before responding.
+                  </small>
+                </span>
+              </label>
+            </div>
+
+            <div
+              id="declineAnalyticsReceiverNotice"
+              class="decline-analytics-notice"
+              hidden
+            >
+              <strong>CLASSROOM ANALYTICS TEST FILE</strong>
+              <p>
+                If you decline this file, AirGesture records only
+                your current AirGesture page, response time,
+                browser/device and optional decline reason.
+              </p>
+            </div>
+
+            <div
               id="senderTransferIdPanel"
               class="transfer-id-banner"
               hidden
@@ -318,6 +350,15 @@
             <div class="action-grid">
               <button id="copyBtn" class="btn glow">✋ → ✊ Air Copy</button>
               <button id="pasteBtn" class="btn primary" disabled>✊ → ✋ Air Paste</button>
+              <button
+                id="declineBtn"
+                class="btn decline-btn"
+                type="button"
+                hidden
+                disabled
+              >
+                No · Decline Test File
+              </button>
               <button id="cancelBtn" class="btn danger" disabled>Cancel</button>
             </div>
 
