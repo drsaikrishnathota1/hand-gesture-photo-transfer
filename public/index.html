@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#05070d" />
-  <title>AirGesture — Grab & Send</title>
-  <meta name="description" content="Two-device gesture file transfer: grab on one device, release on another." />
+  <meta name="theme-color" content="#ffffff" />
+  <title>AirGesture — Move Files With Your Hand</title>
+  <meta name="description" content="Two-device gesture file transfer." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -14,116 +14,114 @@
 <body>
   <section id="authGate" class="auth-gate">
     <div class="auth-card">
-      <div class="brand-orb">✋</div>
-      <p class="eyebrow">AIRGESTURE</p>
-      <h1>Grab it here.<br><span>Release it there.</span></h1>
-      <p class="sub">Sign in once, then transfer an image or document between two devices using only hand gestures.</p>
+      <div class="logo-orb">✋</div>
+      <div class="brand-mini">AIRGESTURE</div>
+      <h1>Move files.<br>Without touching.</h1>
+      <p>Sign in to start.</p>
       <div id="googleSignInButton" class="google-signin"></div>
       <p id="authMessage" class="auth-message">Loading secure sign-in…</p>
     </div>
   </section>
 
-  <div id="appShell" class="app-shell">
+  <div class="app-shell">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark">✋</div>
-        <div><strong>AirGesture</strong><span>Grab & Send</span></div>
+        <div class="brand-dot">✋</div>
+        <div>
+          <strong>AirGesture</strong>
+          <span>Grab · Send · Release</span>
+        </div>
       </div>
+
       <div id="authUser" class="auth-user" hidden>
         <img id="authUserPicture" alt="" hidden />
-        <div><strong id="authUserName">Signed in</strong><span id="authUserEmail"></span></div>
-        <button id="logoutBtn" class="link-btn" type="button">Sign out</button>
+        <div>
+          <strong id="authUserName">Signed in</strong>
+          <span id="authUserEmail"></span>
+        </div>
+        <button id="logoutBtn" class="text-btn" type="button">Sign out</button>
       </div>
     </header>
 
-    <main class="page">
-      <section class="intro">
-        <p class="eyebrow">TWO-DEVICE GESTURE TRANSFER</p>
-        <h1>Move a file with your hand.</h1>
-        <p>Sender: <b>open palm ✋ → close fist ✊</b>. Receiver: <b>close fist ✊ → open palm ✋</b>.</p>
-      </section>
-
-      <section class="setup-card">
-        <div class="role-switch" aria-label="Choose device role">
-          <button class="role-btn active" data-role="sender" type="button">Send from this device</button>
-          <button class="role-btn" data-role="receiver" type="button">Receive on this device</button>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <span class="kicker">AIRGESTURE</span>
+          <h1>Move a file<br><span>with your hand.</span></h1>
         </div>
-
-        <div class="room-controls">
-          <label>
-            <span>Room code</span>
-            <input id="roomInput" maxlength="12" autocomplete="off" />
-          </label>
-          <button id="newRoomBtn" class="secondary-btn" type="button">New code</button>
-          <button id="connectBtn" class="primary-btn" type="button">Connect</button>
-        </div>
-
-        <div class="connection-line">
-          <span id="connectionDot" class="dot"></span>
-          <span id="connectionText">Not connected</span>
+        <div id="connectionPill" class="connection-pill offline">
+          <i></i><span>Not connected</span>
         </div>
       </section>
 
-      <section class="transfer-grid">
-        <section class="camera-card">
-          <div class="card-head">
+      <section class="control-card">
+        <div class="role-switch">
+          <button class="role-btn active" data-role="sender" type="button">Send</button>
+          <button class="role-btn" data-role="receiver" type="button">Receive</button>
+        </div>
+
+        <div class="room-row">
+          <input id="roomInput" maxlength="12" placeholder="ROOM CODE" autocomplete="off" />
+          <button id="newRoomBtn" class="ghost-btn" type="button">New</button>
+          <button id="connectBtn" class="main-btn" type="button">Connect</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <section class="vision-card">
+          <div class="section-head">
             <div>
-              <p class="mini-label">LIVE HAND TRACKING</p>
-              <h2>Gesture camera</h2>
+              <span class="kicker">VISION</span>
+              <h2>Your hand is the controller.</h2>
             </div>
-            <span id="cameraStatus" class="pill">Camera off</span>
+            <span id="cameraStatus" class="status-chip">Camera off</span>
           </div>
 
-          <div class="camera-stage">
+          <div id="cameraStage" class="camera-stage">
             <video id="video" autoplay muted playsinline></video>
             <canvas id="overlay"></canvas>
 
-            <div id="floatingFile" class="floating-file" hidden>
-              <img id="floatingImage" alt="" hidden />
-              <div id="floatingDoc" class="doc-preview">
-                <span>📄</span>
-                <strong id="floatingFileName">Document</strong>
-                <small id="floatingFileMeta"></small>
-              </div>
-            </div>
-
-            <div class="gesture-hud">
-              <span id="gestureIcon">✋</span>
+            <div class="gesture-chip">
+              <span id="gestureIcon">·</span>
               <div>
-                <small>DETECTED</small>
-                <strong id="gestureName">Waiting for camera</strong>
+                <small>GESTURE</small>
+                <strong id="gestureName">Waiting</strong>
               </div>
             </div>
 
-            <div id="pulse" class="transfer-pulse"></div>
+            <div id="cameraPrompt" class="camera-prompt">
+              <div class="prompt-orb">✋</div>
+              <strong>Start camera</strong>
+              <span>Keep your face and hand inside the frame.</span>
+            </div>
           </div>
 
-          <div class="camera-actions">
-            <button id="startCameraBtn" class="primary-btn" type="button">Start camera</button>
-            <button id="stopCameraBtn" class="secondary-btn" type="button" disabled>Stop</button>
+          <div class="vision-actions">
+            <button id="startCameraBtn" class="main-btn" type="button">Start camera</button>
+            <button id="stopCameraBtn" class="ghost-btn" type="button" disabled>Stop</button>
           </div>
         </section>
 
-        <section class="action-card">
-          <div class="card-head">
+        <section class="transfer-card">
+          <div class="section-head">
             <div>
-              <p id="stepLabel" class="mini-label">SENDER</p>
-              <h2 id="actionTitle">Choose a file</h2>
+              <span id="roleLabel" class="kicker">SENDER</span>
+              <h2 id="transferTitle">Pick a file.</h2>
             </div>
-            <span id="actionBadge" class="pill">Waiting</span>
+            <span id="transferState" class="status-chip">Idle</span>
           </div>
 
           <div id="senderPanel">
-            <button id="chooseFileBtn" class="drop-zone" type="button">
-              <span class="upload-icon">↑</span>
-              <strong>Choose image or document</strong>
-              <small>Up to 100 MB</small>
+            <button id="chooseFileBtn" class="file-picker" type="button">
+              <span class="picker-plus">+</span>
+              <strong>Choose file</strong>
+              <small>Image, PDF, document · up to 100 MB</small>
             </button>
             <input id="fileInput" type="file" hidden />
 
-            <div id="selectedFileCard" class="file-card" hidden>
-              <div id="selectedThumb" class="file-thumb">📄</div>
-              <div class="file-copy">
+            <div id="selectedFileCard" class="selected-file" hidden>
+              <div id="selectedIcon" class="selected-icon">📄</div>
+              <div>
                 <strong id="selectedFileName"></strong>
                 <span id="selectedFileSize"></span>
               </div>
@@ -131,38 +129,52 @@
           </div>
 
           <div id="receiverPanel" hidden>
-            <div id="receiverWaiting" class="receiver-waiting">
-              <div class="radar"></div>
-              <strong>Waiting for sender</strong>
-              <span>Keep this room open. The incoming file will appear here.</span>
+            <div id="receiverStandby" class="receiver-standby">
+              <div class="standby-orb"></div>
+              <strong>Waiting for a file</strong>
+              <span>Stay in this room.</span>
             </div>
+
             <div id="receivedCard" class="received-card" hidden>
-              <div id="receivedPreview" class="received-preview"></div>
-              <div>
+              <div id="receivedPreview" class="received-preview">📄</div>
+              <div class="received-copy">
                 <strong id="receivedName"></strong>
                 <span id="receivedSize"></span>
               </div>
-              <a id="downloadBtn" class="primary-btn download-btn" href="#" download>Download</a>
+              <a id="downloadBtn" class="main-btn download-btn" href="#" download>Download</a>
             </div>
           </div>
 
-          <div class="instruction">
-            <div id="instructionHand" class="instruction-hand">✋</div>
+          <div class="gesture-guide">
+            <div id="guideHand" class="guide-hand">✋</div>
             <div>
-              <strong id="instructionTitle">Select a file first</strong>
-              <p id="instructionText">Then start the camera and show an open palm.</p>
+              <strong id="guideTitle">Open palm</strong>
+              <span id="guideText">Then close your fist to send.</span>
             </div>
           </div>
 
-          <div class="progress-wrap">
-            <div class="progress"><span id="progressBar"></span></div>
-            <span id="progressText">0%</span>
-          </div>
-
-          <div id="statusText" class="status-box">Choose a role, use the same room code on both devices, and connect.</div>
+          <div class="progress-line"><span id="progressBar"></span></div>
+          <div id="statusText" class="micro-status">Choose a room and connect.</div>
         </section>
       </section>
     </main>
+  </div>
+
+  <div id="incomingOverlay" class="incoming-overlay" hidden>
+    <div class="incoming-rings">
+      <div class="incoming-icon">⚡</div>
+    </div>
+    <span>INCOMING FILE</span>
+    <h2 id="incomingFileName">A file is waiting</h2>
+    <p>Start the camera. Make a fist ✊, then open your palm ✋.</p>
+    <button id="incomingStartCameraBtn" class="overlay-btn" type="button">Open camera</button>
+    <small>Gesture to receive</small>
+  </div>
+
+  <div id="sentOverlay" class="sent-overlay" hidden>
+    <div class="sent-check">✓</div>
+    <strong>Request sent</strong>
+    <span>Waiting for receiver</span>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
