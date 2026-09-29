@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#ffffff" />
   <title>AirGesture — Move Files With Your Hand</title>
-  <meta name="description" content="Two-device gesture file transfer." />
+  <meta name="description" content="Gesture-driven two-device file transfer." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
@@ -15,9 +15,9 @@
   <section id="authGate" class="auth-gate">
     <div class="auth-card">
       <div class="logo-orb">✋</div>
-      <div class="brand-mini">AIRGESTURE</div>
+      <span class="brand-mini">AIRGESTURE</span>
       <h1>Move files.<br>Without touching.</h1>
-      <p>Sign in to start.</p>
+      <p>Sign in to continue.</p>
       <div id="googleSignInButton" class="google-signin"></div>
       <p id="authMessage" class="auth-message">Loading secure sign-in…</p>
     </div>
@@ -27,18 +27,12 @@
     <header class="topbar">
       <div class="brand">
         <div class="brand-dot">✋</div>
-        <div>
-          <strong>AirGesture</strong>
-          <span>Grab · Send · Release</span>
-        </div>
+        <div><strong>AirGesture</strong><span>Grab · Send · Release</span></div>
       </div>
 
       <div id="authUser" class="auth-user" hidden>
         <img id="authUserPicture" alt="" hidden />
-        <div>
-          <strong id="authUserName">Signed in</strong>
-          <span id="authUserEmail"></span>
-        </div>
+        <div><strong id="authUserName">Signed in</strong><span id="authUserEmail"></span></div>
         <button id="logoutBtn" class="text-btn" type="button">Sign out</button>
       </div>
     </header>
@@ -49,19 +43,20 @@
           <span class="kicker">AIRGESTURE</span>
           <h1>Move a file<br><span>with your hand.</span></h1>
         </div>
+
         <div id="connectionPill" class="connection-pill offline">
           <i></i><span>Not connected</span>
         </div>
       </section>
 
       <section class="control-card">
-        <div class="role-switch">
+        <div class="role-switch" aria-label="Choose role">
           <button class="role-btn active" data-role="sender" type="button">Send</button>
           <button class="role-btn" data-role="receiver" type="button">Receive</button>
         </div>
 
         <div class="room-row">
-          <input id="roomInput" maxlength="12" placeholder="ROOM CODE" autocomplete="off" />
+          <input id="roomInput" maxlength="12" placeholder="ROOM CODE" autocomplete="off" spellcheck="false" />
           <button id="newRoomBtn" class="ghost-btn" type="button">New</button>
           <button id="connectBtn" class="main-btn" type="button">Connect</button>
         </div>
@@ -83,10 +78,7 @@
 
             <div class="gesture-chip">
               <span id="gestureIcon">·</span>
-              <div>
-                <small>GESTURE</small>
-                <strong id="gestureName">Waiting</strong>
-              </div>
+              <div><small>GESTURE</small><strong id="gestureName">Waiting</strong></div>
             </div>
 
             <div id="cameraPrompt" class="camera-prompt">
@@ -115,13 +107,13 @@
             <button id="chooseFileBtn" class="file-picker" type="button">
               <span class="picker-plus">+</span>
               <strong>Choose file</strong>
-              <small>Image, PDF, document · up to 100 MB</small>
+              <small>Up to 100 MB</small>
             </button>
             <input id="fileInput" type="file" hidden />
 
             <div id="selectedFileCard" class="selected-file" hidden>
               <div id="selectedIcon" class="selected-icon">📄</div>
-              <div>
+              <div class="file-copy">
                 <strong id="selectedFileName"></strong>
                 <span id="selectedFileSize"></span>
               </div>
@@ -131,7 +123,7 @@
           <div id="receiverPanel" hidden>
             <div id="receiverStandby" class="receiver-standby">
               <div class="standby-orb"></div>
-              <strong>Waiting for a file</strong>
+              <strong>Waiting</strong>
               <span>Stay in this room.</span>
             </div>
 
@@ -147,10 +139,7 @@
 
           <div class="gesture-guide">
             <div id="guideHand" class="guide-hand">✋</div>
-            <div>
-              <strong id="guideTitle">Open palm</strong>
-              <span id="guideText">Then close your fist to send.</span>
-            </div>
+            <div><strong id="guideTitle">Open palm</strong><span id="guideText">Then close your fist.</span></div>
           </div>
 
           <div class="progress-line"><span id="progressBar"></span></div>
@@ -160,15 +149,13 @@
     </main>
   </div>
 
-  <div id="incomingOverlay" class="incoming-overlay" hidden>
-    <div class="incoming-rings">
-      <div class="incoming-icon">⚡</div>
-    </div>
-    <span>INCOMING FILE</span>
+  <div id="incomingOverlay" class="incoming-overlay" hidden aria-live="assertive">
+    <div class="incoming-rings"><div class="incoming-icon">⚡</div></div>
+    <span class="incoming-label">INCOMING FILE</span>
     <h2 id="incomingFileName">A file is waiting</h2>
-    <p>Start the camera. Make a fist ✊, then open your palm ✋.</p>
-    <button id="incomingStartCameraBtn" class="overlay-btn" type="button">Open camera</button>
-    <small>Gesture to receive</small>
+    <p id="incomingInstruction">Open camera. Make a fist ✊, then open your palm ✋.</p>
+    <button id="incomingActionBtn" class="overlay-btn" type="button">Open camera</button>
+    <small id="incomingMeta">Gesture to receive</small>
   </div>
 
   <div id="sentOverlay" class="sent-overlay" hidden>

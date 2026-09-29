@@ -202,7 +202,7 @@
       return;
     }
 
-    showLogin('Sign in with Google to enter the DBA 802 lab.');
+    showLogin('Sign in with Google to continue.');
     await renderGoogleButton();
   }
 

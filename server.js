@@ -2931,6 +2931,7 @@ function createServer() {
         receivers: new Map(),
         receiverStates: new Map(),
         file: null,
+        intent: null,
         sessionId: null,
         sessionReady: null,
         createdAt: Date.now(),
@@ -3018,6 +3019,8 @@ function createServer() {
 
     if (ws.role === 'sender' && room.host === ws) {
       room.host = null;
+      room.intent = null;
+      emitBroadcastRoom(room, { type: 'broadcast-intent-cancelled' });
       emitBroadcastRoom(room, { type: 'broadcast-host-left', room: room.code });
     } else if (ws.role === 'receiver' && ws.clientId) {
       room.receivers.delete(ws.clientId);
@@ -3108,12 +3111,15 @@ function createServer() {
       hostToken: role === 'sender' ? room.hostToken : undefined,
       stats: broadcastStats(room),
       file: publicBroadcastFile(room.file),
+      intent: room.intent || null,
       receiverLimit: CONFIGURED_RECEIVER_LIMIT || null,
       network: ws.network || {}
     });
 
     if (role === 'receiver' && room.file) {
       sendJson(ws, { type: 'broadcast-file-ready', file: publicBroadcastFile(room.file), stats: broadcastStats(room) });
+    } else if (role === 'receiver' && room.intent) {
+      sendJson(ws, { type: 'broadcast-intent', intent: room.intent });
     }
 
     emitBroadcastStats(room);
@@ -3287,6 +3293,7 @@ function createServer() {
           expiresAt: new Date(now + BROADCAST_TTL_MS).toISOString()
         };
         room.updatedAt = now;
+        room.intent = null;
         resetReceiverStatesForFile(room);
 
         // The file transfer must never fail just because
@@ -3680,6 +3687,47 @@ function createServer() {
       if (ws.mode === 'broadcast' && ws.room) {
         const room = broadcastRooms.get(ws.room);
         if (!room) return;
+
+        if (data.type === 'broadcast-intent' && ws.role === 'sender' && room.host === ws) {
+          const rawFile = data.file || {};
+          const size = Number(rawFile.size);
+
+          if (!Number.isFinite(size) || size < 0 || size > MAX_BROADCAST_FILE_BYTES) {
+            return sendJson(ws, { type: 'error', message: 'Transfer request must be 100 MB or smaller.' });
+          }
+
+          room.intent = {
+            id: crypto.randomUUID(),
+            name: sanitizeFilename(rawFile.name),
+            size,
+            mime: String(rawFile.mime || 'application/octet-stream').slice(0, 120),
+            sentAt: new Date().toISOString()
+          };
+
+          room.updatedAt = Date.now();
+
+          for (const receiver of room.receivers.values()) {
+            sendJson(receiver, {
+              type: 'broadcast-intent',
+              intent: room.intent
+            });
+          }
+
+          return;
+        }
+
+        if (data.type === 'broadcast-intent-cancel' && ws.role === 'sender' && room.host === ws) {
+          room.intent = null;
+          room.updatedAt = Date.now();
+
+          for (const receiver of room.receivers.values()) {
+            sendJson(receiver, {
+              type: 'broadcast-intent-cancelled'
+            });
+          }
+
+          return;
+        }
 
         if (data.type === 'broadcast-accept' && ws.role === 'receiver') {
           if (!room.file || data.fileId !== room.file.id) {
