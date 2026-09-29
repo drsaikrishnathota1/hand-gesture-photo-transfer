@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#ffffff" />
-  <title>AirGesture — Move Files With Your Hand</title>
+  <meta name="theme-color" content="#09111f" />
+  <title>AirGesture — Grab · Send · Release</title>
   <meta name="description" content="Gesture-driven two-device file transfer." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,10 +13,10 @@
 </head>
 <body>
   <section id="authGate" class="auth-gate">
-    <div class="auth-card">
+    <div class="auth-card glass">
       <div class="logo-orb">✋</div>
-      <span class="brand-mini">AIRGESTURE</span>
-      <h1>Move files.<br>Without touching.</h1>
+      <span class="eyebrow">AIRGESTURE</span>
+      <h1>Move files.<br><span>Without touching.</span></h1>
       <p>Sign in to continue.</p>
       <div id="googleSignInButton" class="google-signin"></div>
       <p id="authMessage" class="auth-message">Loading secure sign-in…</p>
@@ -40,17 +40,14 @@
     <main class="shell">
       <section class="hero">
         <div>
-          <span class="kicker">AIRGESTURE</span>
-          <h1>Move a file<br><span>with your hand.</span></h1>
+          <span class="eyebrow">AIRGESTURE</span>
+          <h1>Grab here.<br><span>Release there.</span></h1>
         </div>
-
-        <div id="connectionPill" class="connection-pill offline">
-          <i></i><span>Not connected</span>
-        </div>
+        <div id="connectionPill" class="connection-pill offline"><i></i><span>Not connected</span></div>
       </section>
 
-      <section class="control-card">
-        <div class="role-switch" aria-label="Choose role">
+      <section class="control-card glass">
+        <div class="role-switch">
           <button class="role-btn active" data-role="sender" type="button">Send</button>
           <button class="role-btn" data-role="receiver" type="button">Receive</button>
         </div>
@@ -63,11 +60,11 @@
       </section>
 
       <section class="workspace">
-        <section class="vision-card">
+        <section class="vision-card glass">
           <div class="section-head">
             <div>
-              <span class="kicker">VISION</span>
-              <h2>Your hand is the controller.</h2>
+              <span class="eyebrow">PRIVATE VISION</span>
+              <h2>Only your hand stays clear.</h2>
             </div>
             <span id="cameraStatus" class="status-chip">Camera off</span>
           </div>
@@ -75,6 +72,11 @@
           <div id="cameraStage" class="camera-stage">
             <video id="video" autoplay muted playsinline></video>
             <canvas id="overlay"></canvas>
+
+            <div class="privacy-badge">
+              <span>◉</span>
+              <small>FACE PRIVACY ON</small>
+            </div>
 
             <div class="gesture-chip">
               <span id="gestureIcon">·</span>
@@ -84,7 +86,7 @@
             <div id="cameraPrompt" class="camera-prompt">
               <div class="prompt-orb">✋</div>
               <strong>Start camera</strong>
-              <span>Keep your face and hand inside the frame.</span>
+              <span>Your face stays blurred. Your hand stays clear.</span>
             </div>
           </div>
 
@@ -94,10 +96,10 @@
           </div>
         </section>
 
-        <section class="transfer-card">
+        <section class="transfer-card glass">
           <div class="section-head">
             <div>
-              <span id="roleLabel" class="kicker">SENDER</span>
+              <span id="roleLabel" class="eyebrow">SENDER</span>
               <h2 id="transferTitle">Pick a file.</h2>
             </div>
             <span id="transferState" class="status-chip">Idle</span>
@@ -149,9 +151,20 @@
     </main>
   </div>
 
+  <div id="transferBubble" class="transfer-bubble" hidden>
+    <div id="bubbleVisual" class="bubble-visual">
+      <div id="bubblePreview" class="bubble-preview">📄</div>
+    </div>
+    <div class="bubble-glow"></div>
+  </div>
+
   <div id="incomingOverlay" class="incoming-overlay" hidden aria-live="assertive">
-    <div class="incoming-rings"><div class="incoming-icon">⚡</div></div>
-    <span class="incoming-label">INCOMING FILE</span>
+    <div id="incomingBubble" class="incoming-bubble">
+      <div class="incoming-core">✦</div>
+      <div class="incoming-ring ring-a"></div>
+      <div class="incoming-ring ring-b"></div>
+    </div>
+    <span class="incoming-label">INCOMING</span>
     <h2 id="incomingFileName">A file is waiting</h2>
     <p id="incomingInstruction">Open camera. Make a fist ✊, then open your palm ✋.</p>
     <button id="incomingActionBtn" class="overlay-btn" type="button">Open camera</button>
